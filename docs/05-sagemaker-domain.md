@@ -8,12 +8,12 @@
 
 > 📌 本文档使用以下占位符，实施时请替换为实际值。
 
-| 占位符 | 说明 | 示例值 |
-|--------|------|--------|
-| `vpc-xxxxxxxxx` | VPC ID（待确认） | `vpc-0abc123def456` |
-| `subnet-a`, `subnet-b` | 子网 ID（待确认） | `subnet-0abc123def456` |
-| `sg-sagemaker-studio` | 安全组名称 | 按规范创建 |
-| `d-xxxxxxxxx` | Domain ID（创建后获取） | `d-abc123def456` |
+| 占位符                 | 说明                    | 示例值                 |
+| ---------------------- | ----------------------- | ---------------------- |
+| `vpc-xxxxxxxxx`        | VPC ID（待确认）        | `vpc-0abc123def456`    |
+| `subnet-a`, `subnet-b` | 子网 ID（待确认）       | `subnet-0abc123def456` |
+| `sg-sagemaker-studio`  | 安全组名称              | 按规范创建             |
+| `d-xxxxxxxxx`          | Domain ID（创建后获取） | `d-abc123def456`       |
 
 ---
 
@@ -292,16 +292,298 @@ Domain 被依赖:
 
 ---
 
-## 10. 待完善内容
+## 10. CLI 创建命令
 
-- [ ] 完整的 CLI/CloudFormation 创建命令
-- [ ] Lifecycle Configuration 脚本
-- [ ] EFS 加密配置
-- [ ] 自定义镜像配置
+### 10.1 创建 SageMaker Domain
+
+```bash
+# 创建 Domain（VPCOnly 模式）
+aws sagemaker create-domain \
+  --domain-name ml-platform-domain \
+  --auth-mode IAM \
+  --vpc-id vpc-xxxxxxxxx \
+  --subnet-ids subnet-aaaaaaaa subnet-bbbbbbbb \
+  --app-network-access-type VpcOnly \
+  --default-user-settings '{
+    "SecurityGroups": ["sg-sagemaker-studio"]
+  }' \
+  --default-space-settings '{
+    "SecurityGroups": ["sg-sagemaker-studio"]
+  }' \
+  --tags \
+    Key=Name,Value=ml-platform-domain \
+    Key=Environment,Value=production \
+    Key=ManagedBy,Value=platform-team
+```
+
+### 10.2 查询 Domain 状态
+
+```bash
+# 获取 Domain ID 和状态
+aws sagemaker list-domains
+
+# 详细信息（替换 d-xxxxxxxxx 为实际 Domain ID）
+aws sagemaker describe-domain --domain-id d-xxxxxxxxx
+```
+
+### 10.3 更新 Domain 设置
+
+```bash
+# 更新默认用户设置（如修改默认实例类型）
+aws sagemaker update-domain \
+  --domain-id d-xxxxxxxxx \
+  --default-user-settings '{
+    "JupyterLabAppSettings": {
+      "DefaultResourceSpec": {
+        "InstanceType": "ml.t3.medium"
+      }
+    }
+  }'
+```
 
 ---
 
-## 11. 检查清单
+## 11. Lifecycle Configuration 脚本
+
+### 11.1 创建 Lifecycle Config（自动关闭空闲实例）
+
+> 💡 此脚本检测 JupyterLab 空闲状态，超时后自动关闭实例以节省成本。
+
+**步骤 1：创建脚本文件** `auto-shutdown.sh`
+
+```bash
+#!/bin/bash
+# auto-shutdown.sh - 空闲检测与自动关闭脚本
+
+set -e
+
+# 配置参数
+IDLE_TIMEOUT_MINUTES=${IDLE_TIMEOUT_MINUTES:-60}
+LOG_FILE="/var/log/auto-shutdown.log"
+
+echo "$(date): Auto-shutdown script started. Idle timeout: ${IDLE_TIMEOUT_MINUTES} minutes" >> $LOG_FILE
+
+# 安装依赖（如果需要）
+pip install -q sagemaker-studio-analytics-extension 2>/dev/null || true
+
+# 后台运行空闲检测
+nohup bash -c '
+IDLE_TIMEOUT_SECONDS=$((IDLE_TIMEOUT_MINUTES * 60))
+LAST_ACTIVITY=$(date +%s)
+
+while true; do
+    sleep 60
+
+    # 检查是否有活跃的 kernel
+    ACTIVE_KERNELS=$(jupyter kernelgateway --list 2>/dev/null | grep -c "running" || echo "0")
+
+    if [ "$ACTIVE_KERNELS" -gt 0 ]; then
+        LAST_ACTIVITY=$(date +%s)
+    fi
+
+    CURRENT_TIME=$(date +%s)
+    IDLE_TIME=$((CURRENT_TIME - LAST_ACTIVITY))
+
+    if [ $IDLE_TIME -gt $IDLE_TIMEOUT_SECONDS ]; then
+        echo "$(date): Idle timeout reached. Shutting down..." >> /var/log/auto-shutdown.log
+
+        # 调用 SageMaker API 关闭 App
+        aws sagemaker delete-app \
+            --domain-id $DOMAIN_ID \
+            --user-profile-name $USER_PROFILE_NAME \
+            --app-type JupyterLab \
+            --app-name default 2>/dev/null || true
+
+        break
+    fi
+done
+' &
+
+echo "$(date): Auto-shutdown monitor started in background" >> $LOG_FILE
+```
+
+**步骤 2：Base64 编码并创建 Lifecycle Config**
+
+```bash
+# 编码脚本
+LCC_CONTENT=$(cat auto-shutdown.sh | base64 -w 0)
+
+# 创建 Lifecycle Configuration
+aws sagemaker create-studio-lifecycle-config \
+  --studio-lifecycle-config-name auto-shutdown-60min \
+  --studio-lifecycle-config-app-type JupyterLab \
+  --studio-lifecycle-config-content "$LCC_CONTENT"
+```
+
+**步骤 3：绑定到 Domain（应用于所有用户）**
+
+```bash
+aws sagemaker update-domain \
+  --domain-id d-xxxxxxxxx \
+  --default-user-settings '{
+    "JupyterLabAppSettings": {
+      "DefaultResourceSpec": {
+        "InstanceType": "ml.t3.medium",
+        "LifecycleConfigArn": "arn:aws:sagemaker:{region}:{account-id}:studio-lifecycle-config/auto-shutdown-60min"
+      },
+      "LifecycleConfigArns": [
+        "arn:aws:sagemaker:{region}:{account-id}:studio-lifecycle-config/auto-shutdown-60min"
+      ]
+    }
+  }'
+```
+
+### 11.2 简化版：使用 AWS 官方扩展
+
+> AWS 提供了官方的 SageMaker Studio 自动关闭扩展，可作为替代方案。
+
+```bash
+# 在 JupyterLab 中安装（用户手动或通过 Lifecycle Config）
+pip install sagemaker-studio-auto-shutdown-extension
+
+# 配置空闲超时（分钟）
+jupyter server extension enable --py sagemaker_studio_auto_shutdown
+```
+
+---
+
+## 12. EFS 加密配置
+
+### 12.1 SageMaker 自动创建的 EFS
+
+Domain 创建时会自动生成 EFS 文件系统用于 Home 目录：
+
+| 配置项     | 默认值              | 说明               |
+| ---------- | ------------------- | ------------------ |
+| 加密       | **默认启用（SSE）** | 使用 AWS 托管密钥  |
+| 性能模式   | General Purpose     | 适合大多数工作负载 |
+| 吞吐量模式 | Bursting            | 按需扩展           |
+
+> 📌 SageMaker 自动创建的 EFS 默认启用加密（SSE），使用 `aws/elasticfilesystem` 托管密钥。如需使用 CMK，需在 Domain 创建前准备。
+
+### 12.2 使用自定义 KMS Key 加密 EFS（可选）
+
+如需更严格的密钥管理，可在创建 Domain 时指定 KMS Key：
+
+```bash
+aws sagemaker create-domain \
+  --domain-name ml-platform-domain \
+  --auth-mode IAM \
+  --vpc-id vpc-xxxxxxxxx \
+  --subnet-ids subnet-aaaaaaaa subnet-bbbbbbbb \
+  --app-network-access-type VpcOnly \
+  --home-efs-file-system-kms-key-id arn:aws:kms:{region}:{account-id}:key/{key-id} \
+  --default-user-settings '{
+    "SecurityGroups": ["sg-sagemaker-studio"]
+  }' \
+  --tags Key=Name,Value=ml-platform-domain
+```
+
+### 12.3 验证 EFS 加密状态
+
+```bash
+# 获取 Domain 关联的 EFS ID
+DOMAIN_INFO=$(aws sagemaker describe-domain --domain-id d-xxxxxxxxx)
+EFS_ID=$(echo $DOMAIN_INFO | jq -r '.HomeEfsFileSystemId')
+
+# 检查 EFS 加密配置
+aws efs describe-file-systems --file-system-id $EFS_ID \
+  --query 'FileSystems[0].{Encrypted:Encrypted,KmsKeyId:KmsKeyId}'
+```
+
+---
+
+## 13. 自定义镜像配置（可选）
+
+### 13.1 适用场景
+
+| 场景          | 说明                                | 建议         |
+| ------------- | ----------------------------------- | ------------ |
+| 预装特定库    | 团队通用依赖（如 PyTorch 特定版本） | 按需配置     |
+| 合规/安全加固 | 移除不必要组件、加固系统            | 按需配置     |
+| 离线/内网环境 | 所有依赖打包进镜像                  | 按需配置     |
+| 一般开发      | 使用 SageMaker 官方镜像             | **默认即可** |
+
+### 13.2 创建自定义镜像
+
+**步骤 1：准备 Dockerfile**
+
+```dockerfile
+# 基于 SageMaker 官方 JupyterLab 镜像
+FROM 763104351884.dkr.ecr.{region}.amazonaws.com/pytorch-training:2.0.1-gpu-py310-cu118-ubuntu20.04-sagemaker
+
+# 安装团队通用依赖
+RUN pip install --no-cache-dir \
+    pandas==2.0.3 \
+    scikit-learn==1.3.0 \
+    xgboost==1.7.6 \
+    lightgbm==4.0.0
+
+# 配置环境
+ENV TEAM_NAME="ml-platform"
+```
+
+**步骤 2：构建并推送到 ECR**
+
+```bash
+# 登录 ECR
+aws ecr get-login-password --region {region} | \
+  docker login --username AWS --password-stdin {account-id}.dkr.ecr.{region}.amazonaws.com
+
+# 创建 ECR 仓库
+aws ecr create-repository --repository-name sagemaker-custom-image
+
+# 构建并推送
+docker build -t sagemaker-custom-image:latest .
+docker tag sagemaker-custom-image:latest {account-id}.dkr.ecr.{region}.amazonaws.com/sagemaker-custom-image:latest
+docker push {account-id}.dkr.ecr.{region}.amazonaws.com/sagemaker-custom-image:latest
+```
+
+**步骤 3：创建 SageMaker Image**
+
+```bash
+# 创建 Image
+aws sagemaker create-image \
+  --image-name ml-platform-custom \
+  --role-arn arn:aws:iam::{account-id}:role/SageMakerImageRole
+
+# 创建 Image Version
+aws sagemaker create-image-version \
+  --image-name ml-platform-custom \
+  --base-image {account-id}.dkr.ecr.{region}.amazonaws.com/sagemaker-custom-image:latest
+
+# 创建 App Image Config
+aws sagemaker create-app-image-config \
+  --app-image-config-name ml-platform-custom-config \
+  --jupyter-lab-app-image-config '{
+    "FileSystemConfig": {
+      "MountPath": "/home/sagemaker-user",
+      "DefaultUid": 1000,
+      "DefaultGid": 100
+    }
+  }'
+```
+
+**步骤 4：关联到 Domain**
+
+```bash
+aws sagemaker update-domain \
+  --domain-id d-xxxxxxxxx \
+  --default-user-settings '{
+    "JupyterLabAppSettings": {
+      "CustomImages": [
+        {
+          "ImageName": "ml-platform-custom",
+          "AppImageConfigName": "ml-platform-custom-config"
+        }
+      ]
+    }
+  }'
+```
+
+---
+
+## 14. 检查清单
 
 ### 创建前
 

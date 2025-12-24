@@ -313,16 +313,273 @@ UserProfile 配置:
 
 ---
 
-## 10. 待完善内容
+## 10. CLI 创建命令
 
-- [ ] 完整的 CLI/CloudFormation 创建命令
-- [ ] Lifecycle Configuration 脚本
-- [ ] User Profile 批量创建脚本
-- [ ] 用户自助服务门户（可选）
+### 10.1 创建单个 User Profile
+
+```bash
+# 创建 User Profile
+aws sagemaker create-user-profile \
+  --domain-id d-xxxxxxxxx \
+  --user-profile-name profile-rc-alice \
+  --user-settings '{
+    "ExecutionRole": "arn:aws:iam::{account-id}:role/SageMaker-RC-ProjectA-ExecutionRole",
+    "SecurityGroups": ["sg-sagemaker-studio"]
+  }' \
+  --tags \
+    Key=Team,Value=risk-control \
+    Key=Project,Value=project-a \
+    Key=Owner,Value=sm-rc-alice \
+    Key=Environment,Value=production
+```
+
+### 10.2 查询 User Profile
+
+```bash
+# 列出 Domain 下所有 User Profiles
+aws sagemaker list-user-profiles --domain-id d-xxxxxxxxx
+
+# 查看单个 Profile 详情
+aws sagemaker describe-user-profile \
+  --domain-id d-xxxxxxxxx \
+  --user-profile-name profile-rc-alice
+```
+
+### 10.3 更新 User Profile
+
+```bash
+# 更新 Execution Role（用户换项目时）
+aws sagemaker update-user-profile \
+  --domain-id d-xxxxxxxxx \
+  --user-profile-name profile-rc-alice \
+  --user-settings '{
+    "ExecutionRole": "arn:aws:iam::{account-id}:role/SageMaker-RC-ProjectB-ExecutionRole"
+  }'
+```
+
+### 10.4 删除 User Profile
+
+```bash
+# 先删除用户的所有 Apps
+aws sagemaker list-apps \
+  --domain-id d-xxxxxxxxx \
+  --user-profile-name profile-rc-alice
+
+# 删除每个 App（如有）
+aws sagemaker delete-app \
+  --domain-id d-xxxxxxxxx \
+  --user-profile-name profile-rc-alice \
+  --app-type JupyterLab \
+  --app-name default
+
+# 等待 App 删除完成后，删除 Profile
+aws sagemaker delete-user-profile \
+  --domain-id d-xxxxxxxxx \
+  --user-profile-name profile-rc-alice
+```
 
 ---
 
-## 11. 检查清单
+## 11. Lifecycle Configuration
+
+> 📌 Lifecycle Configuration 在 Domain 级别配置，所有 User Profile 继承。详见 `05-sagemaker-domain.md` § 11。
+
+如需为特定用户配置不同的 Lifecycle Config：
+
+```bash
+aws sagemaker update-user-profile \
+  --domain-id d-xxxxxxxxx \
+  --user-profile-name profile-rc-alice \
+  --user-settings '{
+    "JupyterLabAppSettings": {
+      "DefaultResourceSpec": {
+        "LifecycleConfigArn": "arn:aws:sagemaker:{region}:{account-id}:studio-lifecycle-config/custom-config"
+      }
+    }
+  }'
+```
+
+---
+
+## 12. 批量创建脚本
+
+### 12.1 用户配置文件 `users.csv`
+
+```csv
+profile_name,iam_user,team,project,execution_role
+profile-rc-alice,sm-rc-alice,risk-control,project-a,SageMaker-RC-ProjectA-ExecutionRole
+profile-rc-bob,sm-rc-bob,risk-control,project-a,SageMaker-RC-ProjectA-ExecutionRole
+profile-rc-carol,sm-rc-carol,risk-control,project-a,SageMaker-RC-ProjectA-ExecutionRole
+profile-rc-david,sm-rc-david,risk-control,project-b,SageMaker-RC-ProjectB-ExecutionRole
+profile-rc-emma,sm-rc-emma,risk-control,project-b,SageMaker-RC-ProjectB-ExecutionRole
+profile-algo-frank,sm-algo-frank,algorithm,project-x,SageMaker-Algo-ProjectX-ExecutionRole
+profile-algo-grace,sm-algo-grace,algorithm,project-x,SageMaker-Algo-ProjectX-ExecutionRole
+profile-algo-henry,sm-algo-henry,algorithm,project-x,SageMaker-Algo-ProjectX-ExecutionRole
+profile-algo-ivy,sm-algo-ivy,algorithm,project-y,SageMaker-Algo-ProjectY-ExecutionRole
+profile-algo-jack,sm-algo-jack,algorithm,project-y,SageMaker-Algo-ProjectY-ExecutionRole
+```
+
+### 12.2 批量创建脚本 `create-user-profiles.sh`
+
+```bash
+#!/bin/bash
+# create-user-profiles.sh - 批量创建 User Profiles
+# 用法: ./create-user-profiles.sh <domain-id> <account-id> <users.csv>
+
+set -e
+
+DOMAIN_ID="${1:?Usage: $0 <domain-id> <account-id> <users.csv>}"
+ACCOUNT_ID="${2:?Usage: $0 <domain-id> <account-id> <users.csv>}"
+USERS_FILE="${3:?Usage: $0 <domain-id> <account-id> <users.csv>}"
+SECURITY_GROUP="sg-sagemaker-studio"  # 按需修改
+
+# 跳过 CSV 头行
+tail -n +2 "$USERS_FILE" | while IFS=',' read -r profile_name iam_user team project execution_role; do
+    echo "Creating User Profile: $profile_name"
+
+    # 检查是否已存在
+    if aws sagemaker describe-user-profile \
+        --domain-id "$DOMAIN_ID" \
+        --user-profile-name "$profile_name" >/dev/null 2>&1; then
+        echo "  → Already exists, skipping."
+        continue
+    fi
+
+    # 创建 User Profile
+    aws sagemaker create-user-profile \
+        --domain-id "$DOMAIN_ID" \
+        --user-profile-name "$profile_name" \
+        --user-settings "{
+            \"ExecutionRole\": \"arn:aws:iam::${ACCOUNT_ID}:role/${execution_role}\",
+            \"SecurityGroups\": [\"${SECURITY_GROUP}\"]
+        }" \
+        --tags \
+            Key=Team,Value="$team" \
+            Key=Project,Value="$project" \
+            Key=Owner,Value="$iam_user" \
+            Key=Environment,Value=production
+
+    echo "  → Created successfully."
+
+    # 避免 API 限流
+    sleep 1
+done
+
+echo ""
+echo "Batch creation completed. Verifying..."
+aws sagemaker list-user-profiles --domain-id "$DOMAIN_ID" --query 'UserProfiles[].UserProfileName'
+```
+
+### 12.3 执行批量创建
+
+```bash
+# 添加执行权限
+chmod +x create-user-profiles.sh
+
+# 执行（替换实际值）
+./create-user-profiles.sh d-xxxxxxxxx 123456789012 users.csv
+```
+
+### 12.4 批量删除脚本（清理用）
+
+```bash
+#!/bin/bash
+# delete-user-profiles.sh - 批量删除 User Profiles（慎用）
+# 用法: ./delete-user-profiles.sh <domain-id> <users.csv>
+
+set -e
+
+DOMAIN_ID="${1:?Usage: $0 <domain-id> <users.csv>}"
+USERS_FILE="${2:?Usage: $0 <domain-id> <users.csv>}"
+
+echo "⚠️  WARNING: This will delete User Profiles and their Home directories!"
+read -p "Type 'DELETE' to confirm: " confirm
+[ "$confirm" != "DELETE" ] && echo "Aborted." && exit 1
+
+tail -n +2 "$USERS_FILE" | while IFS=',' read -r profile_name _; do
+    echo "Deleting: $profile_name"
+
+    # 先删除所有 Apps
+    APPS=$(aws sagemaker list-apps --domain-id "$DOMAIN_ID" --user-profile-name "$profile_name" \
+        --query 'Apps[?Status!=`Deleted`].[AppType,AppName]' --output text 2>/dev/null || true)
+
+    if [ -n "$APPS" ]; then
+        echo "$APPS" | while read -r app_type app_name; do
+            echo "  Deleting App: $app_type/$app_name"
+            aws sagemaker delete-app \
+                --domain-id "$DOMAIN_ID" \
+                --user-profile-name "$profile_name" \
+                --app-type "$app_type" \
+                --app-name "$app_name" 2>/dev/null || true
+        done
+        echo "  Waiting for Apps to be deleted..."
+        sleep 30
+    fi
+
+    # 删除 Profile
+    aws sagemaker delete-user-profile \
+        --domain-id "$DOMAIN_ID" \
+        --user-profile-name "$profile_name" 2>/dev/null || true
+
+    echo "  → Deleted."
+    sleep 1
+done
+
+echo "Batch deletion completed."
+```
+
+---
+
+## 13. 用户自助服务门户（可选）
+
+> 📌 此功能为可选的高级配置，适用于需要"用户自助申请 Profile"的大规模场景。
+
+### 13.1 方案概述
+
+| 方案                     | 复杂度 | 说明                                       |
+| ------------------------ | ------ | ------------------------------------------ |
+| **ServiceNow 集成**      | 高     | 企业 ITSM 集成，适合已有 ServiceNow 的组织 |
+| **API Gateway + Lambda** | 中     | 自建审批流程，Lambda 调用 SageMaker API    |
+| **Step Functions**       | 中     | 编排审批工作流                             |
+| **手工 + Jira**          | 低     | 通过 Jira Ticket 触发管理员手动创建        |
+
+### 13.2 简易自助流程（API Gateway + Lambda）
+
+```
+用户提交申请（表单）
+    │
+    ▼
+API Gateway → Lambda（验证 + 记录）
+    │
+    ▼
+SNS 通知 → 管理员审批
+    │
+    ▼
+管理员点击审批链接
+    │
+    ▼
+Lambda 调用 create-user-profile
+    │
+    ▼
+通知用户创建完成
+```
+
+### 13.3 建议
+
+对于 12-18 人规模的 ML 平台：
+
+- **推荐**：手工创建 + 批量脚本（本文档 § 12）
+- **不推荐**：过度投入自助门户开发
+
+自助门户适用于：
+
+- 用户规模 > 50 人
+- 高频的用户增减（每周多次）
+- 已有成熟的 IAM 自助体系可复用
+
+---
+
+## 14. 检查清单
 
 ### 创建前
 
