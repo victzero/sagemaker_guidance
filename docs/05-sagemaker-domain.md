@@ -9,6 +9,7 @@
 ### 1.1 什么是 Domain
 
 SageMaker Domain 是 SageMaker Studio 的逻辑边界，包含：
+
 - User Profiles（用户配置）
 - Shared Spaces（共享空间）
 - Apps（应用实例）
@@ -16,10 +17,10 @@ SageMaker Domain 是 SageMaker Studio 的逻辑边界，包含：
 
 ### 1.2 Domain 策略
 
-| 方案 | 优点 | 缺点 | 选择 |
-|------|------|------|------|
-| **单一 Domain** | 管理简单、资源共享 | 需要精细权限控制 | ✅ |
-| 多 Domain（每团队） | 隔离彻底 | 管理复杂、无法跨团队协作 | ❌ |
+| 方案                | 优点               | 缺点                     | 选择 |
+| ------------------- | ------------------ | ------------------------ | ---- |
+| **单一 Domain**     | 管理简单、资源共享 | 需要精细权限控制         | ✅   |
+| 多 Domain（每团队） | 隔离彻底           | 管理复杂、无法跨团队协作 | ❌   |
 
 **本项目选择**：单一 Domain，通过 User Profile + Space + IAM 实现隔离
 
@@ -29,27 +30,29 @@ SageMaker Domain 是 SageMaker Studio 的逻辑边界，包含：
 
 ### 2.1 基础配置
 
-| 配置项 | 值 | 说明 |
-|--------|-----|------|
-| Domain Name | ml-platform-domain | 平台统一 Domain |
-| Auth Mode | **IAM** | 使用 IAM Users |
-| App Network Access | **VPCOnly** | 仅 VPC 内访问 |
-| Default Execution Role | 无（由 User Profile 指定） | - |
+| 配置项                 | 值                         | 说明            |
+| ---------------------- | -------------------------- | --------------- |
+| Domain Name            | ml-platform-domain         | 平台统一 Domain |
+| Auth Mode              | **IAM**                    | 使用 IAM Users  |
+| App Network Access     | **VPCOnly**                | 仅 VPC 内访问   |
+| Default Execution Role | 无（由 User Profile 指定） | -               |
 
 ### 2.2 VPC 配置
 
-| 配置项 | 值 | 说明 |
-|--------|-----|------|
-| VPC | vpc-xxxxxxxxx | 现有 VPC |
-| Subnets | subnet-a, subnet-b | Private Subnets |
-| Security Groups | sg-sagemaker-studio | Studio 安全组 |
+| 配置项          | 值                  | 说明            |
+| --------------- | ------------------- | --------------- |
+| VPC             | vpc-xxxxxxxxx       | 现有 VPC        |
+| Subnets         | subnet-a, subnet-b  | Private Subnets |
+| Security Groups | sg-sagemaker-studio | Studio 安全组   |
 
 ### 2.3 存储配置
 
-| 配置项 | 值 | 说明 |
-|--------|-----|------|
-| Default EBS Size | 20 GB | 默认存储空间 |
-| EFS | 自动创建 | 用于 Studio Home |
+| 配置项           | 值       | 说明                       |
+| ---------------- | -------- | -------------------------- |
+| Default EBS Size | 100 GB   | 默认存储空间（可按需上调） |
+| EFS              | 自动创建 | 用于 Studio Home           |
+
+> 说明：EBS 默认值建议以“减少频繁扩容 + 控制成本”为平衡点。实际可配置更大容量，通常受服务配额/区域限制影响，落地前应在目标账号/区域完成一次配置验证。
 
 ---
 
@@ -79,11 +82,11 @@ VPC Endpoints → AWS Services
 
 ### 3.2 网络流量路径
 
-| 流量类型 | 路径 | 说明 |
-|----------|------|------|
-| Studio UI | Console → Presigned URL → VPC | 通过 AWS 内部 |
-| S3 数据 | Studio → S3 VPC Endpoint → S3 | VPC 内部 |
-| API 调用 | Studio → SageMaker VPC Endpoint | VPC 内部 |
+| 流量类型  | 路径                            | 说明          |
+| --------- | ------------------------------- | ------------- |
+| Studio UI | Console → Presigned URL → VPC   | 通过 AWS 内部 |
+| S3 数据   | Studio → S3 VPC Endpoint → S3   | VPC 内部      |
+| API 调用  | Studio → SageMaker VPC Endpoint | VPC 内部      |
 
 ---
 
@@ -91,18 +94,41 @@ VPC Endpoints → AWS Services
 
 ### 4.1 JupyterLab 默认设置
 
-| 配置项 | 推荐值 | 说明 |
-|--------|--------|------|
-| Default Instance | ml.t3.medium | 基础开发 |
-| Auto Shutdown Idle | 60 分钟 | 成本控制 |
-| Lifecycle Config | 可选 | 启动脚本 |
+| 配置项             | 推荐值       | 说明                         |
+| ------------------ | ------------ | ---------------------------- |
+| Default Instance   | ml.t3.medium | 基础开发                     |
+| Auto Shutdown Idle | 60 分钟      | 成本控制                     |
+| Lifecycle Config   | **强烈建议** | 启动脚本（含 idle-shutdown） |
+
+> 💡 **成本管控**：强烈建议配置 Lifecycle Configuration 脚本，用于自动检测 Jupyter Kernel 空闲并关闭实例。未配置此脚本可能导致 GPU 实例（如 `ml.g4dn`、`ml.p3`）持续运行产生较高费用。
 
 ### 4.2 默认 Space 设置
 
-| 配置项 | 推荐值 | 说明 |
-|--------|--------|------|
-| Default Instance | ml.t3.medium | 共享空间默认 |
-| EBS Size | 20 GB | 默认存储 |
+| 配置项           | 推荐值       | 说明                         |
+| ---------------- | ------------ | ---------------------------- |
+| Default Instance | ml.t3.medium | 共享空间默认                 |
+| EBS Size         | 100 GB       | 默认存储（可按项目申请上调） |
+
+### 4.3 实例规格治理（白名单/上限）
+
+为降低成本风险并提升可控性，建议在“平台策略层”限制 Studio 可用实例规格：
+
+- **白名单**：仅允许指定的 instance types（例如限制在常用家族与固定档位）。
+- **上限**：将最大规格限定在某个尺寸（例如不超过 `*4xlarge`），超出需要平台管理员临时放行或审批。
+- **强制手段**：以 IAM Policy 对 `CreateApp/UpdateApp` 进行条件约束（比“默认值/推荐值”更具强制力）。
+
+> 验收要点：普通开发者尝试选择超出白名单/上限的实例规格时，应触发 AccessDenied（或在 UI 侧不可见/不可选），确保策略可被证明地执行。
+
+### 4.4 实例白名单策略（参考）
+
+> 说明：以下为“参考白名单”，用于给平台策略提供一个起点。实际应结合区域可用性、配额与成本治理要求进行调整。
+
+| 分层     | 推荐用途                    | 参考白名单（示例）                                             |
+| -------- | --------------------------- | -------------------------------------------------------------- |
+| 基础开发 | 日常 Notebook、轻量数据处理 | `ml.t3.medium`, `ml.t3.large`, `ml.t3.xlarge`, `ml.t3.2xlarge` |
+| 计算密集 | CPU 密集型特征工程/批处理   | `ml.c5.xlarge`, `ml.c5.2xlarge`, `ml.c5.4xlarge`               |
+
+建议同时配置“**最大实例上限**”（例如最大不超过 `*4xlarge`），并对例外使用走审批/临时放行流程。
 
 ---
 
@@ -124,11 +150,11 @@ Domain 配置:
 
 ### 5.2 标签
 
-| Tag Key | Tag Value |
-|---------|-----------|
-| Name | ml-platform-domain |
-| Environment | production |
-| ManagedBy | platform-team |
+| Tag Key     | Tag Value          |
+| ----------- | ------------------ |
+| Name        | ml-platform-domain |
+| Environment | production         |
+| ManagedBy   | platform-team      |
 
 ---
 
@@ -136,11 +162,11 @@ Domain 配置:
 
 Domain 创建后会自动生成以下资源：
 
-| 资源类型 | 名称模式 | 说明 |
-|----------|----------|------|
-| EFS | 自动创建 | 用户 Home 目录 |
-| Security Group | 自动创建 | EFS 访问 SG |
-| ENI | 按需创建 | 每个 App 一个 |
+| 资源类型       | 名称模式 | 说明           |
+| -------------- | -------- | -------------- |
+| EFS            | 自动创建 | 用户 Home 目录 |
+| Security Group | 自动创建 | EFS 访问 SG    |
+| ENI            | 按需创建 | 每个 App 一个  |
 
 ---
 
@@ -190,19 +216,19 @@ IAM User 需要以下权限才能登录 Studio：
 
 ### 8.1 生命周期管理
 
-| 操作 | 说明 | 影响 |
-|------|------|------|
-| 创建 Domain | 初始化平台 | 一次性 |
+| 操作        | 说明         | 影响           |
+| ----------- | ------------ | -------------- |
+| 创建 Domain | 初始化平台   | 一次性         |
 | 更新 Domain | 修改默认设置 | 不影响现有 App |
 | 删除 Domain | 清理所有资源 | **破坏性操作** |
 
 ### 8.2 监控指标
 
-| 指标 | 说明 | 告警阈值 |
-|------|------|----------|
-| Active User Profiles | 活跃用户数 | - |
-| Running Apps | 运行中的 App | 根据预算设置 |
-| EFS 使用量 | 存储使用 | 80% |
+| 指标                 | 说明         | 告警阈值     |
+| -------------------- | ------------ | ------------ |
+| Active User Profiles | 活跃用户数   | -            |
+| Running Apps         | 运行中的 App | 根据预算设置 |
+| EFS 使用量           | 存储使用     | 80%          |
 
 ---
 
@@ -265,20 +291,22 @@ Domain 被依赖:
 ## 11. 检查清单
 
 ### 创建前
+
 - [ ] 确认 VPC 和 Subnet 信息
 - [ ] 创建 Security Group
 - [ ] 创建 VPC Endpoints
 - [ ] 确认 IAM Roles 已创建
 
 ### 创建时
+
 - [ ] 使用 IAM 认证模式
 - [ ] 选择 VPCOnly 网络模式
 - [ ] 配置正确的 Subnets
 - [ ] 配置正确的 Security Groups
 
 ### 创建后
+
 - [ ] 验证 Domain 状态为 InService
 - [ ] 验证 EFS 创建成功
 - [ ] 记录 Domain ID
 - [ ] 开始创建 User Profiles
-

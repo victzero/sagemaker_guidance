@@ -4,15 +4,34 @@
 
 ---
 
+## 0. 设计范围声明
+
+> ⚠️ **重要**：本设计仅覆盖 **ML 实验与开发环境**，不包含生产推理部署。
+
+| 范围         | 包含                             | 不包含              |
+| ------------ | -------------------------------- | ------------------- |
+| **环境定位** | 模型探索、特征工程、模型训练实验 | 生产级推理 Endpoint |
+| **用户**     | 数据科学家、算法工程师           | 在线服务调用方      |
+| **数据**     | 实验数据、训练数据               | 生产实时数据流      |
+| **SLA**      | 开发环境级别                     | 生产高可用要求      |
+
+**生产推理环境建议**：
+
+- 使用独立 AWS 账号或完全隔离的 VPC
+- 单独设计 IAM 角色和网络策略
+- 配置生产级监控、告警和自动扩缩容
+
+---
+
 ## 1. 设计目标
 
-| 目标 | 说明 |
-|------|------|
-| **团队隔离** | 风控团队与算法团队资源隔离 |
-| **项目隔离** | 同一团队内不同项目数据隔离 |
-| **协作共享** | 同一项目内成员可共享 Notebook、数据 |
-| **权限最小化** | 遵循最小权限原则 |
-| **可扩展** | 支持后续团队/项目扩展 |
+| 目标           | 说明                                |
+| -------------- | ----------------------------------- |
+| **团队隔离**   | 风控团队与算法团队资源隔离          |
+| **项目隔离**   | 同一团队内不同项目数据隔离          |
+| **协作共享**   | 同一项目内成员可共享 Notebook、数据 |
+| **权限最小化** | 遵循最小权限原则                    |
+| **可扩展**     | 支持后续团队/项目扩展               |
 
 ---
 
@@ -45,14 +64,14 @@ ML Platform
 
 ### 2.2 命名规范
 
-| 资源类型 | 命名模式 | 示例 |
-|----------|----------|------|
-| IAM Group (团队) | `sagemaker-{team}` | `sagemaker-risk-control` |
-| IAM Group (项目) | `sagemaker-{team}-{project}` | `sagemaker-risk-control-project-a` |
-| IAM User | `sm-{team}-{name}` | `sm-rc-alice` |
-| IAM Role | `SageMaker-{Team}-{Project}-ExecutionRole` | `SageMaker-RiskControl-ProjectA-ExecutionRole` |
-| S3 Bucket | `{company}-sagemaker-{team}-{project}` | `acme-sagemaker-rc-project-a` |
-| SageMaker Space | `space-{team}-{project}` | `space-rc-project-a` |
+| 资源类型         | 命名模式                                   | 示例                                           |
+| ---------------- | ------------------------------------------ | ---------------------------------------------- |
+| IAM Group (团队) | `sagemaker-{team}`                         | `sagemaker-risk-control`                       |
+| IAM Group (项目) | `sagemaker-{team}-{project}`               | `sagemaker-risk-control-project-a`             |
+| IAM User         | `sm-{team}-{name}`                         | `sm-rc-alice`                                  |
+| IAM Role         | `SageMaker-{Team}-{Project}-ExecutionRole` | `SageMaker-RiskControl-ProjectA-ExecutionRole` |
+| S3 Bucket        | `{company}-sagemaker-{team}-{project}`     | `acme-sagemaker-rc-project-a`                  |
+| SageMaker Space  | `space-{team}-{project}`                   | `space-rc-project-a`                           |
 
 ---
 
@@ -147,12 +166,12 @@ SageMaker Domain (ml-platform-domain)
 
 ### 4.2 访问控制矩阵
 
-| 用户 | 所属团队 | 所属项目 | 可访问 Space | 可访问 S3 |
-|------|----------|----------|--------------|-----------|
-| alice | 风控 | project-a | space-rc-project-a | rc-project-a/* |
-| bob | 风控 | project-a | space-rc-project-a | rc-project-a/* |
-| david | 风控 | project-b | space-rc-project-b | rc-project-b/* |
-| frank | 算法 | project-x | space-algo-project-x | algo-project-x/* |
+| 用户  | 所属团队 | 所属项目  | 可访问 Space         | 可访问 S3         |
+| ----- | -------- | --------- | -------------------- | ----------------- |
+| alice | 风控     | project-a | space-rc-project-a   | rc-project-a/\*   |
+| bob   | 风控     | project-a | space-rc-project-a   | rc-project-a/\*   |
+| david | 风控     | project-b | space-rc-project-b   | rc-project-b/\*   |
+| frank | 算法     | project-x | space-algo-project-x | algo-project-x/\* |
 
 ---
 
@@ -160,10 +179,10 @@ SageMaker Domain (ml-platform-domain)
 
 ### 5.1 VPC 模式选择
 
-| 模式 | 说明 | 本项目选择 |
-|------|------|------------|
-| Public Internet | Studio 通过 Internet 访问 | ❌ |
-| VPC Only | Studio 完全在 VPC 内 | ✅ |
+| 模式            | 说明                      | 本项目选择 |
+| --------------- | ------------------------- | ---------- |
+| Public Internet | Studio 通过 Internet 访问 | ❌         |
+| VPC Only        | Studio 完全在 VPC 内      | ✅         |
 
 ### 5.2 网络拓扑
 
@@ -222,11 +241,11 @@ S3 Bucket (项目数据)
 
 ### 6.2 数据隔离策略
 
-| 层级 | 隔离方式 | 实现机制 |
-|------|----------|----------|
-| 团队间 | 硬隔离 | S3 Bucket Policy + IAM Policy |
-| 项目间 | 硬隔离 | S3 Prefix Policy + IAM Conditions |
-| 用户间 (同项目) | 共享 | 同一 Execution Role |
+| 层级            | 隔离方式 | 实现机制                          |
+| --------------- | -------- | --------------------------------- |
+| 团队间          | 硬隔离   | S3 Bucket Policy + IAM Policy     |
+| 项目间          | 硬隔离   | S3 Prefix Policy + IAM Conditions |
+| 用户间 (同项目) | 共享     | 同一 Execution Role               |
 
 ---
 
@@ -244,4 +263,3 @@ S3 Bucket (项目数据)
 - [SageMaker Domain 文档](https://docs.aws.amazon.com/sagemaker/latest/dg/sm-domain.html)
 - [SageMaker Studio Spaces](https://docs.aws.amazon.com/sagemaker/latest/dg/domain-space.html)
 - [IAM Best Practices](https://docs.aws.amazon.com/IAM/latest/UserGuide/best-practices.html)
-

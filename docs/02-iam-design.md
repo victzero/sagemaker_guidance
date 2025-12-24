@@ -21,6 +21,23 @@
 2. **职责分离**：管理员与开发者权限分开
 3. **基于角色**：通过 Group 管理权限，避免直接给 User 授权
 4. **可审计**：便于权限审计和变更追踪
+5. **基础设施即代码（IaC）**：建议通过代码管理 IAM 资源
+
+### 1.3 IaC 建议
+
+> 💡 **建议**：IAM 资源**建议**通过 Infrastructure as Code 方式创建和管理，**不建议**在 AWS Console 手动操作。
+
+| 建议 | 说明 |
+|------|------|
+| **工具选择** | Terraform / AWS CDK / CloudFormation 任选其一 |
+| **减少手动** | 不建议通过 Console 创建 IAM User/Group/Role/Policy |
+| **Tag 一致性** | 通过代码确保所有资源 Tag 正确且一致 |
+| **版本控制** | IaC 代码建议入 Git，变更可追溯 |
+| **审批流程** | IAM 变更建议 Code Review 后再 Apply |
+
+**原因**：本设计依赖 IAM Policy 的 `Condition` 字段配合 Resource Tag 实现精细化访问控制（ABAC）。手动操作容易导致 Tag 遗漏或错误，可能造成用户无法登录或越权访问。
+
+> 📌 **当前状态**：如团队仍以 Console 操作为主，建议至少确保 Tag 命名的一致性，并记录操作日志以便审计。
 
 ---
 
@@ -295,3 +312,38 @@ sm-rc-alice:
 - [ ] 用户可以访问 SageMaker Studio
 - [ ] 用户只能看到自己项目的 Space
 - [ ] 用户只能访问自己项目的 S3 数据
+
+---
+
+## 9. IAM Domain 下“只能打开自己的 Profile”的可验证方案
+
+> 目标：在 IAM 认证模式下，实现并可验收地证明——用户只能进入 Studio 的“自己的 User Profile”，并且只能在所属项目 Space 内工作。
+
+### 9.1 设计思路（强制可验收）
+
+- **原则**：不要求 UI 一定隐藏其他 Profile，但必须确保“打开/进入/创建 App”无法越权。
+- **实现抓手**：
+  - 将 `CreatePresignedDomainUrl`、`DescribeUserProfile`、`CreateApp/UpdateApp/DeleteApp` 作为关键控制点
+  - 用 IAM Policy 对上述动作施加资源范围与条件约束（Owner/Project/Team 标签 + 命名规范）
+- **资源标记**：
+  - User Profile：`Owner=sm-<team>-<name>`、`Team`、`Project`
+  - Space：`Team`、`Project`
+
+### 9.2 可验收的测试用例（建议写入 UAT）
+
+- **用例 1：用户打开自己的 Profile**
+  - 预期：成功进入 Studio；可启动/停止自己项目的 App；可访问自己项目 S3。
+- **用例 2：用户尝试打开他人的 Profile**
+  - 预期：失败（AccessDenied/无法进入）。
+- **用例 3：用户尝试进入其他项目 Space 或创建 App**
+  - 预期：失败（AccessDenied）。
+- **用例 4：用户尝试访问其他项目 S3 Bucket**
+  - 预期：失败（AccessDenied）。
+- **用例 5：用户尝试选择超出平台允许的实例规格**
+  - 预期：失败（AccessDenied 或 UI 不可选）。
+
+### 9.3 实施建议（落地顺序）
+
+- 先按项目建立 Execution Role（项目级），确保 S3 最小权限隔离可验收。
+- 再用项目组（Group）聚合权限，避免对单个 User 直接授权导致漂移。
+- 最后补齐“实例规格治理（白名单/上限）”与“Profile 打开权限”，并执行上述用例完成验收。
