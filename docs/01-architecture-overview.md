@@ -8,12 +8,12 @@
 
 > 📌 本文档使用以下占位符，实施时请替换为实际值。
 
-| 占位符 | 说明 | 示例值 |
-|--------|------|--------|
-| `{company}` | 公司/组织名称前缀 | `acme` |
-| `{team}` | 团队缩写 | `rc`（风控）、`algo`（算法） |
-| `{project}` | 项目名称 | `project-a`、`project-x` |
-| `{name}` | 用户名 | `alice`、`frank` |
+| 占位符      | 说明              | 示例值                       |
+| ----------- | ----------------- | ---------------------------- |
+| `{company}` | 公司/组织名称前缀 | `acme`                       |
+| `{team}`    | 团队缩写          | `rc`（风控）、`algo`（算法） |
+| `{project}` | 项目名称          | `project-a`、`project-x`     |
+| `{name}`    | 用户名            | `alice`、`frank`             |
 
 ---
 
@@ -262,16 +262,59 @@ S3 Bucket (项目数据)
 
 ---
 
-## 7. 待完善内容
+## 7. 详细文档索引
 
-- [ ] 详细的 IAM Policy 设计 → 见 [02-IAM 设计](./02-iam-design.md)
-- [ ] VPC Endpoints 配置清单 → 见 [03-VPC 网络](./03-vpc-network.md)
-- [ ] S3 Bucket 结构规划 → 见 [04-S3 数据管理](./04-s3-data-management.md)
-- [ ] SageMaker Domain 配置 → 见 [05-SageMaker Domain](./05-sagemaker-domain.md)
+> ✅ 所有设计文档已完善，以下为详细配置指引。
+
+| 文档                                            | 主要内容                                                            | 状态 |
+| ----------------------------------------------- | ------------------------------------------------------------------- | ---- |
+| [02-IAM 设计](./02-iam-design.md)               | Groups/Users/Roles/Policies、Policy JSON 模板、Permissions Boundary | ✅   |
+| [03-VPC 网络](./03-vpc-network.md)              | VPCOnly 模式、Security Groups、VPC Endpoints 清单                   | ✅   |
+| [04-S3 数据管理](./04-s3-data-management.md)    | Bucket 规划、Bucket Policy JSON、生命周期规则、SSE-S3/KMS 加密      | ✅   |
+| [05-SageMaker Domain](./05-sagemaker-domain.md) | Domain 创建 CLI、Lifecycle Config 脚本、EFS 加密、自定义镜像        | ✅   |
+| [06-User Profile](./06-user-profile.md)         | User Profile CLI、批量创建脚本、成员管理                            | ✅   |
+| [07-Shared Space](./07-shared-space.md)         | Space 创建 CLI、存储监控、协作最佳实践                              | ✅   |
+| [08-实施指南](./08-implementation-guide.md)     | 创建顺序 Checklist、验收用例                                        | ✅   |
 
 ---
 
-## 8. 参考资源
+## 8. 设计复杂度评估
+
+> 📌 针对 **12-18 人**、**4 个项目** 规模的评估。
+
+### 8.1 核心设计（必需）
+
+| 组件                  | 复杂度 | 说明                                    |
+| --------------------- | ------ | --------------------------------------- |
+| 单一 Domain           | 低     | 最简架构，避免多 Domain 管理复杂性      |
+| 按项目 S3 Bucket      | 低     | 4 个 Bucket，权限清晰，优于 Prefix 方案 |
+| 按项目 IAM Group      | 低     | 4 个 Group，成员管理简单                |
+| VPCOnly + Endpoints   | 中     | 必要的网络隔离，一次性配置              |
+| 按项目 Execution Role | 低     | 4 个 Role，权限边界清晰                 |
+
+### 8.2 可选配置（按需启用）
+
+| 功能                         | 当前状态     | 建议                            |
+| ---------------------------- | ------------ | ------------------------------- |
+| Lifecycle Config（自动关闭） | **建议启用** | 成本控制关键，避免 GPU 空跑     |
+| SSE-KMS 加密                 | 可选         | 无合规要求时 SSE-S3 足够        |
+| 跨 Region 复制               | 可选         | 无灾备需求时不启用              |
+| 自定义镜像                   | 可选         | 官方镜像满足大多数需求          |
+| Permissions Boundary         | 可选         | 小团队可暂缓，IAM Policy 已足够 |
+| CloudWatch 存储告警          | 可选         | 初期可手动监控                  |
+| 用户自助门户                 | **不建议**   | 12-18 人规模，批量脚本足够      |
+
+### 8.3 结论
+
+建议实施路径：
+
+1. **第一阶段**（必需）：VPC/IAM/S3/Domain/User Profile/Space
+2. **第二阶段**（建议）：Lifecycle Config 成本控制
+3. **第三阶段**（按需）：监控告警、高级安全配置
+
+---
+
+## 9. 参考资源
 
 - [SageMaker Domain 文档](https://docs.aws.amazon.com/sagemaker/latest/dg/sm-domain.html)
 - [SageMaker Studio Spaces](https://docs.aws.amazon.com/sagemaker/latest/dg/domain-space.html)
