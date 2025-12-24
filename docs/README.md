@@ -8,19 +8,17 @@
 
 ## 📋 文档目录
 
-| 序号 | 文档                                         | 说明                              | 状态      |
-| ---- | -------------------------------------------- | --------------------------------- | --------- |
-| 01   | [架构概览](./01-architecture-overview.md)    | 整体架构、团队组织、资源规划      | ✅ 框架完成 |
-| 02   | [IAM 权限设计](./02-iam-design.md)           | Groups / Users / Roles / Policies | ✅ 框架完成 |
-| 03   | [VPC 网络配置](./03-vpc-network.md)          | 子网、安全组、端点服务            | ✅ 框架完成 |
-| 04   | [S3 数据管理](./04-s3-data-management.md)    | Bucket 结构、权限策略、生命周期   | ✅ 框架完成 |
-| 05   | [SageMaker Domain](./05-sagemaker-domain.md) | Domain 创建、配置、网络模式       | ✅ 框架完成 |
-| 06   | [User Profile 设计](./06-user-profile.md)    | 用户配置、执行角色绑定            | ✅ 框架完成 |
-| 07   | [Shared Space 设计](./07-shared-space.md)    | 项目共享空间、协作配置            | ✅ 框架完成 |
-| 08   | [实施步骤指南](./08-implementation-guide.md) | 按顺序的操作清单                  | ✅ 框架完成 |
-| 09   | [附录与参考](./09-appendix.md)               | 术语表、FAQ、参考链接             | ✅ 框架完成 |
-
-> **状态说明**：✅ 框架完成 = 结构和设计已定义，待填写具体参数和代码
+| 序号 | 文档                                         | 说明                             | 状态    |
+| ---- | -------------------------------------------- | -------------------------------- | ------- |
+| 01   | [架构概览](./01-architecture-overview.md)    | 整体架构、团队组织、复杂度评估   | ✅ 完成 |
+| 02   | [IAM 权限设计](./02-iam-design.md)           | Groups/Users/Roles、Policy JSON  | ✅ 完成 |
+| 03   | [VPC 网络配置](./03-vpc-network.md)          | 子网、安全组、VPC Endpoints      | ✅ 完成 |
+| 04   | [S3 数据管理](./04-s3-data-management.md)    | Bucket Policy、生命周期规则 JSON | ✅ 完成 |
+| 05   | [SageMaker Domain](./05-sagemaker-domain.md) | CLI 创建、Lifecycle Config 脚本  | ✅ 完成 |
+| 06   | [User Profile 设计](./06-user-profile.md)    | CLI 创建、批量脚本               | ✅ 完成 |
+| 07   | [Shared Space 设计](./07-shared-space.md)    | CLI 创建、存储监控、协作实践     | ✅ 完成 |
+| 08   | [实施步骤指南](./08-implementation-guide.md) | 创建顺序 Checklist               | ✅ 完成 |
+| 09   | [附录与参考](./09-appendix.md)               | 术语表、FAQ、参考链接            | ✅ 完成 |
 
 ---
 
@@ -104,10 +102,10 @@
 
 ## 📝 版本记录
 
-| 版本 | 日期       | 说明                   |
-| ---- | ---------- | ---------------------- |
-| v0.1 | 2024-12-24 | 初始框架，文档结构设计 |
-| v0.2 | 2024-12-24 | 部署 GitHub Pages，框架完成 |
+| 版本 | 日期       | 说明                                             |
+| ---- | ---------- | ------------------------------------------------ |
+| v0.1 | 2024-12-24 | 初始框架，文档结构设计                           |
+| v1.0 | 2024-12-24 | 完成全部设计文档，含 CLI 命令、Policy JSON、脚本 |
 
 ---
 

@@ -8,13 +8,17 @@
 
 > 📌 本文档使用以下占位符，实施时请替换为实际值。
 
-| 占位符 | 说明 | 示例值 |
-|--------|------|--------|
-| `{company}` | 公司/组织名称前缀 | `acme` |
-| `sm-rc-xxx` | IAM 用户名（待填写） | `sm-rc-alice` |
-| `sm-algo-xxx` | IAM 用户名（待填写） | `sm-algo-frank` |
-| `vpc-xxx` | VPC ID（待确认） | `vpc-0abc123def456` |
-| `subnet-a`, `subnet-b` | 子网 ID（待确认） | `subnet-0abc123def456` |
+| 占位符         | 说明                    | 示例值                   |
+| -------------- | ----------------------- | ------------------------ |
+| `{company}`    | 公司/组织名称前缀       | `acme`                   |
+| `{account-id}` | AWS 账号 ID             | `123456789012`           |
+| `{region}`     | AWS 区域                | `ap-southeast-1`         |
+| `{team}`       | 团队缩写                | `rc`、`algo`             |
+| `{project}`    | 项目名称                | `project-a`、`project-x` |
+| `{name}`       | 用户名                  | `alice`、`frank`         |
+| `{vpc-id}`     | VPC ID（待确认）        | `vpc-0abc123def456`      |
+| `{subnet-ids}` | 子网 ID（待确认）       | `subnet-a, subnet-b`     |
+| `d-xxxxxxxxx`  | Domain ID（创建后获取） | `d-abc123def456`         |
 
 ---
 
@@ -76,6 +80,8 @@
 ---
 
 ## 3. Phase 2: IAM 资源创建
+
+> 📖 详细 Policy JSON 模板见 [02-IAM 设计](./02-iam-design.md) § 7-10
 
 ### 3.1 创建 IAM Policies
 
@@ -156,6 +162,8 @@
 
 ## 5. Phase 4: S3 配置
 
+> 📖 详细 Bucket Policy 和生命周期规则 JSON 见 [04-S3 数据管理](./04-s3-data-management.md) § 9-10
+
 ### 5.1 创建 S3 Buckets
 
 | #   | Bucket 名称                 | 加密   | 版本控制 | 状态 |
@@ -185,33 +193,76 @@
 
 ## 6. Phase 5: SageMaker 配置
 
+> 📖 CLI 命令详见：
+>
+> - Domain: [05-SageMaker Domain](./05-sagemaker-domain.md) § 10
+> - User Profile: [06-User Profile](./06-user-profile.md) § 10, 批量脚本 § 12
+> - Space: [07-Shared Space](./07-shared-space.md) § 10-11
+
 ### 6.1 创建 Domain
+
+```bash
+# 详细命令见 05-sagemaker-domain.md § 10.1
+aws sagemaker create-domain \
+  --domain-name ml-platform-domain \
+  --auth-mode IAM \
+  --vpc-id {vpc-id} \
+  --subnet-ids {subnet-ids} \
+  --app-network-access-type VpcOnly \
+  --default-user-settings '{"SecurityGroups": ["sg-sagemaker-studio"]}'
+```
 
 | 配置项          | 值                  | 状态 |
 | --------------- | ------------------- | ---- |
 | Domain Name     | ml-platform-domain  | ☐    |
 | Auth Mode       | IAM                 | ☐    |
 | Network Mode    | VPCOnly             | ☐    |
-| VPC             | vpc-xxx             | ☐    |
-| Subnets         | subnet-a, subnet-b  | ☐    |
+| VPC             | {vpc-id}            | ☐    |
+| Subnets         | {subnet-ids}        | ☐    |
 | Security Groups | sg-sagemaker-studio | ☐    |
+| Domain ID       | d-xxxxxxxxx（记录） | ☐    |
 
-### 6.2 创建 User Profiles
+### 6.2 配置 Lifecycle Config（成本控制）
 
-| #   | Profile 名称     | IAM User    | Execution Role | 状态 |
-| --- | ---------------- | ----------- | -------------- | ---- |
-| 1   | profile-rc-alice | sm-rc-alice | RC-ProjectA    | ☐    |
-| 2   | profile-rc-bob   | sm-rc-bob   | RC-ProjectA    | ☐    |
-| ... | ...              | ...         | ...            | ☐    |
+> ⚠️ **强烈建议**：避免 GPU 实例空跑，详见 [05-SageMaker Domain](./05-sagemaker-domain.md) § 11
 
-### 6.3 创建 Shared Spaces
+- [ ] 创建 `auto-shutdown-60min` Lifecycle Config
+- [ ] 绑定到 Domain 默认设置
+- [ ] 验证空闲 60 分钟后自动关闭
 
-| #   | Space 名称           | 成员                | 状态 |
-| --- | -------------------- | ------------------- | ---- |
-| 1   | space-rc-project-a   | alice, bob, carol   | ☐    |
-| 2   | space-rc-project-b   | david, emma         | ☐    |
-| 3   | space-algo-project-x | frank, grace, henry | ☐    |
-| 4   | space-algo-project-y | ivy, jack           | ☐    |
+### 6.3 创建 User Profiles
+
+```bash
+# 批量创建脚本见 06-user-profile.md § 12
+./create-user-profiles.sh d-xxxxxxxxx {account-id} users.csv
+```
+
+| #   | Profile 名称       | IAM User      | Execution Role | 状态 |
+| --- | ------------------ | ------------- | -------------- | ---- |
+| 1   | profile-rc-alice   | sm-rc-alice   | RC-ProjectA    | ☐    |
+| 2   | profile-rc-bob     | sm-rc-bob     | RC-ProjectA    | ☐    |
+| 3   | profile-rc-carol   | sm-rc-carol   | RC-ProjectA    | ☐    |
+| 4   | profile-rc-david   | sm-rc-david   | RC-ProjectB    | ☐    |
+| 5   | profile-rc-emma    | sm-rc-emma    | RC-ProjectB    | ☐    |
+| 6   | profile-algo-frank | sm-algo-frank | Algo-ProjectX  | ☐    |
+| 7   | profile-algo-grace | sm-algo-grace | Algo-ProjectX  | ☐    |
+| 8   | profile-algo-henry | sm-algo-henry | Algo-ProjectX  | ☐    |
+| 9   | profile-algo-ivy   | sm-algo-ivy   | Algo-ProjectY  | ☐    |
+| 10  | profile-algo-jack  | sm-algo-jack  | Algo-ProjectY  | ☐    |
+
+### 6.4 创建 Shared Spaces
+
+```bash
+# 批量创建脚本见 07-shared-space.md § 11
+./create-spaces.sh d-xxxxxxxxx spaces.csv
+```
+
+| #   | Space 名称           | Owner | 成员         | 状态 |
+| --- | -------------------- | ----- | ------------ | ---- |
+| 1   | space-rc-project-a   | alice | bob, carol   | ☐    |
+| 2   | space-rc-project-b   | david | emma         | ☐    |
+| 3   | space-algo-project-x | frank | grace, henry | ☐    |
+| 4   | space-algo-project-y | ivy   | jack         | ☐    |
 
 ---
 
