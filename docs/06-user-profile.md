@@ -4,6 +4,22 @@
 
 ---
 
+## 占位符说明
+
+> 📌 本文档使用以下占位符，实施时请替换为实际值。
+
+| 占位符 | 说明 | 示例值 |
+|--------|------|--------|
+| `{account-id}` | AWS 账号 ID | `123456789012` |
+| `{team}` | 团队缩写 | `rc`、`algo` |
+| `{project}` | 项目名称 | `project-a`、`project-x` |
+| `{name}` | 用户名 | `alice`、`frank` |
+| `{iam-user}` | IAM 用户名 | `sm-rc-alice` |
+| `d-xxxxxxxxx` | Domain ID（创建后获取） | `d-abc123def456` |
+| `sg-xxxxxxxxx` | 安全组 ID | `sg-0abc123def456` |
+
+---
+
 ## 1. User Profile 概述
 
 ### 1.1 什么是 User Profile
@@ -45,8 +61,8 @@ User Profile 是 SageMaker Domain 中代表单个用户的配置实体：
 ### 2.2 命名规范
 
 ```
-User Profile: profile-{team-abbr}-{username}
-IAM User:     sm-{team-abbr}-{username}
+User Profile: profile-{team}-{name}
+IAM User:     sm-{team}-{name}
 
 示例:
 - profile-rc-alice  ↔  sm-rc-alice
@@ -174,9 +190,9 @@ IAM User 需要以下权限访问自己的 User Profile：
 
 | Tag Key     | Tag Value       | 示例         |
 | ----------- | --------------- | ------------ |
-| Team        | {team-name}     | risk-control |
-| Project     | {project-name}  | project-a    |
-| Owner       | {iam-user-name} | sm-rc-alice  |
+| Team        | {team}     | risk-control |
+| Project     | {project}  | project-a    |
+| Owner       | {iam-user} | sm-rc-alice  |
 | Environment | production      | production   |
 
 ### 6.2 标签用途
@@ -254,7 +270,7 @@ UserProfile 配置:
     - Key: Project, Value: {project}
     - Key: Owner, Value: sm-{team}-{name}
 - UserSettings:
-    - ExecutionRole: arn:aws:iam::{account}:role/SageMaker-{Team}-{Project}-ExecutionRole
+    - ExecutionRole: arn:aws:iam::{account-id}:role/SageMaker-{Team}-{Project}-ExecutionRole
     - SecurityGroups: [sg-xxxxxxxxx]
 ```
 

@@ -4,6 +4,20 @@
 
 ---
 
+## 占位符说明
+
+> 📌 本文档使用以下占位符，实施时请替换为实际值。
+
+| 占位符 | 说明 | 示例值 |
+|--------|------|--------|
+| `{company}` | 公司/组织名称前缀 | `acme` |
+| `sm-rc-xxx` | IAM 用户名（待填写） | `sm-rc-alice` |
+| `sm-algo-xxx` | IAM 用户名（待填写） | `sm-algo-frank` |
+| `vpc-xxx` | VPC ID（待确认） | `vpc-0abc123def456` |
+| `subnet-a`, `subnet-b` | 子网 ID（待确认） | `subnet-0abc123def456` |
+
+---
+
 ## 1. 实施概览
 
 ### 1.1 阶段划分

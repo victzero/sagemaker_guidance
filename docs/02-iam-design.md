@@ -4,6 +4,27 @@
 
 ---
 
+## 占位符说明
+
+> 📌 本文档使用以下占位符，实施时请替换为实际值。
+
+| 占位符         | 说明              | 示例值                       |
+| -------------- | ----------------- | ---------------------------- |
+| `{company}`    | 公司/组织名称前缀 | `acme`                       |
+| `{account-id}` | AWS 账号 ID       | `123456789012`               |
+| `{region}`     | AWS 区域          | `ap-southeast-1`             |
+| `{team}`       | 团队缩写          | `rc`（风控）、`algo`（算法） |
+| `{project}`    | 项目名称          | `project-a`、`project-x`     |
+| `{name}`       | 用户名            | `alice`、`frank`             |
+
+**JSON 示例中的值**：
+
+- `acme-sm-*` → 替换 `acme` 为您的公司前缀
+- `arn:aws:iam::*:role/...` → 替换 `*` 为实际账号 ID
+- `arn:aws:sagemaker:*:*:...` → 替换为实际 region 和账号 ID
+
+---
+
 ## 1. IAM 资源概览
 
 ### 1.1 资源清单
@@ -138,13 +159,13 @@ IAM Groups
 ```
 IAM Roles
 ├── SageMaker-RiskControl-ProjectA-ExecutionRole
-│   └── 可访问: s3://company-sagemaker-rc-project-a/*
+│   └── 可访问: s3://{company}-sm-rc-project-a/*
 ├── SageMaker-RiskControl-ProjectB-ExecutionRole
-│   └── 可访问: s3://company-sagemaker-rc-project-b/*
+│   └── 可访问: s3://{company}-sm-rc-project-b/*
 ├── SageMaker-Algorithm-ProjectX-ExecutionRole
-│   └── 可访问: s3://company-sagemaker-algo-project-x/*
+│   └── 可访问: s3://{company}-sm-algo-project-x/*
 └── SageMaker-Algorithm-ProjectY-ExecutionRole
-    └── 可访问: s3://company-sagemaker-algo-project-y/*
+    └── 可访问: s3://{company}-sm-algo-project-y/*
 ```
 
 ### 4.3 Execution Role 权限范围
@@ -229,7 +250,7 @@ IAM Policies
 - s3:ListBucket (团队前缀)
 
 条件:
-- Resource Tag: team = {team-name}
+- Resource Tag: team = {team}
 ```
 
 ### 5.4 项目策略设计
@@ -247,7 +268,7 @@ IAM Policies
 
 条件:
 - Space: space-{team}-{project}
-- S3 Bucket: company-sagemaker-{team}-{project}
+- S3 Bucket: {company}-sm-{team}-{project}
 ```
 
 ---
@@ -287,22 +308,379 @@ sm-rc-alice:
 
 ---
 
-## 7. 待完善内容
+## 7. Policy JSON 模板
 
-- [ ] 完整的 Policy JSON 模板
-- [ ] iam:PassRole 权限配置
-- [ ] Boundary Policy 设计
-- [ ] 权限审计配置
+### 7.1 基础策略 - SageMaker-Studio-Base-Access
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "AllowDescribeDomain",
+      "Effect": "Allow",
+      "Action": ["sagemaker:DescribeDomain", "sagemaker:ListDomains"],
+      "Resource": "arn:aws:sagemaker:*:*:domain/*"
+    },
+    {
+      "Sid": "AllowListUserProfiles",
+      "Effect": "Allow",
+      "Action": [
+        "sagemaker:ListUserProfiles",
+        "sagemaker:ListSpaces",
+        "sagemaker:ListApps"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "AllowDescribeOwnProfile",
+      "Effect": "Allow",
+      "Action": [
+        "sagemaker:DescribeUserProfile",
+        "sagemaker:CreatePresignedDomainUrl"
+      ],
+      "Resource": "arn:aws:sagemaker:*:*:user-profile/*/*",
+      "Condition": {
+        "StringEquals": {
+          "sagemaker:ResourceTag/Owner": "${aws:username}"
+        }
+      }
+    }
+  ]
+}
+```
+
+### 7.2 项目策略 - SageMaker-RC-ProjectA-Access
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "AllowProjectSpaceAccess",
+      "Effect": "Allow",
+      "Action": [
+        "sagemaker:DescribeSpace",
+        "sagemaker:CreateApp",
+        "sagemaker:DeleteApp",
+        "sagemaker:DescribeApp"
+      ],
+      "Resource": [
+        "arn:aws:sagemaker:*:*:space/*/space-rc-project-a",
+        "arn:aws:sagemaker:*:*:app/*/*/*/*"
+      ],
+      "Condition": {
+        "StringEquals": {
+          "sagemaker:ResourceTag/Project": "project-a"
+        }
+      }
+    },
+    {
+      "Sid": "AllowProjectS3Access",
+      "Effect": "Allow",
+      "Action": [
+        "s3:GetObject",
+        "s3:PutObject",
+        "s3:DeleteObject",
+        "s3:ListBucket"
+      ],
+      "Resource": [
+        "arn:aws:s3:::{company}-sm-rc-project-a",
+        "arn:aws:s3:::{company}-sm-rc-project-a/*"
+      ]
+    },
+    {
+      "Sid": "AllowSharedAssetsReadOnly",
+      "Effect": "Allow",
+      "Action": ["s3:GetObject", "s3:ListBucket"],
+      "Resource": [
+        "arn:aws:s3:::{company}-sm-shared-assets",
+        "arn:aws:s3:::{company}-sm-shared-assets/*"
+      ]
+    }
+  ]
+}
+```
+
+**替换说明**：
+
+| JSON 中的值          | 替换为                    |
+| -------------------- | ------------------------- |
+| `{company}`          | 公司名称前缀（如 `acme`） |
+| `space-rc-project-a` | 实际 Space 名称           |
+| `project-a`          | 实际项目标签值            |
+
+### 7.3 Execution Role 策略 - SageMaker-RC-ProjectA-ExecutionPolicy
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "AllowS3ProjectAccess",
+      "Effect": "Allow",
+      "Action": [
+        "s3:GetObject",
+        "s3:PutObject",
+        "s3:DeleteObject",
+        "s3:ListBucket",
+        "s3:GetBucketLocation"
+      ],
+      "Resource": [
+        "arn:aws:s3:::{company}-sm-rc-project-a",
+        "arn:aws:s3:::{company}-sm-rc-project-a/*"
+      ]
+    },
+    {
+      "Sid": "AllowSharedAssetsReadOnly",
+      "Effect": "Allow",
+      "Action": ["s3:GetObject", "s3:ListBucket"],
+      "Resource": [
+        "arn:aws:s3:::{company}-sm-shared-assets",
+        "arn:aws:s3:::{company}-sm-shared-assets/*"
+      ]
+    },
+    {
+      "Sid": "AllowCloudWatchLogs",
+      "Effect": "Allow",
+      "Action": [
+        "logs:CreateLogGroup",
+        "logs:CreateLogStream",
+        "logs:PutLogEvents"
+      ],
+      "Resource": "arn:aws:logs:*:*:log-group:/aws/sagemaker/*"
+    },
+    {
+      "Sid": "AllowECRPull",
+      "Effect": "Allow",
+      "Action": [
+        "ecr:GetDownloadUrlForLayer",
+        "ecr:BatchGetImage",
+        "ecr:BatchCheckLayerAvailability"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "AllowECRAuth",
+      "Effect": "Allow",
+      "Action": "ecr:GetAuthorizationToken",
+      "Resource": "*"
+    }
+  ]
+}
+```
 
 ---
 
-## 8. 检查清单
+## 8. iam:PassRole 权限配置
+
+### 8.1 PassRole 概述
+
+`iam:PassRole` 是一个特殊权限，允许用户将 IAM Role 传递给 AWS 服务（如 SageMaker）使用。
+
+| 场景              | 说明                    |
+| ----------------- | ----------------------- |
+| 创建 User Profile | 需要传递 Execution Role |
+| 启动 Training Job | 需要传递 Training Role  |
+| 创建 Endpoint     | 需要传递 Inference Role |
+
+### 8.2 PassRole 策略设计
+
+**原则**：用户只能 PassRole 自己项目的 Execution Role
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "AllowPassRoleToSageMaker",
+      "Effect": "Allow",
+      "Action": "iam:PassRole",
+      "Resource": "arn:aws:iam::{account-id}:role/SageMaker-RC-ProjectA-ExecutionRole",
+      "Condition": {
+        "StringEquals": {
+          "iam:PassedToService": "sagemaker.amazonaws.com"
+        }
+      }
+    }
+  ]
+}
+```
+
+**替换说明**：`{account-id}` 替换为 12 位 AWS 账号 ID
+
+### 8.3 PassRole 绑定关系
+
+| 项目组                   | 可 PassRole 的 Execution Role         |
+| ------------------------ | ------------------------------------- |
+| sagemaker-rc-project-a   | SageMaker-RC-ProjectA-ExecutionRole   |
+| sagemaker-rc-project-b   | SageMaker-RC-ProjectB-ExecutionRole   |
+| sagemaker-algo-project-x | SageMaker-Algo-ProjectX-ExecutionRole |
+| sagemaker-algo-project-y | SageMaker-Algo-ProjectY-ExecutionRole |
+
+---
+
+## 9. Permissions Boundary 设计
+
+### 9.1 Boundary 概述
+
+Permissions Boundary 是 IAM 的高级功能，用于限制 IAM 实体的最大权限范围。
+
+| 用途             | 说明                                       |
+| ---------------- | ------------------------------------------ |
+| **防止权限提升** | 即使被授予 Admin 权限，也无法超出 Boundary |
+| **委托管理**     | 允许团队管理自己的 IAM，但不能超出边界     |
+| **合规要求**     | 满足安全审计的强制边界要求                 |
+
+### 9.2 SageMaker 用户 Boundary
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "AllowSageMakerActions",
+      "Effect": "Allow",
+      "Action": [
+        "sagemaker:Describe*",
+        "sagemaker:List*",
+        "sagemaker:CreatePresignedDomainUrl",
+        "sagemaker:CreateApp",
+        "sagemaker:DeleteApp"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "AllowS3SageMakerBuckets",
+      "Effect": "Allow",
+      "Action": [
+        "s3:GetObject",
+        "s3:PutObject",
+        "s3:DeleteObject",
+        "s3:ListBucket"
+      ],
+      "Resource": [
+        "arn:aws:s3:::{company}-sm-*",
+        "arn:aws:s3:::{company}-sm-*/*"
+      ]
+    },
+    {
+      "Sid": "AllowCloudWatchReadOnly",
+      "Effect": "Allow",
+      "Action": [
+        "logs:DescribeLogGroups",
+        "logs:DescribeLogStreams",
+        "logs:GetLogEvents"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "DenyIAMChanges",
+      "Effect": "Deny",
+      "Action": [
+        "iam:CreateUser",
+        "iam:DeleteUser",
+        "iam:CreateRole",
+        "iam:DeleteRole",
+        "iam:AttachUserPolicy",
+        "iam:DetachUserPolicy",
+        "iam:PutUserPermissionsBoundary",
+        "iam:DeleteUserPermissionsBoundary"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "DenyBoundaryModification",
+      "Effect": "Deny",
+      "Action": [
+        "iam:DeletePolicy",
+        "iam:CreatePolicyVersion",
+        "iam:DeletePolicyVersion"
+      ],
+      "Resource": "arn:aws:iam::*:policy/SageMaker-User-Boundary"
+    }
+  ]
+}
+```
+
+### 9.3 Boundary 应用
+
+| IAM 实体类型             | 应用的 Boundary                  |
+| ------------------------ | -------------------------------- |
+| 所有 SageMaker IAM Users | SageMaker-User-Boundary          |
+| 所有 Execution Roles     | SageMaker-ExecutionRole-Boundary |
+
+---
+
+## 10. 权限审计配置
+
+### 10.1 审计目标
+
+| 目标         | 实现方式                         |
+| ------------ | -------------------------------- |
+| **操作追踪** | CloudTrail 记录所有 API 调用     |
+| **权限分析** | IAM Access Analyzer 检测过宽权限 |
+| **合规报告** | AWS Config 规则检测配置偏移      |
+
+### 10.2 CloudTrail 配置
+
+```
+建议配置：
+- 启用多区域 Trail
+- S3 存储日志并启用加密
+- 集成 CloudWatch Logs 实现实时告警
+- 保留期限：至少 90 天
+```
+
+**关键事件监控**：
+
+| 事件名称                   | 说明          | 告警级别 |
+| -------------------------- | ------------- | -------- |
+| `CreateUser`               | 创建 IAM 用户 | 中       |
+| `AttachUserPolicy`         | 附加策略      | 中       |
+| `CreateAccessKey`          | 创建访问密钥  | 高       |
+| `ConsoleLogin`             | 控制台登录    | 低       |
+| `CreatePresignedDomainUrl` | 进入 Studio   | 低       |
+
+### 10.3 IAM Access Analyzer
+
+建议配置规则：
+
+| 检查项         | 说明                       |
+| -------------- | -------------------------- |
+| **外部访问**   | 检测资源是否被外部账号访问 |
+| **未使用权限** | 识别 90 天未使用的权限     |
+| **策略验证**   | 检测策略语法和最佳实践偏离 |
+
+### 10.4 定期审计清单
+
+| 频率       | 审计项                      |
+| ---------- | --------------------------- |
+| **每周**   | 检查新增 IAM 用户和权限变更 |
+| **每月**   | 审查未使用的访问密钥和权限  |
+| **每季度** | 全面权限审计，清理过期用户  |
+
+### 10.5 告警配置示例
+
+```
+CloudWatch Alarm 建议：
+1. IAM 策略变更 → SNS 通知管理员
+2. 异常登录（非工作时间/异常 IP）→ 立即告警
+3. 访问被拒绝次数异常 → 可能是攻击或配置错误
+4. Execution Role 被非预期用户使用 → 安全调查
+```
+
+---
+
+## 11. 检查清单
 
 ### 创建前检查
 
 - [ ] 确认命名规范
 - [ ] 确认团队和项目清单
 - [ ] 确认人员名单
+- [ ] 准备 Policy JSON 模板
+- [ ] 确认 Permissions Boundary 策略
 
 ### 创建后验证
 
@@ -310,16 +688,18 @@ sm-rc-alice:
 - [ ] 用户可以访问 SageMaker Studio
 - [ ] 用户只能看到自己项目的 Space
 - [ ] 用户只能访问自己项目的 S3 数据
+- [ ] PassRole 权限验证通过
+- [ ] CloudTrail 日志正常记录
 
 ---
 
-## 9. IAM Domain 下“只能打开自己的 Profile”的可验证方案
+## 12. IAM Domain 下"只能打开自己的 Profile"的可验证方案
 
-> 目标：在 IAM 认证模式下，实现并可验收地证明——用户只能进入 Studio 的“自己的 User Profile”，并且只能在所属项目 Space 内工作。
+> 目标：在 IAM 认证模式下，实现并可验收地证明——用户只能进入 Studio 的"自己的 User Profile"，并且只能在所属项目 Space 内工作。
 
-### 9.1 设计思路（强制可验收）
+### 12.1 设计思路（强制可验收）
 
-- **原则**：不要求 UI 一定隐藏其他 Profile，但必须确保“打开/进入/创建 App”无法越权。
+- **原则**：不要求 UI 一定隐藏其他 Profile，但必须确保"打开/进入/创建 App"无法越权。
 - **实现抓手**：
   - 将 `CreatePresignedDomainUrl`、`DescribeUserProfile`、`CreateApp/UpdateApp/DeleteApp` 作为关键控制点
   - 用 IAM Policy 对上述动作施加资源范围与条件约束（Owner/Project/Team 标签 + 命名规范）
@@ -327,7 +707,7 @@ sm-rc-alice:
   - User Profile：`Owner=sm-<team>-<name>`、`Team`、`Project`
   - Space：`Team`、`Project`
 
-### 9.2 可验收的测试用例（建议写入 UAT）
+### 12.2 可验收的测试用例（建议写入 UAT）
 
 - **用例 1：用户打开自己的 Profile**
   - 预期：成功进入 Studio；可启动/停止自己项目的 App；可访问自己项目 S3。
@@ -340,8 +720,8 @@ sm-rc-alice:
 - **用例 5：用户尝试选择超出平台允许的实例规格**
   - 预期：失败（AccessDenied 或 UI 不可选）。
 
-### 9.3 实施建议（落地顺序）
+### 12.3 实施建议（落地顺序）
 
 - 先按项目建立 Execution Role（项目级），确保 S3 最小权限隔离可验收。
 - 再用项目组（Group）聚合权限，避免对单个 User 直接授权导致漂移。
-- 最后补齐“实例规格治理（白名单/上限）”与“Profile 打开权限”，并执行上述用例完成验收。
+- 最后补齐"实例规格治理（白名单/上限）"与"Profile 打开权限"，并执行上述用例完成验收。

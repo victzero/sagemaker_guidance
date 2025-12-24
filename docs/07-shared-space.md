@@ -4,6 +4,20 @@
 
 ---
 
+## 占位符说明
+
+> 📌 本文档使用以下占位符，实施时请替换为实际值。
+
+| 占位符 | 说明 | 示例值 |
+|--------|------|--------|
+| `{company}` | 公司/组织名称前缀 | `acme` |
+| `{team}` | 团队缩写 | `rc`、`algo` |
+| `{project}` | 项目名称 | `project-a`、`project-x` |
+| `{owner}` | 空间所有者 Profile | `profile-rc-alice` |
+| `d-xxxxxxxxx` | Domain ID | `d-abc123def456` |
+
+---
+
 ## 1. Space 概述
 
 ### 1.1 什么是 Space
@@ -38,7 +52,7 @@ SageMaker Space 是用于协作的共享环境：
 ### 2.2 命名规范
 
 ```
-Space 名称: space-{team-abbr}-{project}
+Space 名称: space-{team}-{project}
 
 示例:
 - space-rc-project-a     # 风控项目A
@@ -183,10 +197,10 @@ Shared Space 支持：
 
 | Tag Key | Tag Value | 示例 |
 |---------|-----------|------|
-| Team | {team-name} | risk-control |
-| Project | {project-name} | project-a |
+| Team | {team} | risk-control |
+| Project | {project} | project-a |
 | Environment | production | production |
-| Owner | {owner-profile} | profile-rc-alice |
+| Owner | {owner} | profile-rc-alice |
 
 ---
 

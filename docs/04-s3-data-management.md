@@ -4,6 +4,21 @@
 
 ---
 
+## 占位符说明
+
+> 📌 本文档使用以下占位符，实施时请替换为实际值。
+
+| 占位符 | 说明 | 示例值 |
+|--------|------|--------|
+| `{company}` | 公司/组织名称前缀 | `acme` |
+| `{account-id}` | AWS 账号 ID | `123456789012` |
+| `{team}` | 团队缩写 | `rc`、`algo` |
+| `{project}` | 项目名称 | `project-a`、`project-x` |
+| `{user}` | 用户名 | `alice`、`frank` |
+| `{cost-center}` | 成本中心代码 | `ML-001` |
+
+---
+
 ## 1. Bucket 规划
 
 ### 1.1 Bucket 策略
@@ -32,8 +47,8 @@
 {company}-sm-{team}-{project}
 
 示例:
-- acme-sm-rc-project-a
-- acme-sm-algo-project-x
+- {company}-sm-rc-project-a
+- {company}-sm-algo-project-x
 ```
 
 ---
@@ -112,10 +127,10 @@
 
 | Tag Key | Tag Value | 示例 |
 |---------|-----------|------|
-| Team | {team-name} | risk-control |
-| Project | {project-name} | project-a |
+| Team | {team} | risk-control |
+| Project | {project} | project-a |
 | Environment | production | production |
-| CostCenter | {cost-code} | ML-001 |
+| CostCenter | {cost-center} | ML-001 |
 | ManagedBy | sagemaker-platform | sagemaker-platform |
 
 ---
@@ -146,8 +161,8 @@ Policy 要点:
 - s3:GetBucketLocation
 
 **主体**:
-- arn:aws:iam::{account}:role/SageMaker-{Team}-{Project}-ExecutionRole
-- arn:aws:iam::{account}:user/sm-{team}-*（项目成员）
+- `arn:aws:iam::{account-id}:role/SageMaker-{Team}-{Project}-ExecutionRole`
+- `arn:aws:iam::{account-id}:user/sm-{team}-*`（项目成员）
 
 ### 4.3 共享 Bucket Policy
 
@@ -245,19 +260,19 @@ IAM User → Console → S3 Bucket
 
 | Execution Role | 可访问 Bucket |
 |----------------|---------------|
-| SageMaker-RiskControl-ProjectA-ExecutionRole | acme-sm-rc-project-a, acme-sm-shared-assets (只读) |
-| SageMaker-RiskControl-ProjectB-ExecutionRole | acme-sm-rc-project-b, acme-sm-shared-assets (只读) |
-| SageMaker-Algorithm-ProjectX-ExecutionRole | acme-sm-algo-project-x, acme-sm-shared-assets (只读) |
-| SageMaker-Algorithm-ProjectY-ExecutionRole | acme-sm-algo-project-y, acme-sm-shared-assets (只读) |
+| SageMaker-RiskControl-ProjectA-ExecutionRole | {company}-sm-rc-project-a, {company}-sm-shared-assets (只读) |
+| SageMaker-RiskControl-ProjectB-ExecutionRole | {company}-sm-rc-project-b, {company}-sm-shared-assets (只读) |
+| SageMaker-Algorithm-ProjectX-ExecutionRole | {company}-sm-algo-project-x, {company}-sm-shared-assets (只读) |
+| SageMaker-Algorithm-ProjectY-ExecutionRole | {company}-sm-algo-project-y, {company}-sm-shared-assets (只读) |
 
 ### 8.2 IAM User → Bucket (Console 访问)
 
 | User Group | 可访问 Bucket |
 |------------|---------------|
-| sagemaker-rc-project-a | acme-sm-rc-project-a |
-| sagemaker-rc-project-b | acme-sm-rc-project-b |
-| sagemaker-algo-project-x | acme-sm-algo-project-x |
-| sagemaker-algo-project-y | acme-sm-algo-project-y |
+| sagemaker-rc-project-a | {company}-sm-rc-project-a |
+| sagemaker-rc-project-b | {company}-sm-rc-project-b |
+| sagemaker-algo-project-x | {company}-sm-algo-project-x |
+| sagemaker-algo-project-y | {company}-sm-algo-project-y |
 
 ---
 

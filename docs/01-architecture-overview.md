@@ -4,6 +4,19 @@
 
 ---
 
+## 占位符说明
+
+> 📌 本文档使用以下占位符，实施时请替换为实际值。
+
+| 占位符 | 说明 | 示例值 |
+|--------|------|--------|
+| `{company}` | 公司/组织名称前缀 | `acme` |
+| `{team}` | 团队缩写 | `rc`（风控）、`algo`（算法） |
+| `{project}` | 项目名称 | `project-a`、`project-x` |
+| `{name}` | 用户名 | `alice`、`frank` |
+
+---
+
 ## 0. 设计范围声明
 
 > ⚠️ **重要**：本设计仅覆盖 **ML 实验与开发环境**，不包含生产推理部署。
@@ -70,7 +83,7 @@ ML Platform
 | IAM Group (项目) | `sagemaker-{team}-{project}`               | `sagemaker-risk-control-project-a`             |
 | IAM User         | `sm-{team}-{name}`                         | `sm-rc-alice`                                  |
 | IAM Role         | `SageMaker-{Team}-{Project}-ExecutionRole` | `SageMaker-RiskControl-ProjectA-ExecutionRole` |
-| S3 Bucket        | `{company}-sagemaker-{team}-{project}`     | `acme-sagemaker-rc-project-a`                  |
+| S3 Bucket        | `{company}-sm-{team}-{project}`            | `acme-sm-rc-project-a`                         |
 | SageMaker Space  | `space-{team}-{project}`                   | `space-rc-project-a`                           |
 
 ---
