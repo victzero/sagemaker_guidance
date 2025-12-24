@@ -27,17 +27,15 @@
 
 > 💡 **建议**：IAM 资源**建议**通过 Infrastructure as Code 方式创建和管理，**不建议**在 AWS Console 手动操作。
 
-| 建议 | 说明 |
-|------|------|
-| **工具选择** | Terraform / AWS CDK / CloudFormation 任选其一 |
-| **减少手动** | 不建议通过 Console 创建 IAM User/Group/Role/Policy |
-| **Tag 一致性** | 通过代码确保所有资源 Tag 正确且一致 |
-| **版本控制** | IaC 代码建议入 Git，变更可追溯 |
-| **审批流程** | IAM 变更建议 Code Review 后再 Apply |
+| 建议           | 说明                                               |
+| -------------- | -------------------------------------------------- |
+| **工具选择**   | Terraform / AWS CDK / CloudFormation 任选其一      |
+| **减少手动**   | 不建议通过 Console 创建 IAM User/Group/Role/Policy |
+| **Tag 一致性** | 通过代码确保所有资源 Tag 正确且一致                |
+| **版本控制**   | IaC 代码建议入 Git，变更可追溯                     |
+| **审批流程**   | IAM 变更建议 Code Review 后再 Apply                |
 
 **原因**：本设计依赖 IAM Policy 的 `Condition` 字段配合 Resource Tag 实现精细化访问控制（ABAC）。手动操作容易导致 Tag 遗漏或错误，可能造成用户无法登录或越权访问。
-
-> 📌 **当前状态**：如团队仍以 Console 操作为主，建议至少确保 Tag 命名的一致性，并记录操作日志以便审计。
 
 ---
 
