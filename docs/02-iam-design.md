@@ -707,7 +707,7 @@ CloudWatch Alarm 建议：
   - User Profile：`Owner=sm-<team>-<name>`、`Team`、`Project`
   - Space：`Team`、`Project`
 
-### 12.2 可验收的测试用例（建议写入 UAT）
+### 12.2 可验收的测试用例（建议写入 UAT - User Acceptance Testing 用户验收测试）
 
 - **用例 1：用户打开自己的 Profile**
   - 预期：成功进入 Studio；可启动/停止自己项目的 App；可访问自己项目 S3。

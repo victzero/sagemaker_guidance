@@ -8,15 +8,15 @@
 
 > 📌 本文档使用以下占位符，实施时请替换为实际值。
 
-| 占位符 | 说明 | 示例值 |
-|--------|------|--------|
-| `{account-id}` | AWS 账号 ID | `123456789012` |
-| `{team}` | 团队缩写 | `rc`、`algo` |
-| `{project}` | 项目名称 | `project-a`、`project-x` |
-| `{name}` | 用户名 | `alice`、`frank` |
-| `{iam-user}` | IAM 用户名 | `sm-rc-alice` |
-| `d-xxxxxxxxx` | Domain ID（创建后获取） | `d-abc123def456` |
-| `sg-xxxxxxxxx` | 安全组 ID | `sg-0abc123def456` |
+| 占位符         | 说明                    | 示例值                   |
+| -------------- | ----------------------- | ------------------------ |
+| `{account-id}` | AWS 账号 ID             | `123456789012`           |
+| `{team}`       | 团队缩写                | `rc`、`algo`             |
+| `{project}`    | 项目名称                | `project-a`、`project-x` |
+| `{name}`       | 用户名                  | `alice`、`frank`         |
+| `{iam-user}`   | IAM 用户名              | `sm-rc-alice`            |
+| `d-xxxxxxxxx`  | Domain ID（创建后获取） | `d-abc123def456`         |
+| `sg-xxxxxxxxx` | 安全组 ID               | `sg-0abc123def456`       |
 
 ---
 
@@ -188,12 +188,12 @@ IAM User 需要以下权限访问自己的 User Profile：
 
 每个 User Profile 必须包含以下标签：
 
-| Tag Key     | Tag Value       | 示例         |
-| ----------- | --------------- | ------------ |
+| Tag Key     | Tag Value  | 示例         |
+| ----------- | ---------- | ------------ |
 | Team        | {team}     | risk-control |
 | Project     | {project}  | project-a    |
 | Owner       | {iam-user} | sm-rc-alice  |
-| Environment | production      | production   |
+| Environment | production | production   |
 
 ### 6.2 标签用途
 
