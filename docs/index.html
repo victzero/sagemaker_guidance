@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <title>SageMaker AI/ML 平台构建手册</title>
+  <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1" />
+  <meta name="description" content="SageMaker AI/ML 平台构建指南 - IAM Users + 现有 VPC">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0">
+  
+  <!-- Theme -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/docsify-themeable@0/dist/css/theme-simple-dark.css">
+  
+  <!-- Custom styles -->
+  <style>
+    :root {
+      --theme-color: #FF9900; /* AWS Orange */
+      --sidebar-width: 280px;
+      --sidebar-nav-link-color--active: #FF9900;
+      --sidebar-nav-link-border-color--active: #FF9900;
+      --link-color: #FF9900;
+      --link-color--hover: #EC7211;
+      --code-theme-background: #1a1a2e;
+      --code-inline-background: rgba(255, 153, 0, 0.1);
+      --code-inline-color: #FF9900;
+    }
+    
+    /* Logo/Title styling */
+    .app-name-link {
+      font-weight: 700 !important;
+      font-size: 1.2rem !important;
+    }
+    
+    /* Sidebar section headers */
+    .sidebar-nav > ul > li > a {
+      font-weight: 600;
+      color: #FF9900 !important;
+    }
+    
+    /* Table styling */
+    table {
+      border-collapse: collapse;
+      width: 100%;
+      margin: 1rem 0;
+    }
+    
+    th {
+      background-color: rgba(255, 153, 0, 0.1);
+      border: 1px solid #333;
+      padding: 8px 12px;
+    }
+    
+    td {
+      border: 1px solid #333;
+      padding: 8px 12px;
+    }
+    
+    /* Code block styling */
+    pre {
+      border-radius: 8px;
+      border: 1px solid #333;
+    }
+    
+    /* Checkbox styling */
+    input[type="checkbox"] {
+      accent-color: #FF9900;
+    }
+    
+    /* Blockquote styling */
+    blockquote {
+      border-left: 4px solid #FF9900;
+      background: rgba(255, 153, 0, 0.05);
+      padding: 1rem;
+      margin: 1rem 0;
+      border-radius: 0 8px 8px 0;
+    }
+    
+    /* Search highlight */
+    .search .matching-post {
+      border-bottom: 1px solid #333;
+    }
+    
+    /* Copy code button */
+    .docsify-copy-code-button {
+      background: #FF9900 !important;
+      color: #000 !important;
+    }
+  </style>
+</head>
+<body>
+  <div id="app">正在加载...</div>
+  
+  <script>
+    window.$docsify = {
+      name: '🚀 SageMaker 平台指南',
+      repo: '', // 如果有 GitHub repo 可以填写
+      
+      // 加载侧边栏
+      loadSidebar: true,
+      
+      // 子目录最大层级
+      subMaxLevel: 3,
+      
+      // 自动生成标题
+      autoHeader: true,
+      
+      // 搜索配置
+      search: {
+        maxAge: 86400000,
+        paths: 'auto',
+        placeholder: '搜索文档...',
+        noData: '没有找到结果',
+        depth: 3,
+        hideOtherSidebarContent: false,
+      },
+      
+      // 分页导航
+      pagination: {
+        previousText: '上一章',
+        nextText: '下一章',
+        crossChapter: true,
+        crossChapterText: true,
+      },
+      
+      // 代码复制
+      copyCode: {
+        buttonText: '复制',
+        successText: '已复制',
+        errorText: '复制失败'
+      },
+      
+      // Tab 插件
+      tabs: {
+        persist: true,
+        sync: true,
+        theme: 'material',
+        tabComments: true,
+        tabHeadings: true
+      },
+      
+      // 页脚
+      footer: {
+        copy: '<span>SageMaker AI/ML 平台构建手册</span>',
+        auth: ' | 内部文档',
+        pre: '<hr/>',
+        style: 'text-align: center; padding: 20px;'
+      },
+      
+      // 格式化更新时间
+      formatUpdated: '{YYYY}-{MM}-{DD} {HH}:{mm}',
+      
+      // 404 页面
+      notFoundPage: true,
+    }
+  </script>
+  
+  <!-- Docsify Core -->
+  <script src="https://cdn.jsdelivr.net/npm/docsify@4/lib/docsify.min.js"></script>
+  
+  <!-- Plugins -->
+  <script src="https://cdn.jsdelivr.net/npm/docsify@4/lib/plugins/search.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/docsify-copy-code@2"></script>
+  <script src="https://cdn.jsdelivr.net/npm/docsify-pagination@2/dist/docsify-pagination.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/docsify-tabs@1"></script>
+  
+  <!-- Syntax Highlighting -->
+  <script src="https://cdn.jsdelivr.net/npm/prismjs@1/components/prism-bash.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/prismjs@1/components/prism-json.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/prismjs@1/components/prism-yaml.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/prismjs@1/components/prism-python.min.js"></script>
+  
+  <!-- Emoji Plugin -->
+  <script src="https://cdn.jsdelivr.net/npm/docsify@4/lib/plugins/emoji.min.js"></script>
+</body>
+</html>
+

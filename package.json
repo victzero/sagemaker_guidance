@@ -1,0 +1,21 @@
+{
+  "name": "sagemaker-guidance",
+  "version": "1.0.0",
+  "description": "SageMaker AI/ML 平台构建手册",
+  "scripts": {
+    "dev": "docsify serve docs -p 3000",
+    "start": "docsify serve docs -p 3000"
+  },
+  "devDependencies": {
+    "docsify-cli": "^4.4.4"
+  },
+  "keywords": [
+    "sagemaker",
+    "aws",
+    "ml-platform",
+    "documentation"
+  ],
+  "author": "",
+  "license": "MIT"
+}
+
