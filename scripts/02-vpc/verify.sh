@@ -80,8 +80,8 @@ check_sg() {
     fi
 }
 
-check_sg "sg-${TAG_PREFIX}-studio" || ((errors++)) || true
-check_sg "sg-${TAG_PREFIX}-vpc-endpoints" || ((errors++)) || true
+check_sg "${TAG_PREFIX}-studio" || ((errors++)) || true
+check_sg "${TAG_PREFIX}-vpc-endpoints" || ((errors++)) || true
 
 # -----------------------------------------------------------------------------
 # 验证 VPC Endpoints

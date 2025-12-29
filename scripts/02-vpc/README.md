@@ -49,8 +49,10 @@ scripts/02-vpc/
 
 | 安全组名称 | 用途 |
 |-----------|------|
-| `sg-sagemaker-studio` | SageMaker Studio 实例 |
-| `sg-sagemaker-vpc-endpoints` | VPC Endpoints |
+| `{TAG_PREFIX}-studio` | SageMaker Studio 实例 |
+| `{TAG_PREFIX}-vpc-endpoints` | VPC Endpoints |
+
+> 注意: AWS 不允许安全组名称以 `sg-` 开头（这是安全组 ID 的保留前缀）
 
 ### VPC Endpoints (必需)
 
@@ -121,7 +123,7 @@ aws ec2 describe-route-tables --filters "Name=vpc-id,Values=vpc-xxx" \
 
 ## 安全组规则
 
-### sg-sagemaker-studio
+### {TAG_PREFIX}-studio
 
 **入站规则:**
 - All Traffic from self (Studio 内部通信)
@@ -131,7 +133,7 @@ aws ec2 describe-route-tables --filters "Name=vpc-id,Values=vpc-xxx" \
 - All Traffic to self
 - HTTPS (443) to 0.0.0.0/0 (默认)
 
-### sg-sagemaker-vpc-endpoints
+### {TAG_PREFIX}-vpc-endpoints
 
 **入站规则:**
 - HTTPS (443) from VPC CIDR
@@ -149,8 +151,8 @@ aws ec2 describe-route-tables --filters "Name=vpc-id,Values=vpc-xxx" \
   ✓ DNS Support: Enabled
 
 --- Security Groups ---
-  ✓ sg-sagemaker-studio: sg-0abc123
-  ✓ sg-sagemaker-vpc-endpoints: sg-0def456
+  ✓ acme-sagemaker-studio: sg-0abc123
+  ✓ acme-sagemaker-vpc-endpoints: sg-0def456
 
 --- VPC Endpoints ---
 Required Endpoints:

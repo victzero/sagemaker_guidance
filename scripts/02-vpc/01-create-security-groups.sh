@@ -115,9 +115,10 @@ main() {
     echo ""
     
     # 1. 创建 SageMaker Studio 安全组
+    # 注意: AWS 不允许安全组名称以 "sg-" 开头，所以使用 "{TAG_PREFIX}-studio" 格式
     log_info "Creating SageMaker Studio security group..."
     SG_STUDIO=$(create_security_group \
-        "sg-${TAG_PREFIX}-studio" \
+        "${TAG_PREFIX}-studio" \
         "Security group for SageMaker Studio instances")
     
     # 验证安全组 ID 格式
@@ -136,7 +137,7 @@ main() {
     # 2. 创建 VPC Endpoints 安全组
     log_info "Creating VPC Endpoints security group..."
     SG_ENDPOINTS=$(create_security_group \
-        "sg-${TAG_PREFIX}-vpc-endpoints" \
+        "${TAG_PREFIX}-vpc-endpoints" \
         "Security group for VPC Endpoints")
     
     # 验证安全组 ID 格式
