@@ -413,8 +413,8 @@ main() {
         local team_fullname=$(get_team_fullname "$team")
         log_info "Creating team policy for: $team ($team_fullname)"
         
-        # 首字母大写
-        local team_capitalized=$(echo "$team_fullname" | sed -e 's/\b\w/\u&/g' | tr -d '-')
+        # 格式化名称 (risk-control -> RiskControl)
+        local team_capitalized=$(format_name "$team_fullname")
         
         create_policy "SageMaker-${team_capitalized}-Team-Access" \
             "$(generate_team_access_policy "$team")" \
@@ -428,9 +428,9 @@ main() {
             log_info "Creating project policy for: $team / $project"
             
             # 格式化名称 (project-a -> ProjectA)
-            local project_formatted=$(echo "$project" | sed -e 's/-/ /g' -e 's/\b\w/\u&/g' | tr -d ' ')
+            local project_formatted=$(format_name "$project")
             local team_fullname=$(get_team_fullname "$team")
-            local team_capitalized=$(echo "$team_fullname" | sed -e 's/\b\w/\u&/g' | tr -d '-')
+            local team_capitalized=$(format_name "$team_fullname")
             
             create_policy "SageMaker-${team_capitalized}-${project_formatted}-Access" \
                 "$(generate_project_access_policy "$team" "$project")" \

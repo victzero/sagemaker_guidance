@@ -66,7 +66,7 @@ main() {
     log_info "Binding team group policies..."
     for team in $TEAMS; do
         local team_fullname=$(get_team_fullname "$team")
-        local team_capitalized=$(echo "$team_fullname" | sed -e 's/-/ /g' -e 's/\b\w/\u&/g' | tr -d ' ')
+        local team_capitalized=$(format_name "$team_fullname")
         local group_name="sagemaker-${team_fullname}"
         
         # 基础访问策略
@@ -82,11 +82,11 @@ main() {
     log_info "Binding project group policies..."
     for team in $TEAMS; do
         local team_fullname=$(get_team_fullname "$team")
-        local team_capitalized=$(echo "$team_fullname" | sed -e 's/-/ /g' -e 's/\b\w/\u&/g' | tr -d ' ')
+        local team_capitalized=$(format_name "$team_fullname")
         
         local projects=$(get_projects_for_team "$team")
         for project in $projects; do
-            local project_formatted=$(echo "$project" | sed -e 's/-/ /g' -e 's/\b\w/\u&/g' | tr -d ' ')
+            local project_formatted=$(format_name "$project")
             local group_name="sagemaker-${team}-${project}"
             
             attach_policy_to_group "$group_name" \

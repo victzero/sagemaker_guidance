@@ -140,8 +140,26 @@ ensure_output_dir() {
 # -----------------------------------------------------------------------------
 get_team_fullname() {
     local team=$1
-    local var_name="TEAM_${team^^}_FULLNAME"
+    local team_upper=$(echo "$team" | tr '[:lower:]' '[:upper:]')
+    local var_name="TEAM_${team_upper}_FULLNAME"
     echo "${!var_name}"
+}
+
+# -----------------------------------------------------------------------------
+# 格式化名称 (risk-control -> RiskControl)
+# -----------------------------------------------------------------------------
+format_name() {
+    local input="$1"
+    local result=""
+    # 按连字符分割，每部分首字母大写
+    IFS='-' read -ra parts <<< "$input"
+    for part in "${parts[@]}"; do
+        # 首字母大写 + 其余小写
+        local first=$(echo "${part:0:1}" | tr '[:lower:]' '[:upper:]')
+        local rest=$(echo "${part:1}" | tr '[:upper:]' '[:lower:]')
+        result="${result}${first}${rest}"
+    done
+    echo "$result"
 }
 
 # -----------------------------------------------------------------------------

@@ -37,39 +37,157 @@ fi
 # 加载环境变量显示预览
 source "${SCRIPT_DIR}/.env"
 
-# 计算预期资源数量
-team_count=0
-project_count=0
-admin_count=0
+# 设置 IAM_PATH
+IAM_PATH="/${COMPANY}-sagemaker/"
 
-for admin in $ADMIN_USERS; do ((admin_count++)) || true; done
-for team in $TEAMS; do
-    ((team_count++)) || true
-    team_upper=$(echo "$team" | tr '[:lower:]' '[:upper:]')
-    var_name="${team_upper}_PROJECTS"
-    projects="${!var_name}"
-    for project in $projects; do
-        ((project_count++)) || true
+# 辅助函数：获取团队全称
+get_team_fullname() {
+    local team=$1
+    local team_upper=$(echo "$team" | tr '[:lower:]' '[:upper:]')
+    local var_name="TEAM_${team_upper}_FULLNAME"
+    echo "${!var_name}"
+}
+
+# 辅助函数：格式化名称 (risk-control -> RiskControl)
+format_name() {
+    local input="$1"
+    local result=""
+    # 按连字符分割，每部分首字母大写
+    IFS='-' read -ra parts <<< "$input"
+    for part in "${parts[@]}"; do
+        # 首字母大写 + 其余小写
+        first=$(echo "${part:0:1}" | tr '[:lower:]' '[:upper:]')
+        rest=$(echo "${part:1}" | tr '[:upper:]' '[:lower:]')
+        result="${result}${first}${rest}"
     done
-done
+    echo "$result"
+}
 
-expected_policies=$((3 + team_count + project_count * 2))
-expected_groups=$((2 + team_count + project_count))
+# 辅助函数：获取项目列表
+get_projects() {
+    local team=$1
+    local team_upper=$(echo "$team" | tr '[:lower:]' '[:upper:]')
+    local var_name="${team_upper}_PROJECTS"
+    echo "${!var_name}"
+}
+
+# 辅助函数：获取项目用户
+get_users() {
+    local team=$1
+    local project=$2
+    local team_upper=$(echo "$team" | tr '[:lower:]' '[:upper:]')
+    local project_upper=$(echo "$project" | tr '[:lower:]' '[:upper:]' | tr '-' '_')
+    local var_name="${team_upper}_${project_upper}_USERS"
+    echo "${!var_name}"
+}
 
 # 确认执行
 echo -e "${YELLOW}This script will create the following AWS IAM resources:${NC}"
 echo ""
 echo "  Company:       $COMPANY"
-echo "  IAM Path:      /${COMPANY}-sagemaker/"
+echo "  IAM Path:      ${IAM_PATH}"
 echo ""
-echo "  Resources to create:"
-echo "    - Policies:  ~$expected_policies (base, team, project, execution)"
-echo "    - Groups:    ~$expected_groups (admin, readonly, team, project)"
-echo "    - Users:     Admin + team members"
-echo "    - Roles:     $project_count (one per project)"
+
+# ========== Policies ==========
+echo -e "${BLUE}【Policies】${NC}"
+echo "  Base policies:"
+echo "    - SageMaker-Studio-Base-Access"
+echo "    - SageMaker-ReadOnly-Access"
+echo "    - SageMaker-User-Boundary"
+
+policy_count=3
+for team in $TEAMS; do
+    team_fullname=$(get_team_fullname "$team")
+    team_formatted=$(format_name "$team_fullname")
+    echo "  Team [$team] policies:"
+    echo "    - SageMaker-${team_formatted}-Team-Access"
+    ((policy_count++))
+    
+    projects=$(get_projects "$team")
+    for project in $projects; do
+        project_formatted=$(format_name "$project")
+        echo "    - SageMaker-${team_formatted}-${project_formatted}-Access"
+        echo "    - SageMaker-${team_formatted}-${project_formatted}-ExecutionPolicy"
+        ((policy_count+=2))
+    done
+done
+echo "  Total: $policy_count policies"
+echo ""
+
+# ========== Groups ==========
+echo -e "${BLUE}【Groups】${NC}"
+echo "  Platform groups:"
+echo "    - sagemaker-admins"
+echo "    - sagemaker-readonly"
+
+group_count=2
+for team in $TEAMS; do
+    team_fullname=$(get_team_fullname "$team")
+    echo "  Team [$team] groups:"
+    echo "    - sagemaker-${team_fullname}"
+    ((group_count++))
+    
+    projects=$(get_projects "$team")
+    for project in $projects; do
+        echo "    - sagemaker-${team}-${project}"
+        ((group_count++))
+    done
+done
+echo "  Total: $group_count groups"
+echo ""
+
+# ========== Users ==========
+echo -e "${BLUE}【Users】${NC}"
+echo "  Admin users:"
+user_count=0
+for admin in $ADMIN_USERS; do
+    echo "    - sm-admin-${admin}"
+    ((user_count++))
+done
+
+for team in $TEAMS; do
+    projects=$(get_projects "$team")
+    for project in $projects; do
+        users=$(get_users "$team" "$project")
+        if [[ -n "$users" ]]; then
+            echo "  Team [$team] project [$project] users:"
+            for user in $users; do
+                echo "    - sm-${team}-${user}"
+                ((user_count++))
+            done
+        fi
+    done
+done
+echo "  Total: $user_count users"
+echo ""
+
+# ========== Roles ==========
+echo -e "${BLUE}【Execution Roles】${NC}"
+role_count=0
+for team in $TEAMS; do
+    team_fullname=$(get_team_fullname "$team")
+    team_formatted=$(format_name "$team_fullname")
+    
+    projects=$(get_projects "$team")
+    for project in $projects; do
+        project_formatted=$(format_name "$project")
+        echo "  - SageMaker-${team_formatted}-${project_formatted}-ExecutionRole"
+        ((role_count++))
+    done
+done
+echo "  Total: $role_count roles"
+echo ""
+
+# ========== Summary ==========
+echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo -e "${CYAN}Summary: $policy_count policies, $group_count groups, $user_count users, $role_count roles${NC}"
+echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 echo ""
 echo -e "${YELLOW}Filter resources later with:${NC}"
-echo "  aws iam list-* --path-prefix /${COMPANY}-sagemaker/"
+echo "  aws iam list-policies --scope Local --path-prefix ${IAM_PATH}"
+echo "  aws iam list-groups --path-prefix ${IAM_PATH}"
+echo "  aws iam list-users --path-prefix ${IAM_PATH}"
+echo "  aws iam list-roles --path-prefix ${IAM_PATH}"
 echo ""
 
 read -p "Do you want to proceed? [y/N] " -n 1 -r

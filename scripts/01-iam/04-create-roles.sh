@@ -41,8 +41,8 @@ create_execution_role() {
     
     # 格式化名称 (risk-control -> RiskControl, project-a -> ProjectA)
     local team_fullname=$(get_team_fullname "$team")
-    local team_capitalized=$(echo "$team_fullname" | sed -e 's/-/ /g' -e 's/\b\w/\u&/g' | tr -d ' ')
-    local project_formatted=$(echo "$project" | sed -e 's/-/ /g' -e 's/\b\w/\u&/g' | tr -d ' ')
+    local team_capitalized=$(format_name "$team_fullname")
+    local project_formatted=$(format_name "$project")
     
     local role_name="SageMaker-${team_capitalized}-${project_formatted}-ExecutionRole"
     local policy_name="SageMaker-${team_capitalized}-${project_formatted}-ExecutionPolicy"

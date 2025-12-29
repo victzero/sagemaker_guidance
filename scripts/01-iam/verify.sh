@@ -138,13 +138,13 @@ main() {
     
     for team in $TEAMS; do
         local team_fullname=$(get_team_fullname "$team")
-        local team_capitalized=$(echo "$team_fullname" | sed -e 's/-/ /g' -e 's/\b\w/\u&/g' | tr -d ' ')
+        local team_capitalized=$(format_name "$team_fullname")
         
         verify_resource policy "${policy_prefix}SageMaker-${team_capitalized}-Team-Access" || ((errors++))
         
         local projects=$(get_projects_for_team "$team")
         for project in $projects; do
-            local project_formatted=$(echo "$project" | sed -e 's/-/ /g' -e 's/\b\w/\u&/g' | tr -d ' ')
+            local project_formatted=$(format_name "$project")
             verify_resource policy "${policy_prefix}SageMaker-${team_capitalized}-${project_formatted}-Access" || ((errors++))
             verify_resource policy "${policy_prefix}SageMaker-${team_capitalized}-${project_formatted}-ExecutionPolicy" || ((errors++))
         done
@@ -188,11 +188,11 @@ main() {
     
     for team in $TEAMS; do
         local team_fullname=$(get_team_fullname "$team")
-        local team_capitalized=$(echo "$team_fullname" | sed -e 's/-/ /g' -e 's/\b\w/\u&/g' | tr -d ' ')
+        local team_capitalized=$(format_name "$team_fullname")
         
         local projects=$(get_projects_for_team "$team")
         for project in $projects; do
-            local project_formatted=$(echo "$project" | sed -e 's/-/ /g' -e 's/\b\w/\u&/g' | tr -d ' ')
+            local project_formatted=$(format_name "$project")
             verify_resource role "SageMaker-${team_capitalized}-${project_formatted}-ExecutionRole" || ((errors++))
         done
     done
