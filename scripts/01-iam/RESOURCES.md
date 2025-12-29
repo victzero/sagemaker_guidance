@@ -143,6 +143,8 @@ aws iam list-roles --path-prefix /acme-sagemaker/
 
 ## 命名规范总结
 
+### IAM 资源命名
+
 | 资源类型      | 命名格式                                     | 示例                                                   |
 | ------------- | -------------------------------------------- | ------------------------------------------------------ |
 | Policy (基础) | `SageMaker-{功能}-Access`                    | `SageMaker-Studio-Base-Access`                         |
@@ -155,3 +157,25 @@ aws iam list-roles --path-prefix /acme-sagemaker/
 | User (管理员) | `sm-admin-{name}`                            | `sm-admin-jason`                                       |
 | User (团队)   | `sm-{team}-{name}`                           | `sm-rc-alice`                                          |
 | Role          | `SageMaker-{Team}-{Project}-ExecutionRole`   | `SageMaker-RiskControl-FraudDetection-ExecutionRole`   |
+
+### 环境变量命名
+
+| 变量类型 | 命名格式                         | 转换规则                            | 示例                                   |
+| -------- | -------------------------------- | ----------------------------------- | -------------------------------------- |
+| 团队全称 | `TEAM_{TEAM_ID}_FULLNAME`        | TEAM_ID 大写                        | `TEAM_RC_FULLNAME=risk-control`        |
+| 项目列表 | `{TEAM_ID}_PROJECTS`             | TEAM_ID 大写                        | `RC_PROJECTS="fraud-detection"`        |
+| 项目用户 | `{TEAM_ID}_{PROJECT_NAME}_USERS` | TEAM*ID 大写, PROJECT: 大写+`-`→`*` | `RC_FRAUD_DETECTION_USERS="alice bob"` |
+
+### 名称格式化函数 (`format_name`)
+
+将 kebab-case 转为 PascalCase：
+
+| 输入                    | 输出                  |
+| ----------------------- | --------------------- |
+| `risk-control`          | `RiskControl`         |
+| `fraud-detection`       | `FraudDetection`      |
+| `anti-money-laundering` | `AntiMoneyLaundering` |
+
+---
+
+> **完整规范**: 参见 [../CONVENTIONS.md](../CONVENTIONS.md)

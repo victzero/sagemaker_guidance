@@ -59,11 +59,6 @@ delete_bucket() {
         return 0
     fi
     
-    if [[ "$DRY_RUN" == "true" ]]; then
-        log_warn "[DRY-RUN] Would delete bucket: $bucket_name"
-        return 0
-    fi
-    
     # 删除所有对象 (包括版本)
     log_info "Deleting all objects in $bucket_name..."
     aws s3 rm "s3://${bucket_name}" --recursive --region "$AWS_REGION" 2>/dev/null || true

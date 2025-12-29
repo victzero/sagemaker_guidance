@@ -40,10 +40,9 @@ aws sts get-caller-identity
 
 ## 快速开始
 
-```bash
-# 设置 AWS Profile (如需要)
-export AWS_PROFILE=tokyo
+**推荐在 AWS CloudShell 中执行**（已预装 AWS CLI，无需配置凭证）
 
+```bash
 # ============================================
 # Step 1: IAM 权限配置
 # ============================================
@@ -51,14 +50,8 @@ cd 01-iam
 cp .env.example .env
 vi .env  # 填入配置
 
-# 预览
-./setup-all.sh --dry-run
-
-# 执行
-./setup-all.sh
-
-# 验证
-./verify.sh
+./setup-all.sh   # 会显示预览，确认后执行
+./verify.sh      # 验证
 
 # ============================================
 # Step 2: VPC 网络配置
@@ -67,7 +60,6 @@ cd ../02-vpc
 cp .env.example .env
 vi .env  # 填入 VPC ID、Subnet IDs 等
 
-./setup-all.sh --dry-run
 ./setup-all.sh
 ./verify.sh
 
@@ -78,7 +70,6 @@ cd ../03-s3
 cp .env.example .env
 vi .env  # 确认公司名称、项目列表等
 
-./setup-all.sh --dry-run
 ./setup-all.sh
 ./verify.sh
 ```
@@ -126,11 +117,20 @@ vi .env  # 确认公司名称、项目列表等
 
 所有脚本支持：
 
-| 功能        | 命令                       | 说明             |
-| ----------- | -------------------------- | ---------------- |
-| **Dry-run** | `./setup-all.sh --dry-run` | 预览命令不执行   |
-| **验证**    | `./verify.sh`              | 检查配置是否正确 |
-| **清理**    | `./cleanup.sh`             | 删除创建的资源   |
+| 功能     | 命令             | 说明                                     |
+| -------- | ---------------- | ---------------------------------------- |
+| **执行** | `./setup-all.sh` | 显示预览，确认后执行（幂等，可重复运行） |
+| **验证** | `./verify.sh`    | 检查配置是否正确                         |
+| **清理** | `./cleanup.sh`   | 删除创建的资源                           |
+
+## 开发规范
+
+所有脚本遵循统一规范，详见 [CONVENTIONS.md](./CONVENTIONS.md)：
+
+- Shell 脚本规范（Bash 4.x，`set -e` 安全）
+- 环境变量命名规范
+- IAM 资源命名规范
+- 脚本目录结构
 
 ## 依赖关系图
 

@@ -48,7 +48,7 @@ endpoints=$(aws ec2 describe-vpc-endpoints \
 
 for endpoint_id in $endpoints; do
     log_info "Deleting endpoint: $endpoint_id"
-    run_cmd aws ec2 delete-vpc-endpoints \
+    aws ec2 delete-vpc-endpoints \
         --vpc-endpoint-ids "$endpoint_id" \
         --region "$AWS_REGION"
     log_success "Deleted: $endpoint_id"
@@ -71,7 +71,7 @@ security_groups=$(aws ec2 describe-security-groups \
 
 for sg_id in $security_groups; do
     log_info "Deleting security group: $sg_id"
-    run_cmd aws ec2 delete-security-group \
+    aws ec2 delete-security-group \
         --group-id "$sg_id" \
         --region "$AWS_REGION" 2>/dev/null || log_warn "Could not delete $sg_id (may have dependencies)"
 done

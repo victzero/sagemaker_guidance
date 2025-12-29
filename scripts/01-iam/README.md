@@ -2,6 +2,10 @@
 
 基于 [02-iam-design.md](../../docs/02-iam-design.md) 设计文档的 AWS CLI 自动化脚本。
 
+> **运行环境**: AWS CloudShell (Amazon Linux 2, Bash 4.x+)
+>
+> **开发规范**: 参见 [../CONVENTIONS.md](../CONVENTIONS.md)
+
 ## 快速开始
 
 ```bash
@@ -9,7 +13,7 @@
 cp .env.example .env
 vi .env  # 填入实际值
 
-# 2. 执行创建
+# 2. 执行创建（会显示预览，确认后执行）
 ./setup-all.sh
 
 # 3. 验证配置

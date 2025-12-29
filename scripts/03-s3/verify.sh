@@ -56,7 +56,7 @@ verify_bucket() {
             echo -e "    ${GREEN}✓${NC} Encryption: $encryption"
         else
             echo -e "    ${RED}✗${NC} Encryption: Not configured"
-            ((errors++))
+            ((errors++)) || true
         fi
         
         # 检查公开访问阻止
@@ -103,14 +103,14 @@ main() {
         local projects=$(get_projects_for_team "$team")
         for project in $projects; do
             local bucket_name=$(get_bucket_name "$team" "$project")
-            verify_bucket "$bucket_name" || ((errors++))
+            verify_bucket "$bucket_name" || ((errors++)) || true
         done
     done
     
     if [[ "${CREATE_SHARED_BUCKET}" == "true" ]]; then
         verify_section "Shared Bucket"
         local shared_bucket=$(get_shared_bucket_name)
-        verify_bucket "$shared_bucket" || ((errors++))
+        verify_bucket "$shared_bucket" || ((errors++)) || true
     fi
     
     # 总结

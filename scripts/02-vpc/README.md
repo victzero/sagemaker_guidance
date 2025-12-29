@@ -15,13 +15,10 @@
 cp .env.example .env
 vi .env  # 填入 VPC ID、Subnet IDs 等
 
-# 2. 预览命令 (dry-run 模式)
-./setup-all.sh --dry-run
-
-# 3. 执行创建
+# 2. 执行创建 (显示预览后确认)
 ./setup-all.sh
 
-# 4. 验证配置
+# 3. 验证配置
 ./verify.sh
 ```
 

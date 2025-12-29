@@ -7,11 +7,6 @@ set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-if [[ "$1" == "--dry-run" ]]; then
-    export DRY_RUN=true
-    echo "Running in DRY-RUN mode"
-fi
-
 # 颜色
 CYAN='\033[0;36m'
 GREEN='\033[0;32m'
@@ -38,13 +33,11 @@ echo "  - Bucket policies"
 echo "  - Lifecycle rules"
 echo ""
 
-if [[ "$DRY_RUN" != "true" ]]; then
-    read -p "Do you want to proceed? [y/N] " -n 1 -r
-    echo
-    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-        echo "Aborted."
-        exit 1
-    fi
+read -p "Do you want to proceed? [y/N] " -n 1 -r
+echo
+if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+    echo "Aborted."
+    exit 1
 fi
 
 START_TIME=$(date +%s)

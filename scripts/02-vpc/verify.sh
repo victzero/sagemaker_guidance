@@ -46,14 +46,14 @@ if [[ "$dns_hostnames" == "True" ]]; then
     echo -e "  ${GREEN}✓${NC} DNS Hostnames: Enabled"
 else
     echo -e "  ${RED}✗${NC} DNS Hostnames: Disabled (Required for VPCOnly mode)"
-    ((errors++))
+    ((errors++)) || true
 fi
 
 if [[ "$dns_support" == "True" ]]; then
     echo -e "  ${GREEN}✓${NC} DNS Support: Enabled"
 else
     echo -e "  ${RED}✗${NC} DNS Support: Disabled (Required for VPCOnly mode)"
-    ((errors++))
+    ((errors++)) || true
 fi
 
 # -----------------------------------------------------------------------------
@@ -78,8 +78,8 @@ check_sg() {
     fi
 }
 
-check_sg "sg-${TAG_PREFIX}-studio" || ((errors++))
-check_sg "sg-${TAG_PREFIX}-vpc-endpoints" || ((errors++))
+check_sg "sg-${TAG_PREFIX}-studio" || ((errors++)) || true
+check_sg "sg-${TAG_PREFIX}-vpc-endpoints" || ((errors++)) || true
 
 # -----------------------------------------------------------------------------
 # 验证 VPC Endpoints
@@ -117,13 +117,13 @@ check_endpoint() {
 
 # 必需的 Endpoints
 echo "Required Endpoints:"
-check_endpoint "sagemaker.api" || ((errors++))
-check_endpoint "sagemaker.runtime" || ((errors++))
-check_endpoint "notebook" || ((errors++))
-check_endpoint "sagemaker.studio" || ((errors++))
-check_endpoint "sts" || ((errors++))
-check_endpoint "logs" || ((errors++))
-check_endpoint "s3" || ((errors++))
+check_endpoint "sagemaker.api" || ((errors++)) || true
+check_endpoint "sagemaker.runtime" || ((errors++)) || true
+check_endpoint "notebook" || ((errors++)) || true
+check_endpoint "sagemaker.studio" || ((errors++)) || true
+check_endpoint "sts" || ((errors++)) || true
+check_endpoint "logs" || ((errors++)) || true
+check_endpoint "s3" || ((errors++)) || true
 
 echo ""
 echo "Optional Endpoints:"
@@ -156,7 +156,7 @@ for subnet_id in "$PRIVATE_SUBNET_1_ID" "$PRIVATE_SUBNET_2_ID"; do
         fi
     else
         echo -e "  ${RED}✗${NC} $subnet_id: NOT FOUND"
-        ((errors++))
+        ((errors++)) || true
     fi
 done
 

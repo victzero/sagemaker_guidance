@@ -76,13 +76,17 @@ validate_env() {
 # 检查 AWS CLI
 # -----------------------------------------------------------------------------
 check_aws_cli() {
-    # 导出 AWS_PROFILE (如果设置)
-    if [[ -n "$AWS_PROFILE" ]]; then
+    log_info "Checking AWS CLI..."
+    
+    # 检查是否在 AWS CloudShell 中运行
+    if [[ -n "$CLOUD_SHELL" ]]; then
+        log_info "Running in AWS CloudShell"
+        # 在 CloudShell 中，不需要设置 AWS_PROFILE，使用内置凭证
+        unset AWS_PROFILE
+    elif [[ -n "$AWS_PROFILE" ]]; then
         export AWS_PROFILE
         log_info "Using AWS Profile: $AWS_PROFILE"
     fi
-    
-    log_info "Checking AWS CLI..."
     
     if ! command -v aws &> /dev/null; then
         log_error "AWS CLI not found. Please install it first."
@@ -91,11 +95,20 @@ check_aws_cli() {
     
     if ! aws sts get-caller-identity &> /dev/null; then
         log_error "AWS CLI not configured or no valid credentials."
+        log_info "Please run 'aws configure' first."
         exit 1
     fi
     
     local identity=$(aws sts get-caller-identity --query 'Arn' --output text)
     log_success "AWS CLI configured. Current identity: $identity"
+    
+    # 验证 AWS_ACCOUNT_ID 是否匹配
+    local current_account=$(aws sts get-caller-identity --query 'Account' --output text)
+    if [[ "$current_account" != "$AWS_ACCOUNT_ID" ]]; then
+        log_error "Configured AWS_ACCOUNT_ID ($AWS_ACCOUNT_ID) in .env does not match current AWS CLI account ($current_account)."
+        log_error "Please update .env: sed -i 's/AWS_ACCOUNT_ID=.*/AWS_ACCOUNT_ID=${current_account}/' .env"
+        exit 1
+    fi
 }
 
 # -----------------------------------------------------------------------------
@@ -152,18 +165,6 @@ validate_subnets() {
 }
 
 # -----------------------------------------------------------------------------
-# Dry-run 包装器
-# -----------------------------------------------------------------------------
-run_cmd() {
-    if [[ "$DRY_RUN" == "true" ]]; then
-        log_warn "[DRY-RUN] $*"
-    else
-        log_info "Executing: $*"
-        "$@"
-    fi
-}
-
-# -----------------------------------------------------------------------------
 # 创建输出目录
 # -----------------------------------------------------------------------------
 ensure_output_dir() {
@@ -195,7 +196,6 @@ init() {
     echo "  VPC CIDR:    $VPC_CIDR"
     echo "  Subnet 1:    $PRIVATE_SUBNET_1_ID"
     echo "  Subnet 2:    $PRIVATE_SUBNET_2_ID"
-    echo "  Dry-run:     ${DRY_RUN:-false}"
     echo ""
 }
 
