@@ -90,6 +90,7 @@ verify_section "VPC Endpoints"
 
 check_endpoint() {
     local service=$1
+    local display_name=$2  # 可选：自定义显示名称
     
     # 判断是否已经是完整服务名
     local full_service
@@ -99,11 +100,19 @@ check_endpoint() {
         full_service="com.amazonaws.${AWS_REGION}.${service}"
     fi
     
+    # 如果没有提供显示名称，使用服务名
+    if [[ -z "$display_name" ]]; then
+        display_name="$service"
+    fi
+    
     local endpoint_id=$(aws ec2 describe-vpc-endpoints \
         --filters "Name=service-name,Values=${full_service}" "Name=vpc-id,Values=${VPC_ID}" \
         --query 'VpcEndpoints[0].VpcEndpointId' \
         --output text \
         --region "$AWS_REGION" 2>/dev/null || echo "None")
+    
+    # 去除可能的空白字符
+    endpoint_id=$(echo "$endpoint_id" | tr -d '[:space:]')
     
     local state=$(aws ec2 describe-vpc-endpoints \
         --filters "Name=service-name,Values=${full_service}" "Name=vpc-id,Values=${VPC_ID}" \
@@ -111,8 +120,8 @@ check_endpoint() {
         --output text \
         --region "$AWS_REGION" 2>/dev/null || echo "None")
     
-    # 显示时用简短名称
-    local display_name="${service##*.}"
+    state=$(echo "$state" | tr -d '[:space:]')
+    
     if [[ "$endpoint_id" != "None" && -n "$endpoint_id" ]]; then
         if [[ "$state" == "available" ]]; then
             echo -e "  ${GREEN}✓${NC} $display_name: $endpoint_id (available)"
@@ -128,19 +137,19 @@ check_endpoint() {
 
 # 必需的 Endpoints
 echo "Required Endpoints:"
-check_endpoint "sagemaker.api" || ((errors++)) || true
-check_endpoint "sagemaker.runtime" || ((errors++)) || true
-check_endpoint "aws.sagemaker.${AWS_REGION}.studio" || ((errors++)) || true
-check_endpoint "sts" || ((errors++)) || true
-check_endpoint "logs" || ((errors++)) || true
-check_endpoint "s3" || ((errors++)) || true
+check_endpoint "sagemaker.api" "sagemaker.api" || ((errors++)) || true
+check_endpoint "sagemaker.runtime" "sagemaker.runtime" || ((errors++)) || true
+check_endpoint "aws.sagemaker.${AWS_REGION}.studio" "sagemaker.studio" || ((errors++)) || true
+check_endpoint "sts" "sts" || ((errors++)) || true
+check_endpoint "logs" "logs" || ((errors++)) || true
+check_endpoint "s3" "s3 (gateway)" || ((errors++)) || true
 
 echo ""
 echo "Optional Endpoints:"
-check_endpoint "ecr.api" || true
-check_endpoint "ecr.dkr" || true
-check_endpoint "kms" || true
-check_endpoint "ssm" || true
+check_endpoint "ecr.api" "ecr.api" || true
+check_endpoint "ecr.dkr" "ecr.dkr" || true
+check_endpoint "kms" "kms" || true
+check_endpoint "ssm" "ssm" || true
 
 # -----------------------------------------------------------------------------
 # 验证子网

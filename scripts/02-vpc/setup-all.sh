@@ -19,8 +19,8 @@ NC='\033[0m'
 
 echo ""
 echo -e "${CYAN}=============================================="
-echo " SageMaker VPC Setup - Master Script"
-echo "==============================================${NC}"
+echo -e " SageMaker VPC Setup - Master Script"
+echo -e "==============================================${NC}"
 echo ""
 
 # 加载共享函数库和环境变量
@@ -237,9 +237,9 @@ END_TIME=$(date +%s)
 DURATION=$((END_TIME - START_TIME))
 
 echo ""
-echo -e "${CYAN}=============================================="
-echo " VPC Setup Complete!"
-echo "==============================================${NC}"
+echo -e "${GREEN}=============================================="
+echo -e " VPC Setup Complete!"
+echo -e "==============================================${NC}"
 echo ""
 echo "Duration: ${DURATION} seconds"
 echo ""

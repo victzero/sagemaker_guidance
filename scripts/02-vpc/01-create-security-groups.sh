@@ -64,14 +64,14 @@ add_ingress_rule() {
             --protocol "$protocol" \
             --port "$port" \
             --source-group "$sg_id" \
-            --region "$AWS_REGION" 2>/dev/null || log_warn "Rule may already exist"
+            --region "$AWS_REGION" > /dev/null 2>&1 || log_warn "Rule may already exist"
     else
         aws ec2 authorize-security-group-ingress \
             --group-id "$sg_id" \
             --protocol "$protocol" \
             --port "$port" \
             --cidr "$source" \
-            --region "$AWS_REGION" 2>/dev/null || log_warn "Rule may already exist"
+            --region "$AWS_REGION" > /dev/null 2>&1 || log_warn "Rule may already exist"
     fi
 }
 
@@ -93,14 +93,14 @@ add_egress_rule() {
             --protocol "$protocol" \
             --port "$port" \
             --source-group "$sg_id" \
-            --region "$AWS_REGION" 2>/dev/null || log_warn "Rule may already exist"
+            --region "$AWS_REGION" > /dev/null 2>&1 || log_warn "Rule may already exist"
     else
         aws ec2 authorize-security-group-egress \
             --group-id "$sg_id" \
             --protocol "$protocol" \
             --port "$port" \
             --cidr "$destination" \
-            --region "$AWS_REGION" 2>/dev/null || log_warn "Rule may already exist"
+            --region "$AWS_REGION" > /dev/null 2>&1 || log_warn "Rule may already exist"
     fi
 }
 

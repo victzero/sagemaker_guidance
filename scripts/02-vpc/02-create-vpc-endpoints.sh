@@ -40,15 +40,18 @@ create_interface_endpoint() {
     
     log_info "Creating Interface Endpoint: $endpoint_name ($full_service)" >&2
     
-    # 检查是否已存在
+    # 检查是否已存在（在当前 VPC 中）
     local existing=$(aws ec2 describe-vpc-endpoints \
         --filters "Name=service-name,Values=${full_service}" "Name=vpc-id,Values=${VPC_ID}" \
         --query 'VpcEndpoints[0].VpcEndpointId' \
         --output text \
         --region "$AWS_REGION" 2>/dev/null || echo "None")
     
-    if [[ "$existing" != "None" && -n "$existing" ]]; then
-        log_warn "Endpoint for $service_name already exists: $existing" >&2
+    # 去除可能的空白字符
+    existing=$(echo "$existing" | tr -d '[:space:]')
+    
+    if [[ "$existing" != "None" && -n "$existing" && "$existing" =~ ^vpce- ]]; then
+        log_warn "Endpoint for $service_name already exists in VPC: $existing" >&2
         echo "$existing"
         return 0
     fi
@@ -80,15 +83,18 @@ create_gateway_endpoint() {
     
     log_info "Creating Gateway Endpoint: $endpoint_name ($full_service)" >&2
     
-    # 检查是否已存在
+    # 检查是否已存在（在当前 VPC 中）
     local existing=$(aws ec2 describe-vpc-endpoints \
         --filters "Name=service-name,Values=${full_service}" "Name=vpc-id,Values=${VPC_ID}" \
         --query 'VpcEndpoints[0].VpcEndpointId' \
         --output text \
         --region "$AWS_REGION" 2>/dev/null || echo "None")
     
-    if [[ "$existing" != "None" && -n "$existing" ]]; then
-        log_warn "Endpoint for $service_name already exists: $existing" >&2
+    # 去除可能的空白字符
+    existing=$(echo "$existing" | tr -d '[:space:]')
+    
+    if [[ "$existing" != "None" && -n "$existing" && "$existing" =~ ^vpce- ]]; then
+        log_warn "Endpoint for $service_name already exists in VPC: $existing" >&2
         echo "$existing"
         return 0
     fi
