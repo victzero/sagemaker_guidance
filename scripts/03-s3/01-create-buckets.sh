@@ -47,15 +47,20 @@ create_bucket() {
     
     # 添加标签
     log_info "Adding tags to $bucket_name"
+    local tag_team="${team:-shared}"
+    local tag_project="${project:-shared}"
+    local tag_env="${ENVIRONMENT:-production}"
+    local tag_cost="${COST_CENTER:-default}"
+    
     aws s3api put-bucket-tagging \
         --bucket "$bucket_name" \
-        --tagging "TagSet=[
-            {Key=Team,Value=${team:-shared}},
-            {Key=Project,Value=${project:-shared}},
-            {Key=Environment,Value=${ENVIRONMENT}},
-            {Key=CostCenter,Value=${COST_CENTER}},
-            {Key=ManagedBy,Value=sagemaker-platform}
-        ]" \
+        --tagging "{\"TagSet\":[
+            {\"Key\":\"Team\",\"Value\":\"${tag_team}\"},
+            {\"Key\":\"Project\",\"Value\":\"${tag_project}\"},
+            {\"Key\":\"Environment\",\"Value\":\"${tag_env}\"},
+            {\"Key\":\"CostCenter\",\"Value\":\"${tag_cost}\"},
+            {\"Key\":\"ManagedBy\",\"Value\":\"sagemaker-platform\"}
+        ]}" \
         --region "$AWS_REGION"
     
     # 阻止公开访问
