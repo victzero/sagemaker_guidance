@@ -26,7 +26,7 @@ create_group() {
         return 0
     fi
     
-    run_cmd aws iam create-group \
+    aws iam create-group \
         --group-name "$group_name" \
         --path "${IAM_PATH}"
     

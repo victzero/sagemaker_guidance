@@ -9,21 +9,18 @@
 cp .env.example .env
 vi .env  # 填入实际值
 
-# 2. 预览将要执行的命令 (dry-run 模式)
-./setup-all.sh --dry-run
-
-# 3. 执行创建
+# 2. 执行创建
 ./setup-all.sh
 
-# 4. 验证配置
+# 3. 验证配置
 ./verify.sh
 ```
 
 ## 目录结构
 
 ```
-scripts/iam/
-├── .env.example          # 环境变量模板
+scripts/01-iam/
+├── .env.example          # 环境变量模板 (详细注释)
 ├── .env                  # 实际环境变量 (不提交到 Git)
 ├── 00-init.sh           # 初始化和工具函数
 ├── 01-create-policies.sh # 创建 IAM Policies
@@ -43,16 +40,40 @@ scripts/iam/
 
 ## 环境变量说明
 
+详细配置示例见 `.env.example`，关键变量：
+
 | 变量 | 说明 | 示例 |
 |------|------|------|
 | `COMPANY` | 公司/组织前缀 | `acme` |
 | `AWS_ACCOUNT_ID` | AWS 账号 ID | `123456789012` |
 | `AWS_REGION` | AWS 区域 | `ap-southeast-1` |
+| `IAM_PATH` | IAM 资源路径 (自动设置) | `/${COMPANY}-sagemaker/` |
 | `TEAMS` | 团队列表 | `"rc algo"` |
 | `TEAM_RC_FULLNAME` | 团队全称 | `risk-control` |
-| `RC_PROJECTS` | 团队项目 | `"project-a project-b"` |
-| `RC_PROJECT_A_USERS` | 项目用户 | `"alice bob carol"` |
-| `DRY_RUN` | 仅打印命令 | `true/false` |
+| `RC_PROJECTS` | 团队项目 | `"fraud-detection"` |
+| `RC_FRAUD_DETECTION_USERS` | 项目用户 | `"alice bob"` |
+
+## 资源筛选
+
+所有 IAM 资源使用统一路径 `/${COMPANY}-sagemaker/`，便于筛选：
+
+```bash
+# 假设 COMPANY=acme，筛选所有相关资源：
+
+# Policies
+aws iam list-policies --scope Local --path-prefix /acme-sagemaker/
+
+# Groups
+aws iam list-groups --path-prefix /acme-sagemaker/
+
+# Users
+aws iam list-users --path-prefix /acme-sagemaker/
+
+# Roles
+aws iam list-roles --path-prefix /acme-sagemaker/
+```
+
+**AWS Console 筛选**：在 IAM 控制台搜索框输入公司前缀（如 `acme`）。
 
 ## 脚本说明
 
@@ -125,6 +146,16 @@ scripts/iam/
 
 输出示例：
 ```
+Resource Summary:
+  +-----------------+----------+----------+
+  | Resource        | Expected | Actual   |
+  +-----------------+----------+----------+
+  | Policies        |       11 |       11 |
+  | Groups          |        7 |        7 |
+  | Users           |        6 |        6 |
+  | Roles           |        3 |        3 |
+  +-----------------+----------+----------+
+
 --- IAM Policies ---
   ✓ SageMaker-Studio-Base-Access
   ✓ SageMaker-ReadOnly-Access
@@ -143,7 +174,7 @@ Verification PASSED - All resources configured correctly
 ⚠️ **危险操作** - 删除所有创建的 IAM 资源：
 
 ```bash
-# 预览将要删除的内容
+# 交互式确认
 ./cleanup.sh
 
 # 强制删除 (跳过确认)
@@ -159,7 +190,7 @@ Verification PASSED - All resources configured correctly
 
 2. **Permissions Boundary**: 所有用户都应用了权限边界，防止权限提升
 
-3. **IAM Path**: 所有资源使用 `/sagemaker/` 路径，便于管理和审计
+3. **IAM Path**: 所有资源使用 `/${COMPANY}-sagemaker/` 路径，便于管理和审计
 
 4. **最小权限**: 用户只能访问自己项目的资源
 
@@ -189,6 +220,21 @@ A: 编辑 `.env` 文件添加项目，然后按顺序运行所有脚本或：
 
 ```bash
 ./setup-all.sh  # 会跳过已存在的资源
+```
+
+### Q: 如何查看创建了哪些资源？
+
+A: 使用路径前缀筛选：
+
+```bash
+# 查看所有资源
+./verify.sh
+
+# 或手动查询
+aws iam list-users --path-prefix /${COMPANY}-sagemaker/
+aws iam list-groups --path-prefix /${COMPANY}-sagemaker/
+aws iam list-roles --path-prefix /${COMPANY}-sagemaker/
+aws iam list-policies --scope Local --path-prefix /${COMPANY}-sagemaker/
 ```
 
 ## 相关文档

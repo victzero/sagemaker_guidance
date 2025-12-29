@@ -17,6 +17,8 @@ echo "=============================================="
 echo " IAM Resources Verification"
 echo "=============================================="
 echo ""
+echo "IAM Path: ${IAM_PATH}"
+echo ""
 
 # -----------------------------------------------------------------------------
 # 验证函数
@@ -61,11 +63,71 @@ verify_resource() {
 }
 
 # -----------------------------------------------------------------------------
+# 统计实际资源
+# -----------------------------------------------------------------------------
+count_actual_resources() {
+    echo -e "${BLUE}Counting actual resources in AWS...${NC}"
+    
+    ACTUAL_POLICIES=$(aws iam list-policies --scope Local --path-prefix "${IAM_PATH}" \
+        --query 'length(Policies)' --output text 2>/dev/null || echo "0")
+    
+    ACTUAL_GROUPS=$(aws iam list-groups --path-prefix "${IAM_PATH}" \
+        --query 'length(Groups)' --output text 2>/dev/null || echo "0")
+    
+    ACTUAL_USERS=$(aws iam list-users --path-prefix "${IAM_PATH}" \
+        --query 'length(Users)' --output text 2>/dev/null || echo "0")
+    
+    ACTUAL_ROLES=$(aws iam list-roles --path-prefix "${IAM_PATH}" \
+        --query 'length(Roles)' --output text 2>/dev/null || echo "0")
+    
+    echo ""
+    echo "Resource Summary:"
+    echo "  +-----------------+----------+----------+"
+    echo "  | Resource        | Expected | Actual   |"
+    echo "  +-----------------+----------+----------+"
+    printf "  | %-15s | %8d | %8d |\n" "Policies" "$EXPECTED_POLICIES" "$ACTUAL_POLICIES"
+    printf "  | %-15s | %8d | %8d |\n" "Groups" "$EXPECTED_GROUPS" "$ACTUAL_GROUPS"
+    printf "  | %-15s | %8d | %8d |\n" "Users" "$EXPECTED_USERS" "$ACTUAL_USERS"
+    printf "  | %-15s | %8d | %8d |\n" "Roles" "$EXPECTED_ROLES" "$ACTUAL_ROLES"
+    echo "  +-----------------+----------+----------+"
+}
+
+# -----------------------------------------------------------------------------
+# 列出实际资源
+# -----------------------------------------------------------------------------
+list_actual_resources() {
+    verify_section "Actual Resources in AWS"
+    
+    echo ""
+    echo "Policies (path: ${IAM_PATH}):"
+    aws iam list-policies --scope Local --path-prefix "${IAM_PATH}" \
+        --query 'Policies[].PolicyName' --output text 2>/dev/null | tr '\t' '\n' | sed 's/^/  - /' || echo "  (none)"
+    
+    echo ""
+    echo "Groups (path: ${IAM_PATH}):"
+    aws iam list-groups --path-prefix "${IAM_PATH}" \
+        --query 'Groups[].GroupName' --output text 2>/dev/null | tr '\t' '\n' | sed 's/^/  - /' || echo "  (none)"
+    
+    echo ""
+    echo "Users (path: ${IAM_PATH}):"
+    aws iam list-users --path-prefix "${IAM_PATH}" \
+        --query 'Users[].UserName' --output text 2>/dev/null | tr '\t' '\n' | sed 's/^/  - /' || echo "  (none)"
+    
+    echo ""
+    echo "Roles (path: ${IAM_PATH}):"
+    aws iam list-roles --path-prefix "${IAM_PATH}" \
+        --query 'Roles[].RoleName' --output text 2>/dev/null | tr '\t' '\n' | sed 's/^/  - /' || echo "  (none)"
+}
+
+# -----------------------------------------------------------------------------
 # 主函数
 # -----------------------------------------------------------------------------
 main() {
     local errors=0
     local policy_prefix="arn:aws:iam::${AWS_ACCOUNT_ID}:policy${IAM_PATH}"
+    
+    # 先统计资源
+    count_actual_resources
     
     # 1. 验证策略
     verify_section "IAM Policies"
@@ -165,6 +227,37 @@ main() {
         done
     done
     
+    # 验证管理员组成员
+    for admin in $ADMIN_USERS; do
+        local username="sm-admin-${admin}"
+        local in_admin=$(aws iam get-group --group-name "sagemaker-admins" \
+            --query "Users[?UserName=='${username}'].UserName" --output text 2>/dev/null || echo "")
+        
+        if [[ -n "$in_admin" ]]; then
+            echo -e "  ${GREEN}✓${NC} $username → admin group"
+        else
+            echo -e "  ${RED}✗${NC} $username missing admin group membership"
+            ((errors++))
+        fi
+    done
+    
+    # 6. 验证策略绑定
+    verify_section "Policy Bindings"
+    
+    # 检查管理员组绑定
+    local admin_policy=$(aws iam list-attached-group-policies --group-name "sagemaker-admins" \
+        --query "AttachedPolicies[?PolicyName=='AmazonSageMakerFullAccess'].PolicyName" --output text 2>/dev/null || echo "")
+    
+    if [[ -n "$admin_policy" ]]; then
+        echo -e "  ${GREEN}✓${NC} sagemaker-admins → AmazonSageMakerFullAccess"
+    else
+        echo -e "  ${RED}✗${NC} sagemaker-admins missing AmazonSageMakerFullAccess"
+        ((errors++))
+    fi
+    
+    # 列出实际资源
+    list_actual_resources
+    
     # 总结
     echo ""
     echo "=============================================="
@@ -174,6 +267,13 @@ main() {
         echo -e "${RED}Verification FAILED${NC} - $errors error(s) found"
     fi
     echo "=============================================="
+    echo ""
+    echo "Quick filter commands:"
+    echo "  aws iam list-policies --scope Local --path-prefix ${IAM_PATH}"
+    echo "  aws iam list-groups --path-prefix ${IAM_PATH}"
+    echo "  aws iam list-users --path-prefix ${IAM_PATH}"
+    echo "  aws iam list-roles --path-prefix ${IAM_PATH}"
+    echo ""
     
     return $errors
 }

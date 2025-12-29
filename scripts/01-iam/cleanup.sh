@@ -53,7 +53,7 @@ remove_user_from_groups() {
     
     for group in $groups; do
         log_info "Removing $username from group $group"
-        run_cmd aws iam remove-user-from-group \
+        aws iam remove-user-from-group \
             --user-name "$username" \
             --group-name "$group"
     done
@@ -65,7 +65,7 @@ delete_user_login_profile() {
     
     if aws iam get-login-profile --user-name "$username" &> /dev/null; then
         log_info "Deleting login profile for $username"
-        run_cmd aws iam delete-login-profile --user-name "$username"
+        aws iam delete-login-profile --user-name "$username"
     fi
 }
 
@@ -78,7 +78,7 @@ delete_user_access_keys() {
     
     for key in $keys; do
         log_info "Deleting access key $key for $username"
-        run_cmd aws iam delete-access-key \
+        aws iam delete-access-key \
             --user-name "$username" \
             --access-key-id "$key"
     done
@@ -89,7 +89,7 @@ delete_user_boundary() {
     local username=$1
     
     log_info "Removing permissions boundary for $username"
-    run_cmd aws iam delete-user-permissions-boundary \
+    aws iam delete-user-permissions-boundary \
         --user-name "$username" 2>/dev/null || true
 }
 
@@ -107,7 +107,7 @@ delete_user() {
     
     # 删除用户
     log_info "Deleting user: $username"
-    run_cmd aws iam delete-user --user-name "$username"
+    aws iam delete-user --user-name "$username"
     
     log_success "User $username deleted"
 }
@@ -121,7 +121,7 @@ detach_group_policies() {
     
     for policy_arn in $policies; do
         log_info "Detaching policy from group $group_name"
-        run_cmd aws iam detach-group-policy \
+        aws iam detach-group-policy \
             --group-name "$group_name" \
             --policy-arn "$policy_arn"
     done
@@ -138,7 +138,7 @@ delete_group() {
     
     # 删除组
     log_info "Deleting group: $group_name"
-    run_cmd aws iam delete-group --group-name "$group_name"
+    aws iam delete-group --group-name "$group_name"
     
     log_success "Group $group_name deleted"
 }
@@ -152,7 +152,7 @@ detach_role_policies() {
     
     for policy_arn in $policies; do
         log_info "Detaching policy from role $role_name"
-        run_cmd aws iam detach-role-policy \
+        aws iam detach-role-policy \
             --role-name "$role_name" \
             --policy-arn "$policy_arn"
     done
@@ -169,7 +169,7 @@ delete_role() {
     
     # 删除角色
     log_info "Deleting role: $role_name"
-    run_cmd aws iam delete-role --role-name "$role_name"
+    aws iam delete-role --role-name "$role_name"
     
     log_success "Role $role_name deleted"
 }
@@ -183,7 +183,7 @@ delete_policy_versions() {
     
     for version in $versions; do
         log_info "Deleting policy version $version"
-        run_cmd aws iam delete-policy-version \
+        aws iam delete-policy-version \
             --policy-arn "$policy_arn" \
             --version-id "$version"
     done
@@ -200,7 +200,7 @@ delete_policy() {
     
     # 删除策略
     log_info "Deleting policy: $policy_arn"
-    run_cmd aws iam delete-policy --policy-arn "$policy_arn"
+    aws iam delete-policy --policy-arn "$policy_arn"
     
     log_success "Policy deleted"
 }

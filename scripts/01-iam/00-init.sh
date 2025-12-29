@@ -38,6 +38,11 @@ load_env() {
         log_info "  cp .env.example .env"
         exit 1
     fi
+    
+    # 设置默认 IAM_PATH (使用 COMPANY 前缀)
+    if [[ -z "$IAM_PATH" ]]; then
+        IAM_PATH="/${COMPANY}-sagemaker/"
+    fi
 }
 
 # -----------------------------------------------------------------------------
@@ -65,6 +70,19 @@ validate_env() {
             echo "  - $var"
         done
         exit 1
+    fi
+    
+    # 验证团队配置
+    if [[ -z "$TEAMS" ]]; then
+        log_warn "TEAMS is empty - no team resources will be created"
+    else
+        for team in $TEAMS; do
+            local fullname_var="TEAM_${team^^}_FULLNAME"
+            if [[ -z "${!fullname_var}" ]]; then
+                log_error "Missing team fullname: $fullname_var"
+                exit 1
+            fi
+        done
     fi
     
     log_success "Environment variables validated"
@@ -111,18 +129,6 @@ check_aws_cli() {
 }
 
 # -----------------------------------------------------------------------------
-# Dry-run 包装器
-# -----------------------------------------------------------------------------
-run_cmd() {
-    if [[ "$DRY_RUN" == "true" ]]; then
-        log_warn "[DRY-RUN] $*"
-    else
-        log_info "Executing: $*"
-        "$@"
-    fi
-}
-
-# -----------------------------------------------------------------------------
 # 创建输出目录
 # -----------------------------------------------------------------------------
 ensure_output_dir() {
@@ -160,6 +166,41 @@ get_users_for_project() {
 }
 
 # -----------------------------------------------------------------------------
+# 统计预期资源数量
+# -----------------------------------------------------------------------------
+count_expected_resources() {
+    local team_count=0
+    local project_count=0
+    local user_count=0
+    
+    # 统计管理员
+    for admin in $ADMIN_USERS; do
+        ((user_count++))
+    done
+    
+    # 统计团队和项目
+    for team in $TEAMS; do
+        ((team_count++))
+        local projects=$(get_projects_for_team "$team")
+        for project in $projects; do
+            ((project_count++))
+            local users=$(get_users_for_project "$team" "$project")
+            for user in $users; do
+                ((user_count++))
+            done
+        done
+    done
+    
+    # 计算各类资源数量
+    EXPECTED_POLICIES=$((3 + team_count + project_count * 2))  # base + readonly + boundary + team + project*2
+    EXPECTED_GROUPS=$((2 + team_count + project_count))        # admins + readonly + team + project
+    EXPECTED_USERS=$user_count
+    EXPECTED_ROLES=$project_count
+    
+    export EXPECTED_POLICIES EXPECTED_GROUPS EXPECTED_USERS EXPECTED_ROLES
+}
+
+# -----------------------------------------------------------------------------
 # 初始化
 # -----------------------------------------------------------------------------
 init() {
@@ -171,15 +212,22 @@ init() {
     validate_env
     check_aws_cli
     ensure_output_dir
+    count_expected_resources
     
     echo ""
     log_success "Initialization complete!"
     echo ""
     echo "Configuration Summary:"
-    echo "  Company:     $COMPANY"
-    echo "  Account ID:  $AWS_ACCOUNT_ID"
-    echo "  Region:      $AWS_REGION"
-    echo "  Dry-run:     ${DRY_RUN:-false}"
+    echo "  Company:      $COMPANY"
+    echo "  Account ID:   $AWS_ACCOUNT_ID"
+    echo "  Region:       $AWS_REGION"
+    echo "  IAM Path:     $IAM_PATH"
+    echo ""
+    echo "Expected Resources:"
+    echo "  Policies:     $EXPECTED_POLICIES"
+    echo "  Groups:       $EXPECTED_GROUPS"
+    echo "  Users:        $EXPECTED_USERS"
+    echo "  Roles:        $EXPECTED_ROLES"
     echo ""
 }
 

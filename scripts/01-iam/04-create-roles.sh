@@ -57,7 +57,7 @@ create_execution_role() {
     if aws iam get-role --role-name "$role_name" &> /dev/null; then
         log_warn "Role $role_name already exists, skipping creation..."
     else
-        run_cmd aws iam create-role \
+        aws iam create-role \
             --role-name "$role_name" \
             --path "${IAM_PATH}" \
             --assume-role-policy-document "file://${trust_policy_file}" \
@@ -82,7 +82,7 @@ create_execution_role() {
     if [[ -n "$attached" ]]; then
         log_warn "Policy $policy_name already attached to $role_name"
     else
-        run_cmd aws iam attach-role-policy \
+        aws iam attach-role-policy \
             --role-name "$role_name" \
             --policy-arn "arn:aws:iam::${AWS_ACCOUNT_ID}:policy${IAM_PATH}${policy_name}"
         

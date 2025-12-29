@@ -33,7 +33,7 @@ attach_policy_to_group() {
         return 0
     fi
     
-    run_cmd aws iam attach-group-policy \
+    aws iam attach-group-policy \
         --group-name "$group_name" \
         --policy-arn "$policy_arn"
     

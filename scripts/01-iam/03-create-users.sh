@@ -29,7 +29,7 @@ create_user() {
     fi
     
     # 创建用户
-    run_cmd aws iam create-user \
+    aws iam create-user \
         --user-name "$username" \
         --path "${IAM_PATH}" \
         --tags \
@@ -38,20 +38,18 @@ create_user() {
             "Key=Owner,Value=${username}"
     
     # 设置初始密码 (需要首次登录重置)
-    if [[ "$DRY_RUN" != "true" ]]; then
-        run_cmd aws iam create-login-profile \
-            --user-name "$username" \
-            --password "$initial_password" \
-            --password-reset-required
-        
-        log_success "User $username created with initial password"
-        
-        # 保存凭证到文件 (仅供参考，应安全传递给用户)
-        echo "${username}:${initial_password}" >> "${SCRIPT_DIR}/${OUTPUT_DIR}/user-credentials.txt"
-    fi
+    aws iam create-login-profile \
+        --user-name "$username" \
+        --password "$initial_password" \
+        --password-reset-required
+    
+    log_success "User $username created with initial password"
+    
+    # 保存凭证到文件 (仅供参考，应安全传递给用户)
+    echo "${username}:${initial_password}" >> "${SCRIPT_DIR}/${OUTPUT_DIR}/user-credentials.txt"
     
     # 应用 Permissions Boundary
-    run_cmd aws iam put-user-permissions-boundary \
+    aws iam put-user-permissions-boundary \
         --user-name "$username" \
         --permissions-boundary "arn:aws:iam::${AWS_ACCOUNT_ID}:policy${IAM_PATH}SageMaker-User-Boundary"
     
@@ -72,21 +70,19 @@ create_admin_user() {
     
     local initial_password="${PASSWORD_PREFIX}${1}${PASSWORD_SUFFIX}"
     
-    run_cmd aws iam create-user \
+    aws iam create-user \
         --user-name "$username" \
         --path "${IAM_PATH}" \
         --tags \
             "Key=Role,Value=admin" \
             "Key=ManagedBy,Value=sagemaker-iam-script"
     
-    if [[ "$DRY_RUN" != "true" ]]; then
-        run_cmd aws iam create-login-profile \
-            --user-name "$username" \
-            --password "$initial_password" \
-            --password-reset-required
-        
-        echo "${username}:${initial_password}" >> "${SCRIPT_DIR}/${OUTPUT_DIR}/user-credentials.txt"
-    fi
+    aws iam create-login-profile \
+        --user-name "$username" \
+        --password "$initial_password" \
+        --password-reset-required
+    
+    echo "${username}:${initial_password}" >> "${SCRIPT_DIR}/${OUTPUT_DIR}/user-credentials.txt"
     
     log_success "Admin user $username created"
 }
@@ -102,10 +98,8 @@ main() {
     echo ""
     
     # 清空凭证文件
-    if [[ "$DRY_RUN" != "true" ]]; then
-        > "${SCRIPT_DIR}/${OUTPUT_DIR}/user-credentials.txt"
-        chmod 600 "${SCRIPT_DIR}/${OUTPUT_DIR}/user-credentials.txt"
-    fi
+    > "${SCRIPT_DIR}/${OUTPUT_DIR}/user-credentials.txt"
+    chmod 600 "${SCRIPT_DIR}/${OUTPUT_DIR}/user-credentials.txt"
     
     # 1. 创建管理员用户
     log_info "Creating admin users..."
@@ -138,11 +132,9 @@ main() {
     aws iam list-users --path-prefix "${IAM_PATH}" \
         --query 'Users[].UserName' --output table
     
-    if [[ "$DRY_RUN" != "true" ]]; then
-        echo ""
-        log_warn "Initial credentials saved to: ${SCRIPT_DIR}/${OUTPUT_DIR}/user-credentials.txt"
-        log_warn "Please distribute credentials securely and delete this file!"
-    fi
+    echo ""
+    log_warn "Initial credentials saved to: ${SCRIPT_DIR}/${OUTPUT_DIR}/user-credentials.txt"
+    log_warn "Please distribute credentials securely and delete this file!"
 }
 
 main

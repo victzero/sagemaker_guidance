@@ -360,17 +360,17 @@ create_policy() {
                 --policy-arn "arn:aws:iam::${AWS_ACCOUNT_ID}:policy${IAM_PATH}${policy_name}" \
                 --query 'Versions[?IsDefaultVersion==`false`] | sort_by(@, &CreateDate)[0].VersionId' --output text)
             
-            run_cmd aws iam delete-policy-version \
+            aws iam delete-policy-version \
                 --policy-arn "arn:aws:iam::${AWS_ACCOUNT_ID}:policy${IAM_PATH}${policy_name}" \
                 --version-id "$oldest_version"
         fi
         
-        run_cmd aws iam create-policy-version \
+        aws iam create-policy-version \
             --policy-arn "arn:aws:iam::${AWS_ACCOUNT_ID}:policy${IAM_PATH}${policy_name}" \
             --policy-document "file://${policy_file}" \
             --set-as-default
     else
-        run_cmd aws iam create-policy \
+        aws iam create-policy \
             --policy-name "$policy_name" \
             --path "${IAM_PATH}" \
             --policy-document "file://${policy_file}" \

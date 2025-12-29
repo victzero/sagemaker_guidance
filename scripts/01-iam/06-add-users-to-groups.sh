@@ -31,7 +31,7 @@ add_user_to_group() {
         return 0
     fi
     
-    run_cmd aws iam add-user-to-group \
+    aws iam add-user-to-group \
         --user-name "$username" \
         --group-name "$group_name"
     
