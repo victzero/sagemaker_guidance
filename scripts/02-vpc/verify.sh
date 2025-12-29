@@ -15,6 +15,8 @@ echo "=============================================="
 echo " VPC Network Verification"
 echo "=============================================="
 echo ""
+echo "Checking resources with TAG_PREFIX: ${TAG_PREFIX}"
+echo ""
 
 errors=0
 
@@ -135,16 +137,16 @@ check_endpoint "ssm" || true
 # -----------------------------------------------------------------------------
 # 验证子网
 # -----------------------------------------------------------------------------
-verify_section "Subnets"
-
-for subnet_id in "$PRIVATE_SUBNET_1_ID" "$PRIVATE_SUBNET_2_ID"; do
+check_subnet() {
+    local subnet_id=$1
+    
     local subnet_info=$(aws ec2 describe-subnets \
         --subnet-ids "$subnet_id" \
         --query 'Subnets[0].{AZ:AvailabilityZone,CIDR:CidrBlock,AvailableIPs:AvailableIpAddressCount}' \
         --output json \
         --region "$AWS_REGION" 2>/dev/null)
     
-    if [[ -n "$subnet_info" ]]; then
+    if [[ -n "$subnet_info" && "$subnet_info" != "null" ]]; then
         local az=$(echo "$subnet_info" | jq -r '.AZ')
         local cidr=$(echo "$subnet_info" | jq -r '.CIDR')
         local available_ips=$(echo "$subnet_info" | jq -r '.AvailableIPs')
@@ -154,11 +156,17 @@ for subnet_id in "$PRIVATE_SUBNET_1_ID" "$PRIVATE_SUBNET_2_ID"; do
         else
             echo -e "  ${YELLOW}!${NC} $subnet_id: $az, $cidr, $available_ips IPs (low!)"
         fi
+        return 0
     else
         echo -e "  ${RED}✗${NC} $subnet_id: NOT FOUND"
-        ((errors++)) || true
+        return 1
     fi
-done
+}
+
+verify_section "Subnets"
+
+check_subnet "$PRIVATE_SUBNET_1_ID" || ((errors++)) || true
+check_subnet "$PRIVATE_SUBNET_2_ID" || ((errors++)) || true
 
 # -----------------------------------------------------------------------------
 # 总结
