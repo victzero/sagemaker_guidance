@@ -9,24 +9,34 @@
 ## 快速开始
 
 ```bash
-# 1. 复制并编辑环境变量
-cp .env.example .env
-vi .env  # 填入实际值
+# 1. 配置共享环境变量（首次运行）
+cd ../
+cp .env.shared.example .env.shared
+vi .env.shared  # 填入 COMPANY, AWS_ACCOUNT_ID, TEAMS, USERS 等
 
-# 2. 执行创建（会显示预览，确认后执行）
+# 2. 配置 IAM 特有变量（可选，通常使用默认值）
+cd 01-iam/
+cp .env.local.example .env.local
+vi .env.local  # 可修改 PASSWORD_PREFIX/SUFFIX
+
+# 3. 执行创建（会显示预览，确认后执行）
 ./setup-all.sh
 
-# 3. 验证配置
+# 4. 验证配置
 ./verify.sh
 ```
 
 ## 目录结构
 
 ```
-scripts/01-iam/
-├── .env.example          # 环境变量模板 (详细注释)
-├── .env                  # 实际环境变量 (不提交到 Git)
-├── 00-init.sh           # 初始化和工具函数
+scripts/
+├── .env.shared.example   # 共享环境变量模板
+├── .env.shared           # 共享环境变量 (不提交到 Git)
+│
+└── 01-iam/
+    ├── .env.local.example    # IAM 特有变量模板 (可选)
+    ├── .env.local            # IAM 特有变量 (不提交到 Git)
+    ├── 00-init.sh           # 初始化和工具函数
 ├── 01-create-policies.sh # 创建 IAM Policies
 ├── 02-create-groups.sh  # 创建 IAM Groups
 ├── 03-create-users.sh   # 创建 IAM Users

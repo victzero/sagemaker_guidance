@@ -22,6 +22,15 @@ setup_iam_defaults() {
         IAM_PATH="/${COMPANY}-sagemaker/"
     fi
     export IAM_PATH
+    
+    # 设置默认密码前后缀
+    if [[ -z "$PASSWORD_PREFIX" ]]; then
+        PASSWORD_PREFIX="Welcome#"
+    fi
+    if [[ -z "$PASSWORD_SUFFIX" ]]; then
+        PASSWORD_SUFFIX="@2024"
+    fi
+    export PASSWORD_PREFIX PASSWORD_SUFFIX
 }
 
 # -----------------------------------------------------------------------------
