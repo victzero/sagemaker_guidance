@@ -22,7 +22,14 @@ generate_project_bucket_policy() {
     # 使用 common.sh 中的 format_name 函数，确保与 01-iam 命名一致
     local team_formatted=$(format_name "$team_fullname")
     local project_formatted=$(format_name "$project")
-    local execution_role="SageMaker-${team_formatted}-${project_formatted}-ExecutionRole"
+    local execution_role_name="SageMaker-${team_formatted}-${project_formatted}-ExecutionRole"
+    
+    # IAM Role 使用了 path，ARN 格式: arn:aws:iam::ACCOUNT:role/PATH/ROLE_NAME
+    local iam_path="${IAM_PATH:-/${COMPANY}-sagemaker/}"
+    # 移除首尾斜杠用于 ARN 拼接
+    local iam_path_clean="${iam_path#/}"
+    iam_path_clean="${iam_path_clean%/}"
+    local execution_role="${iam_path_clean}/${execution_role_name}"
     
     local policy='{
   "Version": "2012-10-17",
