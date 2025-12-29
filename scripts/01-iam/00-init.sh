@@ -122,12 +122,15 @@ check_aws_cli() {
     # 验证账号 ID
     local current_account=$(aws sts get-caller-identity --query 'Account' --output text)
     if [[ "$current_account" != "$AWS_ACCOUNT_ID" ]]; then
-        log_warn "Current account ($current_account) differs from configured ($AWS_ACCOUNT_ID)"
-        read -p "Continue anyway? [y/N] " -n 1 -r
-        echo
-        if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-            exit 1
-        fi
+        echo ""
+        log_error "Account ID mismatch!"
+        echo "  .env configured:  $AWS_ACCOUNT_ID"
+        echo "  Current account:  $current_account"
+        echo ""
+        echo "Please update AWS_ACCOUNT_ID in .env file:"
+        echo "  sed -i 's/AWS_ACCOUNT_ID=.*/AWS_ACCOUNT_ID=${current_account}/' .env"
+        echo ""
+        exit 1
     fi
 }
 
