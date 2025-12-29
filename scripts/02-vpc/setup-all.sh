@@ -61,11 +61,11 @@ validate_vpc_env() {
 
 validate_vpc_env
 
-# 设置 VPC 特有配置
-TAG_PREFIX="${TAG_PREFIX:-${COMPANY}-sagemaker}"
-CREATE_ECR_ENDPOINTS="${CREATE_ECR_ENDPOINTS:-false}"
-CREATE_KMS_ENDPOINT="${CREATE_KMS_ENDPOINT:-false}"
-CREATE_SSM_ENDPOINT="${CREATE_SSM_ENDPOINT:-false}"
+# 设置 VPC 特有配置（export 使子脚本可访问）
+export TAG_PREFIX="${TAG_PREFIX:-${COMPANY}-sagemaker}"
+export CREATE_ECR_ENDPOINTS="${CREATE_ECR_ENDPOINTS:-false}"
+export CREATE_KMS_ENDPOINT="${CREATE_KMS_ENDPOINT:-false}"
+export CREATE_SSM_ENDPOINT="${CREATE_SSM_ENDPOINT:-false}"
 
 # 确认执行
 echo -e "${YELLOW}This script will create the following AWS VPC resources:${NC}"

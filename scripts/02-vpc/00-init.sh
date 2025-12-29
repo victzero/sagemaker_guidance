@@ -130,6 +130,9 @@ init() {
     validate_subnets
     ensure_output_dir
     
+    # 设置默认 TAG_PREFIX（如果未由父脚本设置）
+    export TAG_PREFIX="${TAG_PREFIX:-${COMPANY}-sagemaker}"
+    
     print_config_summary "VPC" print_vpc_summary
     
     log_success "Initialization complete!"

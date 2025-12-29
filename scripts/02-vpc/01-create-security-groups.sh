@@ -17,7 +17,7 @@ create_security_group() {
     local sg_name=$1
     local description=$2
     
-    log_info "Creating security group: $sg_name"
+    log_info "Creating security group: $sg_name" >&2
     
     # 检查是否已存在
     local existing_sg=$(aws ec2 describe-security-groups \
@@ -27,7 +27,7 @@ create_security_group() {
         --region "$AWS_REGION" 2>/dev/null || echo "None")
     
     if [[ "$existing_sg" != "None" && -n "$existing_sg" ]]; then
-        log_warn "Security group $sg_name already exists: $existing_sg"
+        log_warn "Security group $sg_name already exists: $existing_sg" >&2
         echo "$existing_sg"
         return 0
     fi
@@ -41,7 +41,7 @@ create_security_group() {
         --output text \
         --region "$AWS_REGION")
     
-    log_success "Created security group: $sg_id"
+    log_success "Created security group: $sg_id" >&2
     echo "$sg_id"
 }
 
@@ -120,14 +120,18 @@ main() {
         "sg-${TAG_PREFIX}-studio" \
         "Security group for SageMaker Studio instances")
     
-    if [[ -n "$SG_STUDIO" ]]; then
-        # Studio 安全组入站规则
-        add_ingress_rule "$SG_STUDIO" "-1" "-1" "self" "Allow all traffic from self"
-        add_ingress_rule "$SG_STUDIO" "tcp" "443" "$VPC_CIDR" "Allow HTTPS from VPC"
-        
-        # Studio 安全组出站规则 (默认已有 allow all)
-        add_egress_rule "$SG_STUDIO" "-1" "-1" "self" "Allow all traffic to self"
+    # 验证安全组 ID 格式
+    if [[ ! "$SG_STUDIO" =~ ^sg- ]]; then
+        log_error "Failed to create/get Studio security group. Got: '$SG_STUDIO'"
+        exit 1
     fi
+    
+    # Studio 安全组入站规则
+    add_ingress_rule "$SG_STUDIO" "-1" "-1" "self" "Allow all traffic from self"
+    add_ingress_rule "$SG_STUDIO" "tcp" "443" "$VPC_CIDR" "Allow HTTPS from VPC"
+    
+    # Studio 安全组出站规则 (默认已有 allow all)
+    add_egress_rule "$SG_STUDIO" "-1" "-1" "self" "Allow all traffic to self"
     
     # 2. 创建 VPC Endpoints 安全组
     log_info "Creating VPC Endpoints security group..."
@@ -135,10 +139,14 @@ main() {
         "sg-${TAG_PREFIX}-vpc-endpoints" \
         "Security group for VPC Endpoints")
     
-    if [[ -n "$SG_ENDPOINTS" ]]; then
-        # Endpoints 安全组入站规则
-        add_ingress_rule "$SG_ENDPOINTS" "tcp" "443" "$VPC_CIDR" "Allow HTTPS from VPC"
+    # 验证安全组 ID 格式
+    if [[ ! "$SG_ENDPOINTS" =~ ^sg- ]]; then
+        log_error "Failed to create/get VPC Endpoints security group. Got: '$SG_ENDPOINTS'"
+        exit 1
     fi
+    
+    # Endpoints 安全组入站规则
+    add_ingress_rule "$SG_ENDPOINTS" "tcp" "443" "$VPC_CIDR" "Allow HTTPS from VPC"
     
     # 保存安全组 ID 到文件
     cat > "${SCRIPT_DIR}/${OUTPUT_DIR}/security-groups.env" << EOF

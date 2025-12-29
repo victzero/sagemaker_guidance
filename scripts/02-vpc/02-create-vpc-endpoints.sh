@@ -28,7 +28,7 @@ create_interface_endpoint() {
     
     local full_service="com.amazonaws.${AWS_REGION}.${service_name}"
     
-    log_info "Creating Interface Endpoint: $endpoint_name ($full_service)"
+    log_info "Creating Interface Endpoint: $endpoint_name ($full_service)" >&2
     
     # 检查是否已存在
     local existing=$(aws ec2 describe-vpc-endpoints \
@@ -38,7 +38,7 @@ create_interface_endpoint() {
         --region "$AWS_REGION" 2>/dev/null || echo "None")
     
     if [[ "$existing" != "None" && -n "$existing" ]]; then
-        log_warn "Endpoint for $service_name already exists: $existing"
+        log_warn "Endpoint for $service_name already exists: $existing" >&2
         echo "$existing"
         return 0
     fi
@@ -55,7 +55,7 @@ create_interface_endpoint() {
         --output text \
         --region "$AWS_REGION")
     
-    log_success "Created endpoint: $endpoint_id"
+    log_success "Created endpoint: $endpoint_id" >&2
     echo "$endpoint_id"
 }
 
@@ -68,7 +68,7 @@ create_gateway_endpoint() {
     
     local full_service="com.amazonaws.${AWS_REGION}.${service_name}"
     
-    log_info "Creating Gateway Endpoint: $endpoint_name ($full_service)"
+    log_info "Creating Gateway Endpoint: $endpoint_name ($full_service)" >&2
     
     # 检查是否已存在
     local existing=$(aws ec2 describe-vpc-endpoints \
@@ -78,7 +78,7 @@ create_gateway_endpoint() {
         --region "$AWS_REGION" 2>/dev/null || echo "None")
     
     if [[ "$existing" != "None" && -n "$existing" ]]; then
-        log_warn "Endpoint for $service_name already exists: $existing"
+        log_warn "Endpoint for $service_name already exists: $existing" >&2
         echo "$existing"
         return 0
     fi
@@ -99,8 +99,21 @@ create_gateway_endpoint() {
         --output text \
         --region "$AWS_REGION")
     
-    log_success "Created gateway endpoint: $endpoint_id"
+    log_success "Created gateway endpoint: $endpoint_id" >&2
     echo "$endpoint_id"
+}
+
+# -----------------------------------------------------------------------------
+# 验证 Endpoint ID 格式
+# -----------------------------------------------------------------------------
+validate_endpoint_id() {
+    local service=$1
+    local endpoint_id=$2
+    
+    if [[ ! "$endpoint_id" =~ ^vpce- ]]; then
+        log_error "Failed to create/get $service endpoint. Got: '$endpoint_id'" >&2
+        exit 1
+    fi
 }
 
 # -----------------------------------------------------------------------------
@@ -124,36 +137,43 @@ main() {
     ENDPOINTS["sagemaker.api"]=$(create_interface_endpoint \
         "sagemaker.api" \
         "vpce-${TAG_PREFIX}-sagemaker-api")
+    validate_endpoint_id "sagemaker.api" "${ENDPOINTS["sagemaker.api"]}"
     
     # SageMaker Runtime
     ENDPOINTS["sagemaker.runtime"]=$(create_interface_endpoint \
         "sagemaker.runtime" \
         "vpce-${TAG_PREFIX}-sagemaker-runtime")
+    validate_endpoint_id "sagemaker.runtime" "${ENDPOINTS["sagemaker.runtime"]}"
     
     # SageMaker Studio (Notebook)
     ENDPOINTS["notebook"]=$(create_interface_endpoint \
         "notebook" \
         "vpce-${TAG_PREFIX}-sagemaker-notebook")
+    validate_endpoint_id "notebook" "${ENDPOINTS["notebook"]}"
     
     # SageMaker Studio
     ENDPOINTS["studio"]=$(create_interface_endpoint \
         "sagemaker.studio" \
         "vpce-${TAG_PREFIX}-sagemaker-studio")
+    validate_endpoint_id "studio" "${ENDPOINTS["studio"]}"
     
     # STS
     ENDPOINTS["sts"]=$(create_interface_endpoint \
         "sts" \
         "vpce-${TAG_PREFIX}-sts")
+    validate_endpoint_id "sts" "${ENDPOINTS["sts"]}"
     
     # CloudWatch Logs
     ENDPOINTS["logs"]=$(create_interface_endpoint \
         "logs" \
         "vpce-${TAG_PREFIX}-logs")
+    validate_endpoint_id "logs" "${ENDPOINTS["logs"]}"
     
     # S3 Gateway
     ENDPOINTS["s3"]=$(create_gateway_endpoint \
         "s3" \
         "vpce-${TAG_PREFIX}-s3")
+    validate_endpoint_id "s3" "${ENDPOINTS["s3"]}"
     
     # ---------------------------------------------
     # 可选的 Endpoints
