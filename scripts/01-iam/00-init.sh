@@ -92,17 +92,20 @@ validate_env() {
 # 检查 AWS CLI
 # -----------------------------------------------------------------------------
 check_aws_cli() {
-    # 导出 AWS_PROFILE (如果设置)
-    if [[ -n "$AWS_PROFILE" ]]; then
-        export AWS_PROFILE
-        log_info "Using AWS Profile: $AWS_PROFILE"
-    fi
-    
     log_info "Checking AWS CLI..."
     
     if ! command -v aws &> /dev/null; then
         log_error "AWS CLI not found. Please install it first."
         exit 1
+    fi
+    
+    # 检测 CloudShell 环境（不需要 AWS_PROFILE）
+    if [[ -n "$AWS_EXECUTION_ENV" && "$AWS_EXECUTION_ENV" == "CloudShell" ]]; then
+        log_info "Running in AWS CloudShell"
+        unset AWS_PROFILE  # CloudShell 使用内置凭证
+    elif [[ -n "$AWS_PROFILE" ]]; then
+        export AWS_PROFILE
+        log_info "Using AWS Profile: $AWS_PROFILE"
     fi
     
     # 检查 AWS 配置
