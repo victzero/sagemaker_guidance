@@ -145,13 +145,8 @@ main() {
         "vpce-${TAG_PREFIX}-sagemaker-runtime")
     validate_endpoint_id "sagemaker.runtime" "${ENDPOINTS["sagemaker.runtime"]}"
     
-    # SageMaker Studio (Notebook)
-    ENDPOINTS["notebook"]=$(create_interface_endpoint \
-        "notebook" \
-        "vpce-${TAG_PREFIX}-sagemaker-notebook")
-    validate_endpoint_id "notebook" "${ENDPOINTS["notebook"]}"
-    
-    # SageMaker Studio
+    # SageMaker Studio (包含 Notebook 功能)
+    # 注意: 不再需要单独的 "notebook" endpoint，sagemaker.studio 已包含所需功能
     ENDPOINTS["studio"]=$(create_interface_endpoint \
         "sagemaker.studio" \
         "vpce-${TAG_PREFIX}-sagemaker-studio")
@@ -212,7 +207,6 @@ main() {
 # VPC Endpoint IDs - Generated $(date)
 VPCE_SAGEMAKER_API=${ENDPOINTS["sagemaker.api"]}
 VPCE_SAGEMAKER_RUNTIME=${ENDPOINTS["sagemaker.runtime"]}
-VPCE_SAGEMAKER_NOTEBOOK=${ENDPOINTS["notebook"]}
 VPCE_SAGEMAKER_STUDIO=${ENDPOINTS["studio"]}
 VPCE_STS=${ENDPOINTS["sts"]}
 VPCE_LOGS=${ENDPOINTS["logs"]}

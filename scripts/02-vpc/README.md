@@ -60,8 +60,7 @@ scripts/02-vpc/
 |----------|------|------|
 | sagemaker.api | Interface | SageMaker API |
 | sagemaker.runtime | Interface | SageMaker Runtime |
-| notebook | Interface | SageMaker Notebook |
-| sagemaker.studio | Interface | SageMaker Studio |
+| sagemaker.studio | Interface | SageMaker Studio (包含 Notebook) |
 | sts | Interface | AWS STS |
 | logs | Interface | CloudWatch Logs |
 | s3 | Gateway | S3 访问 |

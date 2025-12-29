@@ -121,7 +121,6 @@ check_endpoint() {
 echo "Required Endpoints:"
 check_endpoint "sagemaker.api" || ((errors++)) || true
 check_endpoint "sagemaker.runtime" || ((errors++)) || true
-check_endpoint "notebook" || ((errors++)) || true
 check_endpoint "sagemaker.studio" || ((errors++)) || true
 check_endpoint "sts" || ((errors++)) || true
 check_endpoint "logs" || ((errors++)) || true

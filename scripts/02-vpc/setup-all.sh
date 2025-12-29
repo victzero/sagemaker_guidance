@@ -113,10 +113,6 @@ echo "    - vpce-${TAG_PREFIX}-sagemaker-runtime"
 echo "        Service: com.amazonaws.${AWS_REGION}.sagemaker.runtime"
 ((endpoint_count++)) || true
 
-echo "    - vpce-${TAG_PREFIX}-sagemaker-notebook"
-echo "        Service: com.amazonaws.${AWS_REGION}.notebook"
-((endpoint_count++)) || true
-
 echo "    - vpce-${TAG_PREFIX}-sagemaker-studio"
 echo "        Service: com.amazonaws.${AWS_REGION}.sagemaker.studio"
 ((endpoint_count++)) || true
@@ -254,8 +250,7 @@ echo "    - ${TAG_PREFIX}-studio"
 echo "    - ${TAG_PREFIX}-vpc-endpoints"
 echo ""
 echo "  VPC Endpoints:"
-echo "    - sagemaker.api, sagemaker.runtime"
-echo "    - notebook, sagemaker.studio"
+echo "    - sagemaker.api, sagemaker.runtime, sagemaker.studio"
 echo "    - sts, logs, s3"
 if [[ "${CREATE_ECR_ENDPOINTS}" == "true" ]]; then
     echo "    - ecr.api, ecr.dkr"
