@@ -43,8 +43,7 @@ IAM_PATH="/${COMPANY}-sagemaker/"
 # 辅助函数：获取团队全称
 get_team_fullname() {
     local team=$1
-    local team_upper=$(echo "$team" | tr '[:lower:]' '[:upper:]')
-    local var_name="TEAM_${team_upper}_FULLNAME"
+    local var_name="TEAM_${team^^}_FULLNAME"
     echo "${!var_name}"
 }
 
@@ -52,13 +51,9 @@ get_team_fullname() {
 format_name() {
     local input="$1"
     local result=""
-    # 按连字符分割，每部分首字母大写
     IFS='-' read -ra parts <<< "$input"
     for part in "${parts[@]}"; do
-        # 首字母大写 + 其余小写
-        first=$(echo "${part:0:1}" | tr '[:lower:]' '[:upper:]')
-        rest=$(echo "${part:1}" | tr '[:upper:]' '[:lower:]')
-        result="${result}${first}${rest}"
+        result+="${part^}"
     done
     echo "$result"
 }
@@ -66,8 +61,7 @@ format_name() {
 # 辅助函数：获取项目列表
 get_projects() {
     local team=$1
-    local team_upper=$(echo "$team" | tr '[:lower:]' '[:upper:]')
-    local var_name="${team_upper}_PROJECTS"
+    local var_name="${team^^}_PROJECTS"
     echo "${!var_name}"
 }
 
@@ -75,9 +69,9 @@ get_projects() {
 get_users() {
     local team=$1
     local project=$2
-    local team_upper=$(echo "$team" | tr '[:lower:]' '[:upper:]')
-    local project_upper=$(echo "$project" | tr '[:lower:]' '[:upper:]' | tr '-' '_')
-    local var_name="${team_upper}_${project_upper}_USERS"
+    local project_upper="${project^^}"
+    project_upper="${project_upper//-/_}"
+    local var_name="${team^^}_${project_upper}_USERS"
     echo "${!var_name}"
 }
 
@@ -101,14 +95,14 @@ for team in $TEAMS; do
     team_formatted=$(format_name "$team_fullname")
     echo "  Team [$team] policies:"
     echo "    - SageMaker-${team_formatted}-Team-Access"
-    ((policy_count++))
+    ((policy_count++)) || true
     
     projects=$(get_projects "$team")
     for project in $projects; do
         project_formatted=$(format_name "$project")
         echo "    - SageMaker-${team_formatted}-${project_formatted}-Access"
         echo "    - SageMaker-${team_formatted}-${project_formatted}-ExecutionPolicy"
-        ((policy_count+=2))
+        ((policy_count+=2)) || true
     done
 done
 echo "  Total: $policy_count policies"
@@ -125,12 +119,12 @@ for team in $TEAMS; do
     team_fullname=$(get_team_fullname "$team")
     echo "  Team [$team] groups:"
     echo "    - sagemaker-${team_fullname}"
-    ((group_count++))
+    ((group_count++)) || true
     
     projects=$(get_projects "$team")
     for project in $projects; do
         echo "    - sagemaker-${team}-${project}"
-        ((group_count++))
+        ((group_count++)) || true
     done
 done
 echo "  Total: $group_count groups"
@@ -142,7 +136,7 @@ echo "  Admin users:"
 user_count=0
 for admin in $ADMIN_USERS; do
     echo "    - sm-admin-${admin}"
-    ((user_count++))
+    ((user_count++)) || true
 done
 
 for team in $TEAMS; do
@@ -153,7 +147,7 @@ for team in $TEAMS; do
             echo "  Team [$team] project [$project] users:"
             for user in $users; do
                 echo "    - sm-${team}-${user}"
-                ((user_count++))
+                ((user_count++)) || true
             done
         fi
     done
@@ -172,7 +166,7 @@ for team in $TEAMS; do
     for project in $projects; do
         project_formatted=$(format_name "$project")
         echo "  - SageMaker-${team_formatted}-${project_formatted}-ExecutionRole"
-        ((role_count++))
+        ((role_count++)) || true
     done
 done
 echo "  Total: $role_count roles"

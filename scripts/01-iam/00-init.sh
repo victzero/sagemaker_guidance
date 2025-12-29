@@ -140,8 +140,7 @@ ensure_output_dir() {
 # -----------------------------------------------------------------------------
 get_team_fullname() {
     local team=$1
-    local team_upper=$(echo "$team" | tr '[:lower:]' '[:upper:]')
-    local var_name="TEAM_${team_upper}_FULLNAME"
+    local var_name="TEAM_${team^^}_FULLNAME"
     echo "${!var_name}"
 }
 
@@ -151,13 +150,9 @@ get_team_fullname() {
 format_name() {
     local input="$1"
     local result=""
-    # 按连字符分割，每部分首字母大写
     IFS='-' read -ra parts <<< "$input"
     for part in "${parts[@]}"; do
-        # 首字母大写 + 其余小写
-        local first=$(echo "${part:0:1}" | tr '[:lower:]' '[:upper:]')
-        local rest=$(echo "${part:1}" | tr '[:upper:]' '[:lower:]')
-        result="${result}${first}${rest}"
+        result+="${part^}"  # Bash 4.x: 首字母大写
     done
     echo "$result"
 }
@@ -178,7 +173,8 @@ get_users_for_project() {
     local team=$1
     local project=$2
     # 将 project-a 转换为 PROJECT_A
-    local project_upper=$(echo "$project" | tr '[:lower:]' '[:upper:]' | tr '-' '_')
+    local project_upper="${project^^}"
+    project_upper="${project_upper//-/_}"
     local var_name="${team^^}_${project_upper}_USERS"
     echo "${!var_name}"
 }
