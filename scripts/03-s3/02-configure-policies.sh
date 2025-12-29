@@ -19,9 +19,10 @@ generate_project_bucket_policy() {
     local project=$3
     
     local team_fullname=$(get_team_fullname "$team")
-    local team_capitalized=$(echo "$team_fullname" | sed -e 's/-/ /g' -e 's/\b\w/\u&/g' | tr -d ' ')
-    local project_formatted=$(echo "$project" | sed -e 's/-/ /g' -e 's/\b\w/\u&/g' | tr -d ' ')
-    local execution_role="SageMaker-${team_capitalized}-${project_formatted}-ExecutionRole"
+    # 使用 common.sh 中的 format_name 函数，确保与 01-iam 命名一致
+    local team_formatted=$(format_name "$team_fullname")
+    local project_formatted=$(format_name "$project")
+    local execution_role="SageMaker-${team_formatted}-${project_formatted}-ExecutionRole"
     
     local policy='{
   "Version": "2012-10-17",

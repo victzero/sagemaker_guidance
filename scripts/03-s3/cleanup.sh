@@ -24,7 +24,7 @@ echo "This will DELETE the following buckets and ALL their contents:"
 
 # 列出将要删除的 Buckets
 for team in $TEAMS; do
-    local projects=$(get_projects_for_team "$team")
+    projects=$(get_projects_for_team "$team")
     for project in $projects; do
         echo "  - $(get_bucket_name "$team" "$project")"
     done
