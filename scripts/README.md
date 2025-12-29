@@ -157,11 +157,43 @@ scripts/
 
 所有脚本支持：
 
-| 功能     | 命令             | 说明                                     |
-| -------- | ---------------- | ---------------------------------------- |
-| **执行** | `./setup-all.sh` | 显示预览，确认后执行（幂等，可重复运行） |
-| **验证** | `./verify.sh`    | 检查配置是否正确                         |
-| **清理** | `./cleanup.sh`   | 删除创建的资源                           |
+| 功能     | 命令             | 说明                                             |
+| -------- | ---------------- | ------------------------------------------------ |
+| **执行** | `./setup-all.sh` | 显示资源清单预览，确认后执行（幂等，可重复运行） |
+| **验证** | `./verify.sh`    | 检查配置是否正确                                 |
+| **清理** | `./cleanup.sh`   | 删除创建的资源                                   |
+
+### setup-all.sh 资源预览模式
+
+所有 `setup-all.sh` 脚本在执行前会**打印完整的资源清单**：
+
+```
+This script will create the following AWS XXX resources:
+
+  Company:       acme
+  Region:        ap-southeast-1
+  ...
+
+【资源类型 1】
+  Team [rc - risk-control]:
+    - resource-name-1
+    - resource-name-2
+  Total: N resources
+
+【资源类型 2】
+  ...
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Summary: X resources, Y policies, Z rules
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Filter resources later with:
+  aws ... --filters ...
+
+Do you want to proceed? [y/N]
+```
+
+这种模式确保用户在执行前清楚知道将创建哪些资源，避免意外操作。
 
 ## 开发规范
 

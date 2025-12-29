@@ -206,12 +206,101 @@ scripts/{NN}-{name}/
 
 ## 5. 脚本功能规范
 
-### 5.1 setup-all.sh
+### 5.1 setup-all.sh（资源预览模式）
 
-- 显示详细的资源预览（列出所有将创建的资源名称）
-- 显示资源统计（Policies、Groups、Users、Roles 数量）
-- 确认后执行
-- 执行完成后显示筛选命令
+**核心要求**：执行前必须打印完整的资源清单，让用户确认后再执行。
+
+#### 5.1.1 标准结构
+
+```bash
+#!/bin/bash
+set -e
+
+# 1. 加载环境和验证
+source "${SCRIPT_DIR}/../common.sh"
+load_env
+validate_base_env
+validate_team_env  # 或模块特有验证
+check_aws_cli
+
+# 2. 设置模块特有配置
+MODULE_VAR="${MODULE_VAR:-default_value}"
+
+# 3. 打印资源清单（确认前）
+echo -e "${YELLOW}This script will create the following AWS {MODULE} resources:${NC}"
+# ... 详细资源列表 ...
+
+# 4. 打印 Summary
+echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo -e "${CYAN}Summary: X resources, Y policies, ...${NC}"
+echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+
+# 5. 打印筛选命令
+echo -e "${YELLOW}Filter resources later with:${NC}"
+echo "  aws ... --filters ..."
+
+# 6. 确认执行
+read -p "Do you want to proceed? [y/N] " -n 1 -r
+if [[ ! $REPLY =~ ^[Yy]$ ]]; then exit 1; fi
+
+# 7. 执行子脚本
+run_step 1 "01-xxx.sh" "Description"
+run_step 2 "02-xxx.sh" "Description"
+
+# 8. 打印完成信息和后续步骤
+```
+
+#### 5.1.2 资源列表格式
+
+使用 `【分类名】` 格式分组，每组包含：
+
+```bash
+echo -e "${BLUE}【Buckets】${NC}"
+echo "  Team [rc - risk-control]:"
+echo "    - acme-sm-rc-fraud-detection"
+echo "    - acme-sm-rc-anti-money-laundering"
+echo "  Total: $count buckets"
+echo ""
+```
+
+#### 5.1.3 各模块资源分组
+
+| 模块   | 资源分组                                                                                                                 |
+| ------ | ------------------------------------------------------------------------------------------------------------------------ |
+| 01-iam | 【Policies】【Groups】【Users】【Execution Roles】                                                                       |
+| 02-vpc | 【Security Groups】【VPC Endpoints - Required】【VPC Endpoints - Optional】【Endpoint Configuration】                    |
+| 03-s3  | 【Buckets】【Bucket Policies】【Lifecycle Rules】【Directory Structures】【Bucket Configurations】【Lifecycle Settings】 |
+
+#### 5.1.4 Summary 格式
+
+使用 `━━━` 分隔线包裹总计：
+
+```bash
+echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo -e "${CYAN}Summary: $count1 resources, $count2 policies, ...${NC}"
+echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+```
+
+#### 5.1.5 筛选命令
+
+执行前后都应显示 AWS CLI 筛选命令：
+
+```bash
+echo -e "${YELLOW}Filter resources later with:${NC}"
+echo "  aws iam list-policies --scope Local --path-prefix /acme-sagemaker/"
+echo "  aws s3 ls | grep acme-sm-"
+echo "  aws ec2 describe-vpc-endpoints --filters \"Name=tag:ManagedBy,Values=...\""
+```
+
+#### 5.1.6 完成信息
+
+执行后显示：
+
+- Duration（耗时）
+- 创建的资源列表
+- 资源 ID 保存位置
+- 验证命令
+- 后续步骤
 
 ### 5.2 verify.sh
 
@@ -237,9 +326,9 @@ scripts/{NN}-{name}/
 位于 `scripts/` 根目录，包含所有模块共享的变量：
 
 - **AWS 基础配置**: COMPANY, AWS_ACCOUNT_ID, AWS_REGION
-- **团队配置**: TEAMS, TEAM_*_FULLNAME
-- **项目配置**: *_PROJECTS
-- **用户配置**: ADMIN_USERS, *_USERS
+- **团队配置**: TEAMS, TEAM\_\*\_FULLNAME
+- **项目配置**: \*\_PROJECTS
+- **用户配置**: ADMIN_USERS, \*\_USERS
 - **通用设置**: OUTPUT_DIR
 
 ### 6.2 模块特有配置 (.env.local.example)
@@ -249,7 +338,7 @@ scripts/{NN}-{name}/
 | 模块   | 特有变量                                         |
 | ------ | ------------------------------------------------ |
 | 01-iam | IAM_PATH                                         |
-| 02-vpc | VPC_ID, VPC_CIDR, PRIVATE_SUBNET_*_ID            |
+| 02-vpc | VPC*ID, VPC_CIDR, PRIVATE_SUBNET*\*\_ID          |
 | 03-s3  | ENCRYPTION_TYPE, ENABLE_VERSIONING, Lifecycle 等 |
 
 ### 6.3 文件格式要求
