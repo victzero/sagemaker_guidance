@@ -18,3 +18,9 @@ npm-debug.log*
 # Build
 dist/
 
+# Scripts - Environment files (contain sensitive data)
+scripts/**/.env
+
+# Scripts - Generated output files
+scripts/**/output/
+

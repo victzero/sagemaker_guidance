@@ -26,9 +26,24 @@ Users     Endpoints  (需要 Execution Roles)
 Roles
 ```
 
+## AWS Profile 配置
+
+如果使用非默认的 AWS Profile，在执行脚本前先设置环境变量：
+
+```bash
+# 设置 AWS Profile (整个终端会话有效)
+export AWS_PROFILE=tokyo
+
+# 验证当前身份
+aws sts get-caller-identity
+```
+
 ## 快速开始
 
 ```bash
+# 设置 AWS Profile (如需要)
+export AWS_PROFILE=tokyo
+
 # ============================================
 # Step 1: IAM 权限配置
 # ============================================
@@ -72,50 +87,50 @@ vi .env  # 确认公司名称、项目列表等
 
 ### 01-iam (IAM 权限)
 
-| 资源类型 | 数量 | 说明 |
-|---------|------|------|
-| IAM Policies | 8+ | Base, Team, Project, Execution |
-| IAM Groups | 6+ | admins, readonly, team, project |
-| IAM Users | 10+ | admin + team members |
-| IAM Roles | 4+ | SageMaker Execution Roles |
+| 资源类型     | 数量 | 说明                            |
+| ------------ | ---- | ------------------------------- |
+| IAM Policies | 8+   | Base, Team, Project, Execution  |
+| IAM Groups   | 6+   | admins, readonly, team, project |
+| IAM Users    | 10+  | admin + team members            |
+| IAM Roles    | 4+   | SageMaker Execution Roles       |
 
 ### 02-vpc (VPC 网络)
 
-| 资源类型 | 数量 | 说明 |
-|---------|------|------|
-| Security Groups | 2 | Studio, VPC Endpoints |
-| VPC Endpoints | 7+ | SageMaker, STS, S3, Logs 等 |
+| 资源类型        | 数量 | 说明                        |
+| --------------- | ---- | --------------------------- |
+| Security Groups | 2    | Studio, VPC Endpoints       |
+| VPC Endpoints   | 7+   | SageMaker, STS, S3, Logs 等 |
 
 ### 03-s3 (S3 存储)
 
-| 资源类型 | 数量 | 说明 |
-|---------|------|------|
-| S3 Buckets | 5 | 4 项目 + 1 共享 |
-| Bucket Policies | 5 | 访问控制 |
-| Lifecycle Rules | 5 | 自动清理和归档 |
+| 资源类型        | 数量 | 说明            |
+| --------------- | ---- | --------------- |
+| S3 Buckets      | 5    | 4 项目 + 1 共享 |
+| Bucket Policies | 5    | 访问控制        |
+| Lifecycle Rules | 5    | 自动清理和归档  |
 
 ## 环境变量共享
 
 各脚本共享以下核心变量，建议保持一致：
 
-| 变量 | 说明 | 示例 |
-|------|------|------|
-| `COMPANY` | 公司前缀 | `acme` |
-| `AWS_ACCOUNT_ID` | AWS 账号 | `123456789012` |
-| `AWS_REGION` | AWS 区域 | `ap-southeast-1` |
-| `TEAMS` | 团队列表 | `"rc algo"` |
-| `RC_PROJECTS` | 风控项目 | `"project-a project-b"` |
-| `ALGO_PROJECTS` | 算法项目 | `"project-x project-y"` |
+| 变量             | 说明     | 示例                    |
+| ---------------- | -------- | ----------------------- |
+| `COMPANY`        | 公司前缀 | `acme`                  |
+| `AWS_ACCOUNT_ID` | AWS 账号 | `123456789012`          |
+| `AWS_REGION`     | AWS 区域 | `ap-southeast-1`        |
+| `TEAMS`          | 团队列表 | `"rc algo"`             |
+| `RC_PROJECTS`    | 风控项目 | `"project-a project-b"` |
+| `ALGO_PROJECTS`  | 算法项目 | `"project-x project-y"` |
 
 ## 通用功能
 
 所有脚本支持：
 
-| 功能 | 命令 | 说明 |
-|------|------|------|
-| **Dry-run** | `./setup-all.sh --dry-run` | 预览命令不执行 |
-| **验证** | `./verify.sh` | 检查配置是否正确 |
-| **清理** | `./cleanup.sh` | 删除创建的资源 |
+| 功能        | 命令                       | 说明             |
+| ----------- | -------------------------- | ---------------- |
+| **Dry-run** | `./setup-all.sh --dry-run` | 预览命令不执行   |
+| **验证**    | `./verify.sh`              | 检查配置是否正确 |
+| **清理**    | `./cleanup.sh`             | 删除创建的资源   |
 
 ## 依赖关系图
 
@@ -151,6 +166,7 @@ vi .env  # 确认公司名称、项目列表等
 ### 权限不足
 
 确保执行脚本的 IAM 用户/角色有足够权限：
+
 - IAM: `IAMFullAccess` 或自定义策略
 - VPC: `AmazonVPCFullAccess`
 - S3: `AmazonS3FullAccess`
@@ -162,6 +178,7 @@ vi .env  # 确认公司名称、项目列表等
 ### 验证失败
 
 查看具体错误信息，检查：
+
 - 环境变量是否正确
 - AWS 凭证是否有效
 - 依赖资源是否已创建
