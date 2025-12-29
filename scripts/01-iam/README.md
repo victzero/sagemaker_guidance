@@ -42,16 +42,16 @@ scripts/01-iam/
 
 详细配置示例见 `.env.example`，关键变量：
 
-| 变量 | 说明 | 示例 |
-|------|------|------|
-| `COMPANY` | 公司/组织前缀 | `acme` |
-| `AWS_ACCOUNT_ID` | AWS 账号 ID | `123456789012` |
-| `AWS_REGION` | AWS 区域 | `ap-southeast-1` |
-| `IAM_PATH` | IAM 资源路径 (自动设置) | `/${COMPANY}-sagemaker/` |
-| `TEAMS` | 团队列表 | `"rc algo"` |
-| `TEAM_RC_FULLNAME` | 团队全称 | `risk-control` |
-| `RC_PROJECTS` | 团队项目 | `"fraud-detection"` |
-| `RC_FRAUD_DETECTION_USERS` | 项目用户 | `"alice bob"` |
+| 变量                       | 说明                    | 示例                     |
+| -------------------------- | ----------------------- | ------------------------ |
+| `COMPANY`                  | 公司/组织前缀           | `acme`                   |
+| `AWS_ACCOUNT_ID`           | AWS 账号 ID             | `123456789012`           |
+| `AWS_REGION`               | AWS 区域                | `ap-southeast-1`         |
+| `IAM_PATH`                 | IAM 资源路径 (自动设置) | `/${COMPANY}-sagemaker/` |
+| `TEAMS`                    | 团队列表                | `"rc algo"`              |
+| `TEAM_RC_FULLNAME`         | 团队全称                | `risk-control`           |
+| `RC_PROJECTS`              | 团队项目                | `"fraud-detection"`      |
+| `RC_FRAUD_DETECTION_USERS` | 项目用户                | `"alice bob"`            |
 
 ## 资源筛选
 
@@ -80,6 +80,7 @@ aws iam list-roles --path-prefix /acme-sagemaker/
 ### 01-create-policies.sh
 
 创建以下策略：
+
 - `SageMaker-Studio-Base-Access` - 基础访问策略
 - `SageMaker-ReadOnly-Access` - 只读策略
 - `SageMaker-User-Boundary` - 权限边界策略
@@ -90,6 +91,7 @@ aws iam list-roles --path-prefix /acme-sagemaker/
 ### 02-create-groups.sh
 
 创建以下组：
+
 - `sagemaker-admins` - 管理员组
 - `sagemaker-readonly` - 只读组
 - `sagemaker-{team-fullname}` - 团队组
@@ -98,6 +100,7 @@ aws iam list-roles --path-prefix /acme-sagemaker/
 ### 03-create-users.sh
 
 创建用户并：
+
 - 设置初始密码 (需要首次登录重置)
 - 应用 Permissions Boundary
 - 添加 Tags (Team, Owner, ManagedBy)
@@ -105,6 +108,7 @@ aws iam list-roles --path-prefix /acme-sagemaker/
 ### 04-create-roles.sh
 
 创建 SageMaker Execution Roles：
+
 - 每个项目一个执行角色
 - 信任 sagemaker.amazonaws.com
 - 绑定对应的 ExecutionPolicy
@@ -112,6 +116,7 @@ aws iam list-roles --path-prefix /acme-sagemaker/
 ### 05-bind-policies.sh
 
 绑定策略到组：
+
 - 管理员组 → AmazonSageMakerFullAccess
 - 只读组 → ReadOnly-Access
 - 团队组 → Base-Access + Team-Access
@@ -120,6 +125,7 @@ aws iam list-roles --path-prefix /acme-sagemaker/
 ### 06-add-users-to-groups.sh
 
 添加用户到组：
+
 - 每个用户加入团队组 + 项目组
 - 管理员加入管理员组
 
@@ -145,6 +151,7 @@ aws iam list-roles --path-prefix /acme-sagemaker/
 ```
 
 输出示例：
+
 ```
 Resource Summary:
   +-----------------+----------+----------+
@@ -184,6 +191,7 @@ Verification PASSED - All resources configured correctly
 ## 安全注意事项
 
 1. **凭证文件**: `output/user-credentials.txt` 包含初始密码，请：
+
    - 安全传递给用户
    - 传递后立即删除文件
    - 不要提交到 Git
@@ -207,20 +215,54 @@ aws iam delete-policy-version --policy-arn <ARN> --version-id v1
 
 ### Q: 如何添加新用户？
 
-A: 编辑 `.env` 文件添加用户，然后运行：
+A: 编辑 `.env` 文件添加用户，然后运行创建和加组脚本（脚本会自动跳过已存在的用户）：
 
 ```bash
+# 1. 编辑 .env，在对应项目的用户列表中添加新用户
+#    例如：给 rc 团队的 fraud-detection 项目添加 frank
+vi .env
+#    修改: RC_FRAUD_DETECTION_USERS="alice bob"
+#    改为: RC_FRAUD_DETECTION_USERS="alice bob frank"
+
+# 2. 运行创建用户脚本（会跳过已存在的 alice、bob）
 ./03-create-users.sh
+
+# 3. 运行加组脚本（将新用户添加到团队组和项目组）
 ./06-add-users-to-groups.sh
+
+# 4. 验证
+./verify.sh
 ```
+
+新用户将获得：
+
+- 用户名：`sm-rc-frank`
+- 初始密码：保存在 `output/user-credentials.txt`
+- 所属组：`sagemaker-risk-control` + `sagemaker-rc-fraud-detection`
 
 ### Q: 如何添加新项目？
 
-A: 编辑 `.env` 文件添加项目，然后按顺序运行所有脚本或：
+A: 编辑 `.env` 文件添加项目配置，然后重新运行 `setup-all.sh`（会跳过已存在的资源）：
 
 ```bash
-./setup-all.sh  # 会跳过已存在的资源
+# 1. 编辑 .env，添加新项目
+vi .env
+#    在团队项目列表中添加: RC_PROJECTS="fraud-detection anti-money-laundering new-project"
+#    添加项目用户变量: RC_NEW_PROJECT_USERS="grace henry"
+
+# 2. 运行 setup-all.sh（会跳过已存在的资源，只创建新项目相关资源）
+./setup-all.sh
+
+# 3. 验证
+./verify.sh
 ```
+
+新项目将创建：
+
+- Policy: `SageMaker-RiskControl-NewProject-Access` + `ExecutionPolicy`
+- Group: `sagemaker-rc-new-project`
+- Role: `SageMaker-RiskControl-NewProject-ExecutionRole`
+- Users: `sm-rc-grace`, `sm-rc-henry`
 
 ### Q: 如何查看创建了哪些资源？
 
