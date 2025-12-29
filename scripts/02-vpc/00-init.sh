@@ -24,6 +24,7 @@ validate_vpc_env() {
         "VPC_CIDR"
         "PRIVATE_SUBNET_1_ID"
         "PRIVATE_SUBNET_2_ID"
+        "ROUTE_TABLE_1_ID"
     )
     
     local missing=()
@@ -38,7 +39,8 @@ validate_vpc_env() {
         for var in "${missing[@]}"; do
             echo "  - $var"
         done
-        log_info "Please configure these in .env.local (or legacy .env)"
+        log_info "Please configure these in .env.local"
+        log_info "See .env.local.example for reference"
         exit 1
     fi
     
@@ -106,6 +108,10 @@ print_vpc_summary() {
     echo "  VPC CIDR:     $VPC_CIDR"
     echo "  Subnet 1:     $PRIVATE_SUBNET_1_ID"
     echo "  Subnet 2:     $PRIVATE_SUBNET_2_ID"
+    echo "  Route Table:  $ROUTE_TABLE_1_ID"
+    if [[ -n "$ROUTE_TABLE_2_ID" ]]; then
+        echo "  Route Table 2: $ROUTE_TABLE_2_ID"
+    fi
 }
 
 # -----------------------------------------------------------------------------
