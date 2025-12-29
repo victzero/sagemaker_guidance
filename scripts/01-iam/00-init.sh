@@ -195,18 +195,18 @@ count_expected_resources() {
     
     # 统计管理员
     for admin in $ADMIN_USERS; do
-        ((user_count++))
+        ((user_count++)) || true
     done
     
     # 统计团队和项目
     for team in $TEAMS; do
-        ((team_count++))
+        ((team_count++)) || true
         local projects=$(get_projects_for_team "$team")
         for project in $projects; do
-            ((project_count++))
+            ((project_count++)) || true
             local users=$(get_users_for_project "$team" "$project")
             for user in $users; do
-                ((user_count++))
+                ((user_count++)) || true
             done
         done
     done

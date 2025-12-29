@@ -221,7 +221,7 @@ main() {
                     echo -e "  ${GREEN}✓${NC} $username → team + project groups"
                 else
                     echo -e "  ${RED}✗${NC} $username missing group membership"
-                    ((errors++))
+                    ((errors++)) || true
                 fi
             done
         done
@@ -237,7 +237,7 @@ main() {
             echo -e "  ${GREEN}✓${NC} $username → admin group"
         else
             echo -e "  ${RED}✗${NC} $username missing admin group membership"
-            ((errors++))
+            ((errors++)) || true
         fi
     done
     
@@ -252,7 +252,7 @@ main() {
         echo -e "  ${GREEN}✓${NC} sagemaker-admins → AmazonSageMakerFullAccess"
     else
         echo -e "  ${RED}✗${NC} sagemaker-admins missing AmazonSageMakerFullAccess"
-        ((errors++))
+        ((errors++)) || true
     fi
     
     # 列出实际资源
