@@ -27,7 +27,16 @@
 ((count++)) || true
 ```
 
-### 1.3 颜色输出
+### 1.3 AWS CLI 配置
+
+禁用 AWS CLI 分页器，避免长输出阻塞脚本执行：
+
+```bash
+# 在 check_aws_cli() 中设置
+export AWS_PAGER=""
+```
+
+### 1.4 颜色输出
 
 统一使用以下颜色函数：
 
@@ -153,13 +162,26 @@ ALGO_RECOMMENDATION_ENGINE_USERS="david eve"
 
 ## 4. 脚本目录结构
 
+### 4.1 根目录（共享配置）
+
+```
+scripts/
+├── .env.shared.example   # 共享环境变量模板
+├── .env.shared           # 共享配置（不提交 Git）
+├── common.sh             # 共享函数库
+├── CONVENTIONS.md        # 开发规范
+└── README.md             # 总体说明
+```
+
+### 4.2 模块目录
+
 每个脚本目录应包含：
 
 ```
 scripts/{NN}-{name}/
-├── .env.example          # 环境变量模板（详细注释）
-├── .env                  # 实际配置（不提交 Git）
-├── 00-init.sh           # 初始化和公共函数
+├── .env.local.example    # 模块特有配置模板
+├── .env.local            # 模块特有配置（不提交 Git，可选）
+├── 00-init.sh           # 初始化（source common.sh）
 ├── 01-*.sh              # 子脚本 1
 ├── 02-*.sh              # 子脚本 2
 ├── ...
@@ -169,6 +191,15 @@ scripts/{NN}-{name}/
 ├── output/              # 生成的文件
 ├── README.md            # 使用说明
 └── RESOURCES.md         # 资源说明（可选）
+```
+
+### 4.3 环境变量加载顺序
+
+```bash
+# common.sh 中的 load_env() 函数加载顺序：
+1. scripts/.env.shared      # 共享配置（必须）
+2. scripts/{module}/.env.local  # 模块特有配置（可选，会覆盖共享配置）
+3. scripts/{module}/.env    # 兼容旧配置（警告，建议迁移）
 ```
 
 ---
@@ -199,15 +230,37 @@ scripts/{NN}-{name}/
 
 ---
 
-## 6. .env.example 规范
+## 6. 环境变量文件规范
+
+### 6.1 共享配置 (.env.shared.example)
+
+位于 `scripts/` 根目录，包含所有模块共享的变量：
+
+- **AWS 基础配置**: COMPANY, AWS_ACCOUNT_ID, AWS_REGION
+- **团队配置**: TEAMS, TEAM_*_FULLNAME
+- **项目配置**: *_PROJECTS
+- **用户配置**: ADMIN_USERS, *_USERS
+- **通用设置**: OUTPUT_DIR
+
+### 6.2 模块特有配置 (.env.local.example)
+
+位于各模块目录，只包含该模块特有的变量：
+
+| 模块   | 特有变量                                         |
+| ------ | ------------------------------------------------ |
+| 01-iam | IAM_PATH                                         |
+| 02-vpc | VPC_ID, VPC_CIDR, PRIVATE_SUBNET_*_ID            |
+| 03-s3  | ENCRYPTION_TYPE, ENABLE_VERSIONING, Lifecycle 等 |
+
+### 6.3 文件格式要求
 
 必须包含：
 
-1. **头部说明**: 使用方法
+1. **头部说明**: 使用方法和共享配置位置
 2. **分节注释**: 清晰分隔各配置块
 3. **变量说明**: 每个变量上方有注释
 4. **示例值**: 提供合理的示例
-5. **尾部说明**: 列出将创建的资源类型
+5. **尾部说明**: 标明哪些配置已移至共享文件
 
 ---
 
@@ -215,15 +268,22 @@ scripts/{NN}-{name}/
 
 所有脚本必须支持幂等操作：
 
-- **创建前检查**: 资源存在则跳过
+- **创建前检查**: 资源存在则跳过创建
+- **子资源检查**: 即使父资源存在，仍需检查子资源（如 LoginProfile）
 - **重复运行安全**: 多次运行结果相同
 - **增量更新支持**: 添加新资源时只创建新增部分
 
 ```bash
-# 示例：创建用户前检查
+# 示例：创建用户（包含 LoginProfile 检查）
 if aws iam get-user --user-name "$username" &> /dev/null; then
-    log_warn "User $username already exists, skipping..."
-    return 0
+    log_warn "User $username already exists"
+else
+    aws iam create-user --user-name "$username" ...
+fi
+
+# 即使用户存在，仍需检查 LoginProfile
+if ! aws iam get-login-profile --user-name "$username" &> /dev/null; then
+    aws iam create-login-profile --user-name "$username" ...
 fi
 ```
 

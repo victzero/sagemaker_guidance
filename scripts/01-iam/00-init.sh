@@ -1,188 +1,27 @@
 #!/bin/bash
 # =============================================================================
-# 00-init.sh - 初始化和环境检查
+# 00-init.sh - IAM 脚本初始化
 # =============================================================================
 # 使用方法: source 00-init.sh
 # =============================================================================
 
 set -e
 
+# 设置脚本目录（供 common.sh 使用）
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-# -----------------------------------------------------------------------------
-# 颜色输出
-# -----------------------------------------------------------------------------
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-NC='\033[0m' # No Color
-
-log_info() { echo -e "${BLUE}[INFO]${NC} $1"; }
-log_success() { echo -e "${GREEN}[OK]${NC} $1"; }
-log_warn() { echo -e "${YELLOW}[WARN]${NC} $1"; }
-log_error() { echo -e "${RED}[ERROR]${NC} $1"; }
+# 加载共享函数库
+source "${SCRIPT_DIR}/../common.sh"
 
 # -----------------------------------------------------------------------------
-# 加载环境变量
+# IAM 特有配置
 # -----------------------------------------------------------------------------
-load_env() {
-    if [[ -f "${SCRIPT_DIR}/.env" ]]; then
-        log_info "Loading environment from .env"
-        set -a
-        source "${SCRIPT_DIR}/.env"
-        set +a
-    else
-        log_error ".env file not found!"
-        log_info "Please copy .env.example to .env and edit it:"
-        log_info "  cp .env.example .env"
-        exit 1
-    fi
-    
+setup_iam_defaults() {
     # 设置默认 IAM_PATH (使用 COMPANY 前缀)
     if [[ -z "$IAM_PATH" ]]; then
         IAM_PATH="/${COMPANY}-sagemaker/"
     fi
-}
-
-# -----------------------------------------------------------------------------
-# 验证必需的环境变量
-# -----------------------------------------------------------------------------
-validate_env() {
-    log_info "Validating environment variables..."
-    
-    local required_vars=(
-        "COMPANY"
-        "AWS_ACCOUNT_ID"
-        "AWS_REGION"
-    )
-    
-    local missing=()
-    for var in "${required_vars[@]}"; do
-        if [[ -z "${!var}" ]]; then
-            missing+=("$var")
-        fi
-    done
-    
-    if [[ ${#missing[@]} -gt 0 ]]; then
-        log_error "Missing required environment variables:"
-        for var in "${missing[@]}"; do
-            echo "  - $var"
-        done
-        exit 1
-    fi
-    
-    # 验证团队配置
-    if [[ -z "$TEAMS" ]]; then
-        log_warn "TEAMS is empty - no team resources will be created"
-    else
-        for team in $TEAMS; do
-            local fullname_var="TEAM_${team^^}_FULLNAME"
-            if [[ -z "${!fullname_var}" ]]; then
-                log_error "Missing team fullname: $fullname_var"
-                exit 1
-            fi
-        done
-    fi
-    
-    log_success "Environment variables validated"
-}
-
-# -----------------------------------------------------------------------------
-# 检查 AWS CLI
-# -----------------------------------------------------------------------------
-check_aws_cli() {
-    log_info "Checking AWS CLI..."
-    
-    if ! command -v aws &> /dev/null; then
-        log_error "AWS CLI not found. Please install it first."
-        exit 1
-    fi
-    
-    # 检测 CloudShell 环境（不需要 AWS_PROFILE）
-    if [[ -n "$AWS_EXECUTION_ENV" && "$AWS_EXECUTION_ENV" == "CloudShell" ]]; then
-        log_info "Running in AWS CloudShell"
-        unset AWS_PROFILE  # CloudShell 使用内置凭证
-    elif [[ -n "$AWS_PROFILE" ]]; then
-        export AWS_PROFILE
-        log_info "Using AWS Profile: $AWS_PROFILE"
-    fi
-    
-    # 检查 AWS 配置
-    if ! aws sts get-caller-identity &> /dev/null; then
-        log_error "AWS CLI not configured or no valid credentials."
-        log_info "Please run 'aws configure' first."
-        exit 1
-    fi
-    
-    # 获取当前身份
-    local identity=$(aws sts get-caller-identity --query 'Arn' --output text)
-    log_success "AWS CLI configured. Current identity: $identity"
-    
-    # 验证账号 ID
-    local current_account=$(aws sts get-caller-identity --query 'Account' --output text)
-    if [[ "$current_account" != "$AWS_ACCOUNT_ID" ]]; then
-        echo ""
-        log_error "Account ID mismatch!"
-        echo "  .env configured:  $AWS_ACCOUNT_ID"
-        echo "  Current account:  $current_account"
-        echo ""
-        echo "Please update AWS_ACCOUNT_ID in .env file:"
-        echo "  sed -i 's/AWS_ACCOUNT_ID=.*/AWS_ACCOUNT_ID=${current_account}/' .env"
-        echo ""
-        exit 1
-    fi
-}
-
-# -----------------------------------------------------------------------------
-# 创建输出目录
-# -----------------------------------------------------------------------------
-ensure_output_dir() {
-    mkdir -p "${SCRIPT_DIR}/${OUTPUT_DIR:-./output}"
-}
-
-# -----------------------------------------------------------------------------
-# 获取团队全称
-# -----------------------------------------------------------------------------
-get_team_fullname() {
-    local team=$1
-    local var_name="TEAM_${team^^}_FULLNAME"
-    echo "${!var_name}"
-}
-
-# -----------------------------------------------------------------------------
-# 格式化名称 (risk-control -> RiskControl)
-# -----------------------------------------------------------------------------
-format_name() {
-    local input="$1"
-    local result=""
-    IFS='-' read -ra parts <<< "$input"
-    for part in "${parts[@]}"; do
-        result+="${part^}"  # Bash 4.x: 首字母大写
-    done
-    echo "$result"
-}
-
-# -----------------------------------------------------------------------------
-# 获取项目列表
-# -----------------------------------------------------------------------------
-get_projects_for_team() {
-    local team=$1
-    local var_name="${team^^}_PROJECTS"
-    echo "${!var_name}"
-}
-
-# -----------------------------------------------------------------------------
-# 获取项目用户列表
-# -----------------------------------------------------------------------------
-get_users_for_project() {
-    local team=$1
-    local project=$2
-    # 将 project-a 转换为 PROJECT_A
-    local project_upper="${project^^}"
-    project_upper="${project_upper//-/_}"
-    local var_name="${team^^}_${project_upper}_USERS"
-    echo "${!var_name}"
+    export IAM_PATH
 }
 
 # -----------------------------------------------------------------------------
@@ -221,6 +60,19 @@ count_expected_resources() {
 }
 
 # -----------------------------------------------------------------------------
+# IAM 配置摘要（回调函数）
+# -----------------------------------------------------------------------------
+print_iam_summary() {
+    echo "  IAM Path:     $IAM_PATH"
+    echo ""
+    echo "Expected Resources:"
+    echo "  Policies:     $EXPECTED_POLICIES"
+    echo "  Groups:       $EXPECTED_GROUPS"
+    echo "  Users:        $EXPECTED_USERS"
+    echo "  Roles:        $EXPECTED_ROLES"
+}
+
+# -----------------------------------------------------------------------------
 # 初始化
 # -----------------------------------------------------------------------------
 init() {
@@ -229,26 +81,16 @@ init() {
     echo "=============================================="
     
     load_env
-    validate_env
+    validate_base_env
+    validate_team_env
     check_aws_cli
+    setup_iam_defaults
     ensure_output_dir
     count_expected_resources
     
-    echo ""
+    print_config_summary "IAM" print_iam_summary
+    
     log_success "Initialization complete!"
-    echo ""
-    echo "Configuration Summary:"
-    echo "  Company:      $COMPANY"
-    echo "  Account ID:   $AWS_ACCOUNT_ID"
-    echo "  Region:       $AWS_REGION"
-    echo "  IAM Path:     $IAM_PATH"
-    echo ""
-    echo "Expected Resources:"
-    echo "  Policies:     $EXPECTED_POLICIES"
-    echo "  Groups:       $EXPECTED_GROUPS"
-    echo "  Users:        $EXPECTED_USERS"
-    echo "  Roles:        $EXPECTED_ROLES"
-    echo ""
 }
 
 # 如果直接执行此脚本，运行初始化

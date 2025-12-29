@@ -44,12 +44,16 @@ aws sts get-caller-identity
 
 ```bash
 # ============================================
+# Step 0: 配置共享环境变量（只需一次）
+# ============================================
+cp .env.shared.example .env.shared
+vi .env.shared  # 填入 COMPANY, AWS_ACCOUNT_ID, TEAMS, PROJECTS, USERS 等
+
+# ============================================
 # Step 1: IAM 权限配置
 # ============================================
 cd 01-iam
-cp .env.example .env
-vi .env  # 填入配置
-
+# IAM 模块无需额外配置（使用共享配置）
 ./setup-all.sh   # 会显示预览，确认后执行
 ./verify.sh      # 验证
 
@@ -57,8 +61,8 @@ vi .env  # 填入配置
 # Step 2: VPC 网络配置
 # ============================================
 cd ../02-vpc
-cp .env.example .env
-vi .env  # 填入 VPC ID、Subnet IDs 等
+cp .env.local.example .env.local
+vi .env.local  # 填入 VPC_ID、SUBNET_IDs（必填）
 
 ./setup-all.sh
 ./verify.sh
@@ -67,8 +71,9 @@ vi .env  # 填入 VPC ID、Subnet IDs 等
 # Step 3: S3 数据管理
 # ============================================
 cd ../03-s3
-cp .env.example .env
-vi .env  # 确认公司名称、项目列表等
+# S3 模块使用默认配置即可，如需自定义：
+# cp .env.local.example .env.local
+# vi .env.local  # 调整加密类型、Lifecycle 等
 
 ./setup-all.sh
 ./verify.sh
@@ -100,9 +105,27 @@ vi .env  # 确认公司名称、项目列表等
 | Bucket Policies | 5    | 访问控制        |
 | Lifecycle Rules | 5    | 自动清理和归档  |
 
-## 环境变量共享
+## 环境变量配置
 
-各脚本共享以下核心变量，建议保持一致：
+### 配置文件结构
+
+```
+scripts/
+├── .env.shared.example   # 共享配置模板（提交 Git）
+├── .env.shared           # 共享配置（不提交 Git）
+├── common.sh             # 共享函数库
+├── 01-iam/
+│   └── .env.local.example  # IAM 特有配置模板
+├── 02-vpc/
+│   ├── .env.local.example  # VPC 特有配置模板
+│   └── .env.local          # VPC 特有配置（必填）
+└── 03-s3/
+    └── .env.local.example  # S3 特有配置模板
+```
+
+### 共享配置 (.env.shared)
+
+所有模块共享的核心变量：
 
 | 变量             | 说明     | 示例                    |
 | ---------------- | -------- | ----------------------- |
@@ -110,8 +133,25 @@ vi .env  # 确认公司名称、项目列表等
 | `AWS_ACCOUNT_ID` | AWS 账号 | `123456789012`          |
 | `AWS_REGION`     | AWS 区域 | `ap-southeast-1`        |
 | `TEAMS`          | 团队列表 | `"rc algo"`             |
-| `RC_PROJECTS`    | 风控项目 | `"project-a project-b"` |
-| `ALGO_PROJECTS`  | 算法项目 | `"project-x project-y"` |
+| `*_PROJECTS`     | 项目列表 | `"project-a project-b"` |
+| `*_USERS`        | 用户列表 | `"alice bob"`           |
+
+### 模块特有配置 (.env.local)
+
+| 模块   | 必填 | 特有变量                   |
+| ------ | ---- | -------------------------- |
+| 01-iam | ❌   | IAM_PATH                   |
+| 02-vpc | ✅   | VPC_ID, VPC_CIDR, SUBNETs  |
+| 03-s3  | ❌   | ENCRYPTION_TYPE, Lifecycle |
+
+### 加载顺序
+
+```bash
+# common.sh 中 load_env() 加载顺序：
+1. scripts/.env.shared           # 共享配置（必须）
+2. scripts/{module}/.env.local   # 模块特有配置（可选）
+3. scripts/{module}/.env         # 兼容旧配置（警告）
+```
 
 ## 通用功能
 
