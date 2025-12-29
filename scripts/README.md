@@ -6,9 +6,15 @@ AWS CLI 自动化脚本，用于部署 SageMaker ML 平台基础设施。
 
 ```
 scripts/
-├── 01-iam/     # IAM 权限配置 (对应 docs/02-iam-design.md)
-├── 02-vpc/     # VPC 网络配置 (对应 docs/03-vpc-network.md)
-├── 03-s3/      # S3 数据管理 (对应 docs/04-s3-data-management.md)
+├── 01-iam/              # IAM 权限配置 (对应 docs/02-iam-design.md)
+├── 02-vpc/              # VPC 网络配置 (对应 docs/03-vpc-network.md)
+├── 03-s3/               # S3 数据管理 (对应 docs/04-s3-data-management.md)
+├── 04-sagemaker-domain/ # SageMaker Domain (对应 docs/05-sagemaker-domain.md)
+├── 05-user-profiles/    # User Profiles (对应 docs/06-user-profile.md)
+├── 06-spaces/           # Shared Spaces (对应 docs/07-shared-space.md)
+├── common.sh            # 共享函数库
+├── .env.shared.example  # 共享配置模板
+├── CONVENTIONS.md       # 开发规范
 └── README.md
 ```
 
@@ -17,13 +23,38 @@ scripts/
 **必须按顺序执行**，因为存在依赖关系：
 
 ```
-01-iam  →  02-vpc  →  03-s3
-  ↓          ↓          ↓
-创建      创建      创建 Buckets
-Policies   安全组    (需要 IAM Roles)
-Groups    VPC       配置 Policies
-Users     Endpoints  (需要 Execution Roles)
-Roles
+Phase 1-3: 基础资源
+  01-iam  →  02-vpc  →  03-s3
+
+Phase 4: SageMaker 配置
+  04-sagemaker-domain  →  05-user-profiles  →  06-spaces
+```
+
+```
+┌─────────────────┐
+│   01-iam        │  ← IAM Policies, Groups, Users, Roles
+└────────┬────────┘
+         │
+   ┌─────┴─────┐
+   ▼           ▼
+┌───────┐  ┌───────┐
+│02-vpc │  │ 03-s3 │  ← Security Groups, Endpoints, Buckets
+└───┬───┘  └───────┘
+    │
+    ▼
+┌─────────────────────┐
+│ 04-sagemaker-domain │  ← Domain + Lifecycle Config
+└─────────┬───────────┘
+          │
+          ▼
+┌─────────────────────┐
+│  05-user-profiles   │  ← User Profiles (per user)
+└─────────┬───────────┘
+          │
+          ▼
+┌─────────────────────┐
+│     06-spaces       │  ← Shared Spaces (per project)
+└─────────────────────┘
 ```
 
 ## AWS Profile 配置
@@ -53,7 +84,6 @@ vi .env.shared  # 填入 COMPANY, AWS_ACCOUNT_ID, TEAMS, PROJECTS, USERS 等
 # Step 1: IAM 权限配置
 # ============================================
 cd 01-iam
-# IAM 模块无需额外配置（使用共享配置）
 ./setup-all.sh   # 会显示预览，确认后执行
 ./verify.sh      # 验证
 
@@ -71,11 +101,28 @@ vi .env.local  # 填入 VPC_ID、SUBNET_IDs（必填）
 # Step 3: S3 数据管理
 # ============================================
 cd ../03-s3
-# S3 模块使用默认配置即可，如需自定义：
-# cp .env.local.example .env.local
-# vi .env.local  # 调整加密类型、Lifecycle 等
-
 ./setup-all.sh
+./verify.sh
+
+# ============================================
+# Step 4: SageMaker Domain
+# ============================================
+cd ../04-sagemaker-domain
+./setup-all.sh   # 创建 Domain + Lifecycle Config
+./verify.sh
+
+# ============================================
+# Step 5: User Profiles
+# ============================================
+cd ../05-user-profiles
+./setup-all.sh   # 为每个 IAM 用户创建 Profile
+./verify.sh
+
+# ============================================
+# Step 6: Shared Spaces
+# ============================================
+cd ../06-spaces
+./setup-all.sh   # 为每个项目创建 Space
 ./verify.sh
 ```
 
@@ -105,22 +152,47 @@ cd ../03-s3
 | Bucket Policies | 5    | 访问控制        |
 | Lifecycle Rules | 5    | 自动清理和归档  |
 
+### 04-sagemaker-domain (SageMaker Domain)
+
+| 资源类型         | 数量 | 说明                         |
+| ---------------- | ---- | ---------------------------- |
+| SageMaker Domain | 1    | VPCOnly + IAM 认证           |
+| Lifecycle Config | 1    | 空闲自动关机（默认 60 分钟） |
+
+### 05-user-profiles (User Profiles)
+
+| 资源类型      | 数量   | 说明              |
+| ------------- | ------ | ----------------- |
+| User Profiles | N 用户 | 每个 IAM 用户一个 |
+
+### 06-spaces (Shared Spaces)
+
+| 资源类型      | 数量   | 说明                 |
+| ------------- | ------ | -------------------- |
+| Shared Spaces | N 项目 | 每个项目一个协作空间 |
+
 ## 环境变量配置
 
 ### 配置文件结构
 
 ```
 scripts/
-├── .env.shared.example   # 共享配置模板（提交 Git）
-├── .env.shared           # 共享配置（不提交 Git）
-├── common.sh             # 共享函数库
+├── .env.shared.example    # 共享配置模板（提交 Git）
+├── .env.shared            # 共享配置（不提交 Git）
+├── common.sh              # 共享函数库
 ├── 01-iam/
-│   └── .env.local.example  # IAM 特有配置模板
+│   └── .env.local.example
 ├── 02-vpc/
-│   ├── .env.local.example  # VPC 特有配置模板
-│   └── .env.local          # VPC 特有配置（必填）
-└── 03-s3/
-    └── .env.local.example  # S3 特有配置模板
+│   ├── .env.local.example # VPC 特有配置模板
+│   └── .env.local         # VPC 特有配置（必填）
+├── 03-s3/
+│   └── .env.local.example
+├── 04-sagemaker-domain/
+│   └── .env.local.example
+├── 05-user-profiles/
+│   └── .env.local.example
+└── 06-spaces/
+    └── .env.local.example
 ```
 
 ### 共享配置 (.env.shared)
@@ -138,11 +210,14 @@ scripts/
 
 ### 模块特有配置 (.env.local)
 
-| 模块   | 必填 | 特有变量                   |
-| ------ | ---- | -------------------------- |
-| 01-iam | ❌   | IAM_PATH                   |
-| 02-vpc | ✅   | VPC_ID, VPC_CIDR, SUBNETs  |
-| 03-s3  | ❌   | ENCRYPTION_TYPE, Lifecycle |
+| 模块                | 必填 | 特有变量                          |
+| ------------------- | ---- | --------------------------------- |
+| 01-iam              | ❌   | IAM_PATH                          |
+| 02-vpc              | ✅   | VPC_ID, VPC_CIDR, SUBNETs         |
+| 03-s3               | ❌   | ENCRYPTION_TYPE, Lifecycle        |
+| 04-sagemaker-domain | ❌   | DOMAIN_NAME, IDLE_TIMEOUT_MINUTES |
+| 05-user-profiles    | ❌   | （使用共享配置）                  |
+| 06-spaces           | ❌   | SPACE_EBS_SIZE_GB                 |
 
 ### 加载顺序
 
@@ -204,35 +279,6 @@ Do you want to proceed? [y/N]
 - IAM 资源命名规范
 - 脚本目录结构
 
-## 依赖关系图
-
-```
-                    ┌─────────────────┐
-                    │   01-iam        │
-                    │ (IAM Policies,  │
-                    │  Groups, Users, │
-                    │  Roles)         │
-                    └────────┬────────┘
-                             │
-              ┌──────────────┴──────────────┐
-              ▼                              ▼
-    ┌─────────────────┐            ┌─────────────────┐
-    │   02-vpc        │            │   03-s3         │
-    │ (Security       │            │ (Buckets need   │
-    │  Groups,        │            │  Execution      │
-    │  Endpoints)     │            │  Roles from     │
-    └─────────────────┘            │  01-iam)        │
-                                   └─────────────────┘
-```
-
-## 后续步骤
-
-完成这三步后，继续：
-
-1. **创建 SageMaker Domain** (docs/05-sagemaker-domain.md)
-2. **创建 User Profiles** (docs/06-user-profile.md)
-3. **创建 Shared Spaces** (docs/07-shared-space.md)
-
 ## 故障排除
 
 ### 权限不足
@@ -242,6 +288,7 @@ Do you want to proceed? [y/N]
 - IAM: `IAMFullAccess` 或自定义策略
 - VPC: `AmazonVPCFullAccess`
 - S3: `AmazonS3FullAccess`
+- SageMaker: `AmazonSageMakerFullAccess`
 
 ### 资源已存在
 
@@ -260,12 +307,31 @@ Do you want to proceed? [y/N]
 **⚠️ 危险操作** - 按逆序清理：
 
 ```bash
-# 先清理 S3 (数据会丢失!)
-cd 03-s3 && ./cleanup.sh
+# 1. 先清理 Spaces
+cd 06-spaces && ./cleanup.sh
 
-# 再清理 VPC
+# 2. 清理 User Profiles
+cd ../05-user-profiles && ./cleanup.sh
+
+# 3. 清理 SageMaker Domain (会删除 EFS!)
+cd ../04-sagemaker-domain && ./cleanup.sh
+
+# 4. 清理 S3 (数据会丢失!)
+cd ../03-s3 && ./cleanup.sh
+
+# 5. 清理 VPC
 cd ../02-vpc && ./cleanup.sh
 
-# 最后清理 IAM
+# 6. 最后清理 IAM
 cd ../01-iam && ./cleanup.sh
 ```
+
+## 用户登录流程
+
+平台搭建完成后，用户按以下流程登录：
+
+1. IAM User 登录 AWS Console
+2. 导航到 SageMaker → Studio
+3. 选择自己的 User Profile (`profile-{team}-{name}`)
+4. 点击 "Open Studio"
+5. 在 Studio 中访问项目的 Shared Space

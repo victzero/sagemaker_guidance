@@ -265,11 +265,14 @@ echo ""
 
 #### 5.1.3 各模块资源分组
 
-| 模块   | 资源分组                                                                                                                 |
-| ------ | ------------------------------------------------------------------------------------------------------------------------ |
-| 01-iam | 【Policies】【Groups】【Users】【Execution Roles】                                                                       |
-| 02-vpc | 【Security Groups】【VPC Endpoints - Required】【VPC Endpoints - Optional】【Endpoint Configuration】                    |
-| 03-s3  | 【Buckets】【Bucket Policies】【Lifecycle Rules】【Directory Structures】【Bucket Configurations】【Lifecycle Settings】 |
+| 模块              | 资源分组                                                                                                                 |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| 01-iam            | 【Policies】【Groups】【Users】【Execution Roles】                                                                       |
+| 02-vpc            | 【Security Groups】【VPC Endpoints - Required】【VPC Endpoints - Optional】【Endpoint Configuration】                    |
+| 03-s3             | 【Buckets】【Bucket Policies】【Lifecycle Rules】【Directory Structures】【Bucket Configurations】【Lifecycle Settings】 |
+| 04-sagemaker-domain | 【SageMaker Domain】【Lifecycle Configuration】                                                                        |
+| 05-user-profiles  | 【User Profiles】（按团队/项目分组）                                                                                     |
+| 06-spaces         | 【Shared Spaces】（按团队/项目分组）                                                                                     |
 
 #### 5.1.4 Summary 格式
 
@@ -335,11 +338,14 @@ echo "  aws ec2 describe-vpc-endpoints --filters \"Name=tag:ManagedBy,Values=...
 
 位于各模块目录，只包含该模块特有的变量：
 
-| 模块   | 特有变量                                         |
-| ------ | ------------------------------------------------ |
-| 01-iam | IAM_PATH                                         |
-| 02-vpc | VPC*ID, VPC_CIDR, PRIVATE_SUBNET*\*\_ID          |
-| 03-s3  | ENCRYPTION_TYPE, ENABLE_VERSIONING, Lifecycle 等 |
+| 模块              | 特有变量                                               |
+| ----------------- | ------------------------------------------------------ |
+| 01-iam            | IAM_PATH                                               |
+| 02-vpc            | VPC_ID, VPC_CIDR, PRIVATE_SUBNET_*_ID                  |
+| 03-s3             | ENCRYPTION_TYPE, ENABLE_VERSIONING, Lifecycle 等       |
+| 04-sagemaker-domain | DOMAIN_NAME, IDLE_TIMEOUT_MINUTES, DEFAULT_INSTANCE_TYPE |
+| 05-user-profiles  | （使用共享配置中的用户信息）                           |
+| 06-spaces         | SPACE_EBS_SIZE_GB                                      |
 
 ### 6.3 文件格式要求
 
