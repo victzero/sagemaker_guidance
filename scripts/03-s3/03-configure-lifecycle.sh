@@ -136,11 +136,6 @@ apply_lifecycle_config() {
     
     echo "$config" > "$config_file"
     
-    if [[ "$DRY_RUN" == "true" ]]; then
-        log_warn "[DRY-RUN] Would apply lifecycle rules to $bucket_name"
-        return 0
-    fi
-    
     aws s3api put-bucket-lifecycle-configuration \
         --bucket "$bucket_name" \
         --lifecycle-configuration "file://${config_file}" \

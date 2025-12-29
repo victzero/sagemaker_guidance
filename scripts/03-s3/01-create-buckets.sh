@@ -26,11 +26,6 @@ create_bucket() {
         return 0
     fi
     
-    if [[ "$DRY_RUN" == "true" ]]; then
-        log_warn "[DRY-RUN] Would create bucket: $bucket_name"
-        return 0
-    fi
-    
     # 创建 Bucket (注意: us-east-1 不需要 LocationConstraint)
     if [[ "$AWS_REGION" == "us-east-1" ]]; then
         aws s3api create-bucket \
@@ -119,11 +114,6 @@ create_directory_structure() {
     local is_shared=$2
     
     log_info "Creating directory structure for $bucket_name"
-    
-    if [[ "$DRY_RUN" == "true" ]]; then
-        log_warn "[DRY-RUN] Would create directory structure"
-        return 0
-    fi
     
     if [[ "$is_shared" == "true" ]]; then
         # 共享 Bucket 结构

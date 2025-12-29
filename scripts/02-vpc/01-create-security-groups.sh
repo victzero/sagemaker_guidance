@@ -32,12 +32,6 @@ create_security_group() {
         return 0
     fi
     
-    if [[ "$DRY_RUN" == "true" ]]; then
-        log_warn "[DRY-RUN] Would create security group: $sg_name"
-        echo "sg-dryrun-placeholder"
-        return 0
-    fi
-    
     local sg_id=$(aws ec2 create-security-group \
         --group-name "$sg_name" \
         --description "$description" \
@@ -62,11 +56,6 @@ add_ingress_rule() {
     local description=$5
     
     log_info "Adding ingress rule: $protocol:$port from $source"
-    
-    if [[ "$DRY_RUN" == "true" ]]; then
-        log_warn "[DRY-RUN] Would add ingress rule"
-        return 0
-    fi
     
     # 检查是否是自引用
     if [[ "$source" == "self" ]]; then
@@ -97,11 +86,6 @@ add_egress_rule() {
     local description=$5
     
     log_info "Adding egress rule: $protocol:$port to $destination"
-    
-    if [[ "$DRY_RUN" == "true" ]]; then
-        log_warn "[DRY-RUN] Would add egress rule"
-        return 0
-    fi
     
     if [[ "$destination" == "self" ]]; then
         aws ec2 authorize-security-group-egress \
@@ -136,7 +120,7 @@ main() {
         "sg-${TAG_PREFIX}-studio" \
         "Security group for SageMaker Studio instances")
     
-    if [[ -n "$SG_STUDIO" && "$SG_STUDIO" != "sg-dryrun-placeholder" ]]; then
+    if [[ -n "$SG_STUDIO" ]]; then
         # Studio 安全组入站规则
         add_ingress_rule "$SG_STUDIO" "-1" "-1" "self" "Allow all traffic from self"
         add_ingress_rule "$SG_STUDIO" "tcp" "443" "$VPC_CIDR" "Allow HTTPS from VPC"
@@ -151,7 +135,7 @@ main() {
         "sg-${TAG_PREFIX}-vpc-endpoints" \
         "Security group for VPC Endpoints")
     
-    if [[ -n "$SG_ENDPOINTS" && "$SG_ENDPOINTS" != "sg-dryrun-placeholder" ]]; then
+    if [[ -n "$SG_ENDPOINTS" ]]; then
         # Endpoints 安全组入站规则
         add_ingress_rule "$SG_ENDPOINTS" "tcp" "443" "$VPC_CIDR" "Allow HTTPS from VPC"
     fi

@@ -193,11 +193,6 @@ apply_bucket_policy() {
     # 保存 policy 到文件
     echo "$policy" > "$policy_file"
     
-    if [[ "$DRY_RUN" == "true" ]]; then
-        log_warn "[DRY-RUN] Would apply policy to $bucket_name"
-        return 0
-    fi
-    
     aws s3api put-bucket-policy \
         --bucket "$bucket_name" \
         --policy "file://${policy_file}" \

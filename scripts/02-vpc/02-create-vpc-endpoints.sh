@@ -43,12 +43,6 @@ create_interface_endpoint() {
         return 0
     fi
     
-    if [[ "$DRY_RUN" == "true" ]]; then
-        log_warn "[DRY-RUN] Would create endpoint: $endpoint_name"
-        echo "vpce-dryrun-placeholder"
-        return 0
-    fi
-    
     local endpoint_id=$(aws ec2 create-vpc-endpoint \
         --vpc-id "$VPC_ID" \
         --vpc-endpoint-type Interface \
@@ -86,12 +80,6 @@ create_gateway_endpoint() {
     if [[ "$existing" != "None" && -n "$existing" ]]; then
         log_warn "Endpoint for $service_name already exists: $existing"
         echo "$existing"
-        return 0
-    fi
-    
-    if [[ "$DRY_RUN" == "true" ]]; then
-        log_warn "[DRY-RUN] Would create gateway endpoint: $endpoint_name"
-        echo "vpce-dryrun-placeholder"
         return 0
     fi
     
