@@ -90,7 +90,14 @@ verify_section "VPC Endpoints"
 
 check_endpoint() {
     local service=$1
-    local full_service="com.amazonaws.${AWS_REGION}.${service}"
+    
+    # 判断是否已经是完整服务名
+    local full_service
+    if [[ "$service" == com.amazonaws.* ]] || [[ "$service" == aws.sagemaker.* ]]; then
+        full_service="$service"
+    else
+        full_service="com.amazonaws.${AWS_REGION}.${service}"
+    fi
     
     local endpoint_id=$(aws ec2 describe-vpc-endpoints \
         --filters "Name=service-name,Values=${full_service}" "Name=vpc-id,Values=${VPC_ID}" \
@@ -104,15 +111,17 @@ check_endpoint() {
         --output text \
         --region "$AWS_REGION" 2>/dev/null || echo "None")
     
+    # 显示时用简短名称
+    local display_name="${service##*.}"
     if [[ "$endpoint_id" != "None" && -n "$endpoint_id" ]]; then
         if [[ "$state" == "available" ]]; then
-            echo -e "  ${GREEN}✓${NC} $service: $endpoint_id (available)"
+            echo -e "  ${GREEN}✓${NC} $display_name: $endpoint_id (available)"
         else
-            echo -e "  ${YELLOW}!${NC} $service: $endpoint_id ($state)"
+            echo -e "  ${YELLOW}!${NC} $display_name: $endpoint_id ($state)"
         fi
         return 0
     else
-        echo -e "  ${RED}✗${NC} $service: NOT FOUND"
+        echo -e "  ${RED}✗${NC} $display_name: NOT FOUND"
         return 1
     fi
 }
@@ -121,7 +130,7 @@ check_endpoint() {
 echo "Required Endpoints:"
 check_endpoint "sagemaker.api" || ((errors++)) || true
 check_endpoint "sagemaker.runtime" || ((errors++)) || true
-check_endpoint "sagemaker.studio" || ((errors++)) || true
+check_endpoint "aws.sagemaker.${AWS_REGION}.studio" || ((errors++)) || true
 check_endpoint "sts" || ((errors++)) || true
 check_endpoint "logs" || ((errors++)) || true
 check_endpoint "s3" || ((errors++)) || true

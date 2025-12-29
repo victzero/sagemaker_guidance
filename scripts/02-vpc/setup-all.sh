@@ -114,7 +114,7 @@ echo "        Service: com.amazonaws.${AWS_REGION}.sagemaker.runtime"
 ((endpoint_count++)) || true
 
 echo "    - vpce-${TAG_PREFIX}-sagemaker-studio"
-echo "        Service: com.amazonaws.${AWS_REGION}.sagemaker.studio"
+echo "        Service: aws.sagemaker.${AWS_REGION}.studio"
 ((endpoint_count++)) || true
 
 echo "    - vpce-${TAG_PREFIX}-sts"

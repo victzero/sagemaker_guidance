@@ -124,7 +124,7 @@ SageMaker Studio (VPCOnly 模式) 需要以下 Endpoints：
 | ----------------- | ---------------------------------------- | --------- | ---- |
 | SageMaker API     | com.amazonaws.{region}.sagemaker.api     | Interface | ✅   |
 | SageMaker Runtime | com.amazonaws.{region}.sagemaker.runtime | Interface | ✅   |
-| SageMaker Studio  | com.amazonaws.{region}.sagemaker.studio  | Interface | ✅   |
+| SageMaker Studio  | **aws.sagemaker.{region}.studio**        | Interface | ✅   |
 | STS               | com.amazonaws.{region}.sts               | Interface | ✅   |
 | S3                | com.amazonaws.{region}.s3                | Gateway   | ✅   |
 | CloudWatch Logs   | com.amazonaws.{region}.logs              | Interface | ✅   |

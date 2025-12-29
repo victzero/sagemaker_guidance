@@ -22,11 +22,21 @@ fi
 # -----------------------------------------------------------------------------
 # 创建 Interface Endpoint 函数
 # -----------------------------------------------------------------------------
+# 参数:
+#   $1 - service_name: 服务名称 (如 sagemaker.api) 或完整服务名 (如 aws.sagemaker.xxx.studio)
+#   $2 - endpoint_name: VPC Endpoint 名称
+# -----------------------------------------------------------------------------
 create_interface_endpoint() {
     local service_name=$1
     local endpoint_name=$2
     
-    local full_service="com.amazonaws.${AWS_REGION}.${service_name}"
+    # 判断是否已经是完整服务名
+    local full_service
+    if [[ "$service_name" == com.amazonaws.* ]] || [[ "$service_name" == aws.sagemaker.* ]]; then
+        full_service="$service_name"
+    else
+        full_service="com.amazonaws.${AWS_REGION}.${service_name}"
+    fi
     
     log_info "Creating Interface Endpoint: $endpoint_name ($full_service)" >&2
     
@@ -146,9 +156,9 @@ main() {
     validate_endpoint_id "sagemaker.runtime" "${ENDPOINTS["sagemaker.runtime"]}"
     
     # SageMaker Studio (包含 Notebook 功能)
-    # 注意: 不再需要单独的 "notebook" endpoint，sagemaker.studio 已包含所需功能
+    # 注意: Studio 使用特殊的服务名格式: aws.sagemaker.{region}.studio
     ENDPOINTS["studio"]=$(create_interface_endpoint \
-        "sagemaker.studio" \
+        "aws.sagemaker.${AWS_REGION}.studio" \
         "vpce-${TAG_PREFIX}-sagemaker-studio")
     validate_endpoint_id "studio" "${ENDPOINTS["studio"]}"
     
