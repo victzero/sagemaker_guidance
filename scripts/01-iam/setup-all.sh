@@ -23,57 +23,22 @@ echo " SageMaker IAM Setup - Master Script"
 echo "==============================================${NC}"
 echo ""
 
-# 检查 .env 文件
-if [[ ! -f "${SCRIPT_DIR}/.env" ]]; then
-    echo -e "${RED}[ERROR]${NC} .env file not found!"
-    echo ""
-    echo "Please create .env file first:"
-    echo "  cp .env.example .env"
-    echo "  # Edit .env with your values"
-    echo ""
-    exit 1
+# 加载共享函数库和环境变量
+source "${SCRIPT_DIR}/../common.sh"
+load_env
+validate_base_env
+validate_team_env
+check_aws_cli
+
+# 设置 IAM 特有配置
+if [[ -z "$IAM_PATH" ]]; then
+    IAM_PATH="/${COMPANY}-sagemaker/"
 fi
+export IAM_PATH
 
-# 加载环境变量显示预览
-source "${SCRIPT_DIR}/.env"
-
-# 设置 IAM_PATH
-IAM_PATH="/${COMPANY}-sagemaker/"
-
-# 辅助函数：获取团队全称
-get_team_fullname() {
-    local team=$1
-    local var_name="TEAM_${team^^}_FULLNAME"
-    echo "${!var_name}"
-}
-
-# 辅助函数：格式化名称 (risk-control -> RiskControl)
-format_name() {
-    local input="$1"
-    local result=""
-    IFS='-' read -ra parts <<< "$input"
-    for part in "${parts[@]}"; do
-        result+="${part^}"
-    done
-    echo "$result"
-}
-
-# 辅助函数：获取项目列表
-get_projects() {
-    local team=$1
-    local var_name="${team^^}_PROJECTS"
-    echo "${!var_name}"
-}
-
-# 辅助函数：获取项目用户
-get_users() {
-    local team=$1
-    local project=$2
-    local project_upper="${project^^}"
-    project_upper="${project_upper//-/_}"
-    local var_name="${team^^}_${project_upper}_USERS"
-    echo "${!var_name}"
-}
+# 别名函数（兼容旧代码）
+get_projects() { get_projects_for_team "$@"; }
+get_users() { get_users_for_project "$@"; }
 
 # 确认执行
 echo -e "${YELLOW}This script will create the following AWS IAM resources:${NC}"

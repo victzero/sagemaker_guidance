@@ -19,7 +19,9 @@ npm-debug.log*
 dist/
 
 # Scripts - Environment files (contain sensitive data)
+scripts/.env.shared
 scripts/**/.env
+scripts/**/.env.local
 
 # Scripts - Generated output files
 scripts/**/output/
