@@ -1,0 +1,201 @@
+# SageMaker Platform Setup - Cursor Rules
+
+## Project Overview
+
+AWS CLI 自动化脚本，用于部署 SageMaker ML 平台基础设施。
+
+**脚本模块:**
+- 01-iam: IAM Policies, Groups, Users, Roles
+- 02-vpc: Security Groups, VPC Endpoints
+- 03-s3: S3 Buckets, Policies, Lifecycle Rules
+
+---
+
+## Shell Script Conventions
+
+### 兼容性
+- **目标环境**: AWS CloudShell (Amazon Linux 2, Bash 4.x+)
+- 使用 `set -e` 遇错即停
+- 计数器操作使用 `((count++)) || true` 避免 set -e 退出
+
+### 颜色输出
+
+```bash
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+CYAN='\033[0;36m'
+NC='\033[0m'
+
+log_info()    { echo -e "${BLUE}[INFO]${NC} $1"; }
+log_success() { echo -e "${GREEN}[OK]${NC} $1"; }
+log_warn()    { echo -e "${YELLOW}[WARN]${NC} $1"; }
+log_error()   { echo -e "${RED}[ERROR]${NC} $1"; }
+```
+
+---
+
+## setup-all.sh 资源预览模式（重要！）
+
+所有 `setup-all.sh` 脚本**必须**在执行前打印完整的资源清单。
+
+### 标准结构
+
+```bash
+#!/bin/bash
+set -e
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# 1. 加载环境和验证
+source "${SCRIPT_DIR}/../common.sh"
+load_env
+validate_base_env
+validate_team_env  # 或模块特有验证
+check_aws_cli
+
+# 2. 设置模块特有配置
+MODULE_VAR="${MODULE_VAR:-default_value}"
+
+# 3. 打印标题
+echo -e "${YELLOW}This script will create the following AWS {MODULE} resources:${NC}"
+echo ""
+echo "  Company:       $COMPANY"
+echo "  Region:        $AWS_REGION"
+# ... 其他基础信息 ...
+echo ""
+
+# 4. 打印资源清单（按【分类】分组）
+echo -e "${BLUE}【资源类型 1】${NC}"
+for team in $TEAMS; do
+    echo "  Team [$team]:"
+    for project in $(get_projects_for_team "$team"); do
+        echo "    - resource-name-$team-$project"
+        ((count++)) || true
+    done
+done
+echo "  Total: $count resources"
+echo ""
+
+# 5. 打印 Summary（使用 ━━━ 分隔线）
+echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo -e "${CYAN}Summary: $count1 resources, $count2 policies${NC}"
+echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo ""
+
+# 6. 打印筛选命令
+echo -e "${YELLOW}Filter resources later with:${NC}"
+echo "  aws ... --filters ..."
+echo ""
+
+# 7. 确认执行
+read -p "Do you want to proceed? [y/N] " -n 1 -r
+echo
+if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+    echo "Aborted."
+    exit 1
+fi
+
+# 8. 执行子脚本
+START_TIME=$(date +%s)
+
+run_step() {
+    local step=$1
+    local script=$2
+    local description=$3
+    # ...
+}
+
+run_step 1 "01-xxx.sh" "Description"
+run_step 2 "02-xxx.sh" "Description"
+
+# 9. 打印完成信息
+END_TIME=$(date +%s)
+DURATION=$((END_TIME - START_TIME))
+
+echo -e "${CYAN}=============================================="
+echo " Setup Complete!"
+echo "==============================================${NC}"
+echo ""
+echo "Duration: ${DURATION} seconds"
+echo ""
+echo -e "${GREEN}Created Resources:${NC}"
+# ... 列出创建的资源 ...
+echo ""
+echo "Resource IDs saved to: ${SCRIPT_DIR}/output/*.env"
+echo ""
+echo "Verify resources with:"
+echo "  ./verify.sh"
+echo ""
+echo "Next Steps:"
+echo "  1. ..."
+echo "  2. ..."
+```
+
+### 各模块资源分组
+
+| 模块   | 资源分组                                                                           |
+| ------ | ---------------------------------------------------------------------------------- |
+| 01-iam | 【Policies】【Groups】【Users】【Execution Roles】                                 |
+| 02-vpc | 【Security Groups】【VPC Endpoints - Required】【VPC Endpoints - Optional】        |
+| 03-s3  | 【Buckets】【Bucket Policies】【Lifecycle Rules】【Directory Structures】          |
+
+---
+
+## 目录结构
+
+每个脚本模块必须包含：
+
+```
+scripts/{NN}-{name}/
+├── 00-init.sh           # 初始化（source common.sh）
+├── 01-*.sh              # 子脚本 1
+├── 02-*.sh              # 子脚本 2
+├── setup-all.sh         # 主控脚本（资源预览模式）
+├── verify.sh            # 验证脚本
+├── cleanup.sh           # 清理脚本
+├── output/              # 生成的文件
+└── README.md            # 使用说明
+```
+
+---
+
+## 环境变量
+
+### 共享配置 (scripts/.env.shared)
+
+```bash
+COMPANY=acme
+AWS_ACCOUNT_ID=123456789012
+AWS_REGION=ap-southeast-1
+TEAMS="rc algo"
+TEAM_RC_FULLNAME=risk-control
+RC_PROJECTS="fraud-detection"
+```
+
+### 模块特有配置 (scripts/{module}/.env.local)
+
+| 模块   | 特有变量                              |
+| ------ | ------------------------------------- |
+| 01-iam | IAM_PATH                              |
+| 02-vpc | VPC_ID, VPC_CIDR, SUBNET_IDs          |
+| 03-s3  | ENCRYPTION_TYPE, ENABLE_VERSIONING    |
+
+---
+
+## 幂等性要求
+
+所有脚本必须支持幂等操作：
+
+- 创建前检查资源是否存在
+- 存在则跳过，不报错
+- 支持重复运行
+
+---
+
+## 参考文档
+
+- [CONVENTIONS.md](scripts/CONVENTIONS.md) - 完整开发规范
+- [scripts/README.md](scripts/README.md) - 脚本使用说明
+
