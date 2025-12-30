@@ -64,17 +64,7 @@ main() {
 EOF
 )
         
-        local default_space_settings=$(cat <<EOF
-{
-    "SecurityGroups": ["${SG_SAGEMAKER_STUDIO}"],
-    "JupyterLabAppSettings": {
-        "DefaultResourceSpec": {
-            "InstanceType": "${DEFAULT_INSTANCE_TYPE}"
-        }
-    }
-}
-EOF
-)
+        # Note: DefaultSpaceSettings removed - each Space will specify its own settings
         
         DOMAIN_ID=$(aws sagemaker create-domain \
             --domain-name "$DOMAIN_NAME" \
@@ -83,7 +73,6 @@ EOF
             --subnet-ids "$PRIVATE_SUBNET_1_ID" "$PRIVATE_SUBNET_2_ID" \
             --app-network-access-type VpcOnly \
             --default-user-settings "$default_user_settings" \
-            --default-space-settings "$default_space_settings" \
             --tags \
                 Key=Name,Value="$DOMAIN_NAME" \
                 Key=Environment,Value=production \
