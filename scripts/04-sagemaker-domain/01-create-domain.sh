@@ -57,8 +57,7 @@ main() {
     "StudioWebPortal": "ENABLED",
     "JupyterLabAppSettings": {
         "DefaultResourceSpec": {
-            "InstanceType": "${DEFAULT_INSTANCE_TYPE}",
-            "SageMakerImageArn": ""
+            "InstanceType": "${DEFAULT_INSTANCE_TYPE}"
         }
     }
 }
