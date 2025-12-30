@@ -97,6 +97,7 @@ aws iam list-roles --path-prefix /acme-sagemaker/
 
 - `SageMaker-Studio-Base-Access` - 基础访问策略
 - `SageMaker-ReadOnly-Access` - 只读策略
+- `SageMaker-User-SelfService` - 用户自服务策略（修改密码、MFA，禁止 Access Key）
 - `SageMaker-User-Boundary` - 权限边界策略
 - `SageMaker-{Team}-Team-Access` - 团队访问策略
 - `SageMaker-{Team}-{Project}-Access` - 项目访问策略

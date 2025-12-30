@@ -134,6 +134,7 @@ main() {
     
     verify_resource policy "${policy_prefix}SageMaker-Studio-Base-Access" || ((errors++))
     verify_resource policy "${policy_prefix}SageMaker-ReadOnly-Access" || ((errors++))
+    verify_resource policy "${policy_prefix}SageMaker-User-SelfService" || ((errors++))
     verify_resource policy "${policy_prefix}SageMaker-User-Boundary" || ((errors++))
     
     for team in $TEAMS; do

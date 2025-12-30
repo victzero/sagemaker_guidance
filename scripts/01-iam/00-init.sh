@@ -60,7 +60,7 @@ count_expected_resources() {
     done
     
     # 计算各类资源数量
-    EXPECTED_POLICIES=$((3 + team_count + project_count * 2))  # base + readonly + boundary + team + project*2
+    EXPECTED_POLICIES=$((4 + team_count + project_count * 2))  # base + readonly + self-service + boundary + team + project*2
     EXPECTED_GROUPS=$((2 + team_count + project_count))        # admins + readonly + team + project
     EXPECTED_USERS=$user_count
     EXPECTED_ROLES=$((project_count + 1))                      # project roles + domain default role

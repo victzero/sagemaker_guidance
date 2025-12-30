@@ -277,6 +277,34 @@ generate_user_boundary_policy() {
       "Resource": "*"
     },
     {
+      "Sid": "AllowSelfServiceIAM",
+      "Effect": "Allow",
+      "Action": [
+        "iam:ChangePassword",
+        "iam:GetUser",
+        "iam:GetAccountPasswordPolicy",
+        "iam:GetAccountSummary",
+        "iam:CreateVirtualMFADevice",
+        "iam:DeleteVirtualMFADevice",
+        "iam:DeactivateMFADevice",
+        "iam:EnableMFADevice",
+        "iam:ListMFADevices",
+        "iam:ListVirtualMFADevices",
+        "iam:ResyncMFADevice"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "DenyAccessKeyManagement",
+      "Effect": "Deny",
+      "Action": [
+        "iam:CreateAccessKey",
+        "iam:UpdateAccessKey",
+        "iam:DeleteAccessKey"
+      ],
+      "Resource": "*"
+    },
+    {
       "Sid": "DenyIAMChanges",
       "Effect": "Deny",
       "Action": [
@@ -323,6 +351,66 @@ generate_readonly_policy() {
         "logs:DescribeLogGroups",
         "logs:DescribeLogStreams",
         "logs:GetLogEvents"
+      ],
+      "Resource": "*"
+    }
+  ]
+}
+EOF
+}
+
+# 生成用户自服务策略 - 修改密码、管理 MFA（禁止 Access Key）
+generate_self_service_policy() {
+    cat << EOF
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "AllowViewAccountInfo",
+      "Effect": "Allow",
+      "Action": [
+        "iam:GetAccountPasswordPolicy",
+        "iam:GetAccountSummary",
+        "iam:ListVirtualMFADevices"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "AllowManageOwnPasswords",
+      "Effect": "Allow",
+      "Action": [
+        "iam:ChangePassword",
+        "iam:GetUser"
+      ],
+      "Resource": "arn:aws:iam::${AWS_ACCOUNT_ID}:user${IAM_PATH}\${aws:username}"
+    },
+    {
+      "Sid": "AllowManageOwnVirtualMFADevice",
+      "Effect": "Allow",
+      "Action": [
+        "iam:CreateVirtualMFADevice",
+        "iam:DeleteVirtualMFADevice"
+      ],
+      "Resource": "arn:aws:iam::${AWS_ACCOUNT_ID}:mfa/\${aws:username}"
+    },
+    {
+      "Sid": "AllowManageOwnUserMFA",
+      "Effect": "Allow",
+      "Action": [
+        "iam:DeactivateMFADevice",
+        "iam:EnableMFADevice",
+        "iam:ListMFADevices",
+        "iam:ResyncMFADevice"
+      ],
+      "Resource": "arn:aws:iam::${AWS_ACCOUNT_ID}:user${IAM_PATH}\${aws:username}"
+    },
+    {
+      "Sid": "DenyAccessKeyManagement",
+      "Effect": "Deny",
+      "Action": [
+        "iam:CreateAccessKey",
+        "iam:UpdateAccessKey",
+        "iam:DeleteAccessKey"
       ],
       "Resource": "*"
     }
@@ -402,13 +490,19 @@ main() {
         "$(generate_readonly_policy)" \
         "Read-only access for SageMaker resources"
     
-    # 3. 创建 Permissions Boundary
+    # 3. 创建用户自服务策略（修改密码、MFA、Access Key）
+    log_info "Creating self-service policy..."
+    create_policy "SageMaker-User-SelfService" \
+        "$(generate_self_service_policy)" \
+        "Self-service policy for password, MFA, and access key management"
+    
+    # 5. 创建 Permissions Boundary
     log_info "Creating permissions boundary..."
     create_policy "SageMaker-User-Boundary" \
         "$(generate_user_boundary_policy)" \
         "Permissions boundary for SageMaker users"
     
-    # 4. 创建团队策略
+    # 6. 创建团队策略
     for team in $TEAMS; do
         local team_fullname=$(get_team_fullname "$team")
         log_info "Creating team policy for: $team ($team_fullname)"
@@ -421,7 +515,7 @@ main() {
             "Team access policy for ${team_fullname} team"
     done
     
-    # 5. 创建项目策略
+    # 7. 创建项目策略
     for team in $TEAMS; do
         local projects=$(get_projects_for_team "$team")
         for project in $projects; do

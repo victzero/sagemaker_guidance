@@ -56,11 +56,15 @@ main() {
     log_info "Binding admin group policies..."
     attach_policy_to_group "sagemaker-admins" \
         "arn:aws:iam::aws:policy/AmazonSageMakerFullAccess"
+    attach_policy_to_group "sagemaker-admins" \
+        "${policy_prefix}SageMaker-User-SelfService"
     
     # 2. 绑定只读 Group 策略
     log_info "Binding readonly group policies..."
     attach_policy_to_group "sagemaker-readonly" \
         "${policy_prefix}SageMaker-ReadOnly-Access"
+    attach_policy_to_group "sagemaker-readonly" \
+        "${policy_prefix}SageMaker-User-SelfService"
     
     # 3. 绑定团队 Group 策略
     log_info "Binding team group policies..."
@@ -72,6 +76,10 @@ main() {
         # 基础访问策略
         attach_policy_to_group "$group_name" \
             "${policy_prefix}SageMaker-Studio-Base-Access"
+        
+        # 用户自服务策略（修改密码、MFA、Access Key）
+        attach_policy_to_group "$group_name" \
+            "${policy_prefix}SageMaker-User-SelfService"
         
         # 团队访问策略
         attach_policy_to_group "$group_name" \

@@ -52,9 +52,10 @@ echo -e "${BLUE}【Policies】${NC}"
 echo "  Base policies:"
 echo "    - SageMaker-Studio-Base-Access"
 echo "    - SageMaker-ReadOnly-Access"
+echo "    - SageMaker-User-SelfService (password, MFA only)"
 echo "    - SageMaker-User-Boundary"
 
-policy_count=3
+policy_count=4
 for team in $TEAMS; do
     team_fullname=$(get_team_fullname "$team")
     team_formatted=$(format_name "$team_fullname")
