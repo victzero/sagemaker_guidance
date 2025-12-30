@@ -76,6 +76,9 @@ echo "  VPC ID:        $VPC_ID"
 echo "  VPC CIDR:      $VPC_CIDR"
 echo "  Subnet 1:      $PRIVATE_SUBNET_1_ID"
 echo "  Subnet 2:      $PRIVATE_SUBNET_2_ID"
+if [[ -n "$PRIVATE_SUBNET_3_ID" ]]; then
+    echo "  Subnet 3:      $PRIVATE_SUBNET_3_ID"
+fi
 echo ""
 
 # ========== Security Groups ==========

@@ -34,7 +34,7 @@ scripts/
 
 ```
 Phase 1-3: 基础资源
-  01-iam  →  02-vpc  →  03-s3
+01-iam  →  02-vpc  →  03-s3
 
 Phase 4: SageMaker 配置
   04-sagemaker-domain  →  05-user-profiles  →  06-spaces
