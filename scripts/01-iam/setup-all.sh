@@ -122,7 +122,11 @@ echo ""
 
 # ========== Roles ==========
 echo -e "${BLUE}【Execution Roles】${NC}"
-role_count=0
+echo "  Domain default role:"
+echo "    - SageMaker-Domain-DefaultExecutionRole"
+role_count=1
+
+echo "  Project roles:"
 for team in $TEAMS; do
     team_fullname=$(get_team_fullname "$team")
     team_formatted=$(format_name "$team_fullname")
@@ -130,7 +134,7 @@ for team in $TEAMS; do
     projects=$(get_projects "$team")
     for project in $projects; do
         project_formatted=$(format_name "$project")
-        echo "  - SageMaker-${team_formatted}-${project_formatted}-ExecutionRole"
+        echo "    - SageMaker-${team_formatted}-${project_formatted}-ExecutionRole"
         ((role_count++)) || true
     done
 done

@@ -186,6 +186,10 @@ main() {
     # 4. 验证角色
     verify_section "IAM Execution Roles"
     
+    # 首先验证 Domain 默认 Execution Role
+    verify_resource role "SageMaker-Domain-DefaultExecutionRole" || ((errors++))
+    
+    # 验证项目 Execution Roles
     for team in $TEAMS; do
         local team_fullname=$(get_team_fullname "$team")
         local team_capitalized=$(format_name "$team_fullname")

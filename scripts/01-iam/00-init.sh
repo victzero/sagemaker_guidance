@@ -63,7 +63,7 @@ count_expected_resources() {
     EXPECTED_POLICIES=$((3 + team_count + project_count * 2))  # base + readonly + boundary + team + project*2
     EXPECTED_GROUPS=$((2 + team_count + project_count))        # admins + readonly + team + project
     EXPECTED_USERS=$user_count
-    EXPECTED_ROLES=$project_count
+    EXPECTED_ROLES=$((project_count + 1))                      # project roles + domain default role
     
     export EXPECTED_POLICIES EXPECTED_GROUPS EXPECTED_USERS EXPECTED_ROLES
 }
