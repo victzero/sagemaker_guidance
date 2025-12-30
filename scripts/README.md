@@ -2,6 +2,16 @@
 
 AWS CLI 自动化脚本，用于部署 SageMaker ML 平台基础设施。
 
+## ✅ Phase 2 支持
+
+**已启用 ML Jobs 功能**：脚本部署的 Execution Roles 已包含 `AmazonSageMakerFullAccess`，支持：
+
+- ✅ **Processing Jobs** - 数据处理、特征工程
+- ✅ **Training Jobs** - 模型训练、HPO
+- ✅ **Inference Endpoints** - 实时推理、Serverless
+
+详见文档：[docs/10-sagemaker-processing.md](../docs/10-sagemaker-processing.md) | [docs/12-sagemaker-training.md](../docs/12-sagemaker-training.md) | [docs/13-realtime-inference.md](../docs/13-realtime-inference.md)
+
 ## 目录结构
 
 ```
@@ -138,7 +148,9 @@ cd ../06-spaces
 | IAM Users    | 10+  | admin + team members                            |
 | IAM Roles    | 5+   | **Domain 默认角色** + 项目 Execution Roles      |
 
-> ⚠️ **重要**：`SageMaker-Domain-DefaultExecutionRole` 是创建 Domain 的必要前置条件
+> ⚠️ **重要**：
+> - `SageMaker-Domain-DefaultExecutionRole` 是创建 Domain 的必要前置条件
+> - 所有 Execution Roles 已附加 `AmazonSageMakerFullAccess`，支持 Processing/Training/Inference
 
 ### 02-vpc (VPC 网络)
 

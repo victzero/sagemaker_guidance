@@ -188,9 +188,14 @@ IAM Roles
 | 权限类型   | 范围          | 说明          |
 | ---------- | ------------- | ------------- |
 | S3         | 仅项目 Bucket | 读写项目数据  |
-| SageMaker  | 仅项目 Space  | 运行 Notebook |
+| SageMaker  | 全部功能      | Notebook、Processing、Training、Inference |
 | CloudWatch | 项目日志组    | 日志写入      |
 | ECR        | 共享仓库      | 拉取容器镜像  |
+
+> ✅ **Phase 2 更新**：所有 Execution Role 已附加 `AmazonSageMakerFullAccess` 托管策略，支持：
+> - Processing Jobs（数据处理）
+> - Training Jobs（模型训练）
+> - Inference Endpoints（实时推理）
 
 ### 4.4 Trust Policy（信任策略）
 

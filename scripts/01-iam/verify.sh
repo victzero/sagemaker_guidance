@@ -201,6 +201,46 @@ main() {
         done
     done
     
+    # 4.1 验证 Execution Roles 的 AmazonSageMakerFullAccess 策略（Phase 2 ML Jobs 支持）
+    verify_section "Execution Roles - AmazonSageMakerFullAccess (ML Jobs)"
+    
+    # Domain 默认角色
+    local domain_sm_policy=$(aws iam list-attached-role-policies \
+        --role-name "SageMaker-Domain-DefaultExecutionRole" \
+        --query "AttachedPolicies[?PolicyName=='AmazonSageMakerFullAccess'].PolicyName" \
+        --output text 2>/dev/null || echo "")
+    
+    if [[ -n "$domain_sm_policy" ]]; then
+        echo -e "  ${GREEN}✓${NC} SageMaker-Domain-DefaultExecutionRole → AmazonSageMakerFullAccess"
+    else
+        echo -e "  ${RED}✗${NC} SageMaker-Domain-DefaultExecutionRole missing AmazonSageMakerFullAccess"
+        ((errors++)) || true
+    fi
+    
+    # 项目 Execution Roles
+    for team in $TEAMS; do
+        local team_fullname=$(get_team_fullname "$team")
+        local team_capitalized=$(format_name "$team_fullname")
+        
+        local projects=$(get_projects_for_team "$team")
+        for project in $projects; do
+            local project_formatted=$(format_name "$project")
+            local role_name="SageMaker-${team_capitalized}-${project_formatted}-ExecutionRole"
+            
+            local sm_policy=$(aws iam list-attached-role-policies \
+                --role-name "$role_name" \
+                --query "AttachedPolicies[?PolicyName=='AmazonSageMakerFullAccess'].PolicyName" \
+                --output text 2>/dev/null || echo "")
+            
+            if [[ -n "$sm_policy" ]]; then
+                echo -e "  ${GREEN}✓${NC} $role_name → AmazonSageMakerFullAccess"
+            else
+                echo -e "  ${YELLOW}⚠${NC} $role_name missing AmazonSageMakerFullAccess (run 04-create-roles.sh to fix)"
+                ((errors++)) || true
+            fi
+        done
+    done
+    
     # 5. 验证用户组成员关系
     verify_section "User-Group Memberships"
     

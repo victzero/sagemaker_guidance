@@ -14,6 +14,12 @@
   * [06 - User Profile 设计](06-user-profile.md)
   * [07 - Shared Space 设计](07-shared-space.md)
 
+* **ML 服务 (Phase 2)**
+  * [10 - Processing 数据处理](10-sagemaker-processing.md)
+  * [11 - Data Wrangler](11-data-wrangler.md)
+  * [12 - Training 模型训练](12-sagemaker-training.md)
+  * [13 - Inference 实时推理](13-realtime-inference.md)
+
 * **实施与参考**
   * [08 - 实施步骤指南](08-implementation-guide.md)
   * [09 - 附录与参考](09-appendix.md)

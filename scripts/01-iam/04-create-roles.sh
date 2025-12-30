@@ -122,8 +122,8 @@ create_execution_role() {
         log_success "Role $role_name created"
     fi
     
-    # 附加策略到 Role
-    log_info "Attaching policy to role..."
+    # 附加项目自定义策略到 Role
+    log_info "Attaching project policy to role..."
     
     # 检查策略是否已附加
     local attached=$(aws iam list-attached-role-policies \
@@ -139,6 +139,24 @@ create_execution_role() {
             --policy-arn "arn:aws:iam::${AWS_ACCOUNT_ID}:policy${IAM_PATH}${policy_name}"
         
         log_success "Policy $policy_name attached to $role_name"
+    fi
+    
+    # 附加 AmazonSageMakerFullAccess 托管策略（启用 Processing/Training/Inference）
+    log_info "Attaching AmazonSageMakerFullAccess to role (for ML Jobs)..."
+    
+    local sm_attached=$(aws iam list-attached-role-policies \
+        --role-name "$role_name" \
+        --query "AttachedPolicies[?PolicyName=='AmazonSageMakerFullAccess'].PolicyName" \
+        --output text 2>/dev/null || echo "")
+    
+    if [[ -n "$sm_attached" ]]; then
+        log_warn "AmazonSageMakerFullAccess already attached to $role_name"
+    else
+        aws iam attach-role-policy \
+            --role-name "$role_name" \
+            --policy-arn "arn:aws:iam::aws:policy/AmazonSageMakerFullAccess"
+        
+        log_success "AmazonSageMakerFullAccess attached to $role_name"
     fi
 }
 
