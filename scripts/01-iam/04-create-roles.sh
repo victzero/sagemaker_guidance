@@ -33,7 +33,59 @@ EOF
 }
 
 # -----------------------------------------------------------------------------
-# 创建 Execution Role 函数
+# 创建 Domain 默认 Execution Role
+# -----------------------------------------------------------------------------
+create_domain_default_role() {
+    local role_name="SageMaker-Domain-DefaultExecutionRole"
+    
+    log_info "Creating Domain default execution role: $role_name"
+    
+    # 保存 trust policy
+    local trust_policy_file="${SCRIPT_DIR}/${OUTPUT_DIR}/trust-policy-sagemaker.json"
+    generate_trust_policy > "$trust_policy_file"
+    
+    # 检查 Role 是否已存在
+    if aws iam get-role --role-name "$role_name" &> /dev/null; then
+        log_warn "Role $role_name already exists, skipping creation..."
+    else
+        aws iam create-role \
+            --role-name "$role_name" \
+            --path "${IAM_PATH}" \
+            --assume-role-policy-document "file://${trust_policy_file}" \
+            --description "Default execution role for SageMaker Domain" \
+            --tags \
+                "Key=Purpose,Value=DomainDefault" \
+                "Key=ManagedBy,Value=sagemaker-iam-script"
+        
+        log_success "Role $role_name created"
+    fi
+    
+    # 附加 AmazonSageMakerFullAccess 托管策略（Domain 默认需要）
+    log_info "Attaching AmazonSageMakerFullAccess to domain default role..."
+    
+    local attached=$(aws iam list-attached-role-policies \
+        --role-name "$role_name" \
+        --query "AttachedPolicies[?PolicyName=='AmazonSageMakerFullAccess'].PolicyName" \
+        --output text 2>/dev/null || echo "")
+    
+    if [[ -n "$attached" ]]; then
+        log_warn "AmazonSageMakerFullAccess already attached to $role_name"
+    else
+        aws iam attach-role-policy \
+            --role-name "$role_name" \
+            --policy-arn "arn:aws:iam::aws:policy/AmazonSageMakerFullAccess"
+        
+        log_success "AmazonSageMakerFullAccess attached to $role_name"
+    fi
+    
+    # 输出 Role ARN 供后续使用
+    echo ""
+    log_info "Domain Default Execution Role ARN:"
+    aws iam get-role --role-name "$role_name" --query 'Role.Arn' --output text
+}
+
+# -----------------------------------------------------------------------------
+# 创建项目 Execution Role 函数
 # -----------------------------------------------------------------------------
 create_execution_role() {
     local team=$1
@@ -100,7 +152,13 @@ main() {
     echo "=============================================="
     echo ""
     
-    # 为每个项目创建 Execution Role
+    # 1. 创建 Domain 默认 Execution Role（必须先创建）
+    log_info "Creating Domain default execution role..."
+    create_domain_default_role
+    
+    echo ""
+    
+    # 2. 为每个项目创建 Execution Role
     for team in $TEAMS; do
         log_info "Creating execution roles for team: $team"
         

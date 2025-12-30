@@ -282,6 +282,41 @@ check_iam_roles() {
     
     local iam_path="/${COMPANY}-sagemaker/"
     
+    # 首先检查 Domain 默认 Execution Role（必须存在）
+    local default_role_name="SageMaker-Domain-DefaultExecutionRole"
+    log_check "Domain 默认 Role: $default_role_name"
+    
+    if aws iam get-role --role-name "$default_role_name" &> /dev/null; then
+        log_ok "存在"
+        
+        # 检查信任策略
+        local trust=$(aws iam get-role --role-name "$default_role_name" \
+            --query 'Role.AssumeRolePolicyDocument.Statement[0].Principal.Service' \
+            --output text 2>/dev/null)
+        
+        if [[ "$trust" == *"sagemaker"* ]]; then
+            log_ok "信任策略正确 (sagemaker.amazonaws.com)"
+        else
+            log_warn "信任策略可能不正确: $trust"
+        fi
+        
+        # 检查是否附加了 AmazonSageMakerFullAccess
+        local has_policy=$(aws iam list-attached-role-policies \
+            --role-name "$default_role_name" \
+            --query "AttachedPolicies[?PolicyName=='AmazonSageMakerFullAccess'].PolicyName" \
+            --output text 2>/dev/null || echo "")
+        
+        if [[ -n "$has_policy" ]]; then
+            log_ok "已附加 AmazonSageMakerFullAccess"
+        else
+            log_fail "缺少 AmazonSageMakerFullAccess 策略"
+        fi
+    else
+        log_fail "不存在 (必须！)"
+        log_info "请先运行: cd ../01-iam && ./04-create-roles.sh"
+    fi
+    
+    # 检查项目 Execution Roles
     for team in $TEAMS; do
         local team_fullname=$(get_team_fullname "$team")
         local team_formatted=$(format_name "$team_fullname")

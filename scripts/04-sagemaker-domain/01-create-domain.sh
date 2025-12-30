@@ -50,8 +50,23 @@ main() {
         # 创建 Domain
         log_info "Creating Domain: $DOMAIN_NAME"
         
+        # 获取 Domain 默认 Execution Role ARN
+        local default_role_arn=$(aws iam get-role \
+            --role-name "SageMaker-Domain-DefaultExecutionRole" \
+            --query 'Role.Arn' \
+            --output text 2>/dev/null || echo "")
+        
+        if [[ -z "$default_role_arn" ]]; then
+            log_error "Domain default execution role not found!"
+            log_error "Please run: cd ../01-iam && ./04-create-roles.sh"
+            exit 1
+        fi
+        
+        log_info "Using execution role: $default_role_arn"
+        
         local default_user_settings=$(cat <<EOF
 {
+    "ExecutionRole": "${default_role_arn}",
     "SecurityGroups": ["${SG_SAGEMAKER_STUDIO}"],
     "DefaultLandingUri": "studio::",
     "StudioWebPortal": "ENABLED",
