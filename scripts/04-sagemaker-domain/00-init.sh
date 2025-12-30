@@ -114,6 +114,9 @@ print_domain_summary() {
     echo "  VPC ID:       $VPC_ID"
     echo "  Subnet 1:     $PRIVATE_SUBNET_1_ID"
     echo "  Subnet 2:     $PRIVATE_SUBNET_2_ID"
+    if [[ -n "$PRIVATE_SUBNET_3_ID" ]]; then
+        echo "  Subnet 3:     $PRIVATE_SUBNET_3_ID"
+    fi
     echo "  Security Group: ${SG_SAGEMAKER_STUDIO:-pending}"
     echo "  Domain Name:  ${DOMAIN_NAME:-${COMPANY}-ml-platform}"
 }

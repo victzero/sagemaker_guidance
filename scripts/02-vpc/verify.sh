@@ -184,6 +184,53 @@ verify_section "Subnets"
 
 check_subnet "$PRIVATE_SUBNET_1_ID" || ((errors++)) || true
 check_subnet "$PRIVATE_SUBNET_2_ID" || ((errors++)) || true
+if [[ -n "$PRIVATE_SUBNET_3_ID" ]]; then
+    check_subnet "$PRIVATE_SUBNET_3_ID" || ((errors++)) || true
+fi
+
+# -----------------------------------------------------------------------------
+# 验证 Route Tables
+# -----------------------------------------------------------------------------
+check_route_table() {
+    local rtb_id=$1
+    local rtb_num=$2
+    
+    if [[ -z "$rtb_id" ]]; then
+        return 0  # 可选的路由表，跳过
+    fi
+    
+    local rtb_info=$(aws ec2 describe-route-tables \
+        --route-table-ids "$rtb_id" \
+        --query 'RouteTables[0].{VpcId:VpcId,Routes:Routes|length(@)}' \
+        --output json \
+        --region "$AWS_REGION" 2>/dev/null || echo "null")
+    
+    if [[ "$rtb_info" != "null" && -n "$rtb_info" ]]; then
+        local rtb_vpc=$(echo "$rtb_info" | jq -r '.VpcId')
+        local route_count=$(echo "$rtb_info" | jq -r '.Routes')
+        
+        if [[ "$rtb_vpc" == "$VPC_ID" ]]; then
+            echo -e "  ${GREEN}✓${NC} Route Table $rtb_num: $rtb_id ($route_count routes)"
+        else
+            echo -e "  ${RED}✗${NC} Route Table $rtb_num: $rtb_id belongs to different VPC ($rtb_vpc)"
+            return 1
+        fi
+        return 0
+    else
+        echo -e "  ${RED}✗${NC} Route Table $rtb_num: $rtb_id NOT FOUND"
+        return 1
+    fi
+}
+
+verify_section "Route Tables (for S3 Gateway Endpoint)"
+
+check_route_table "$ROUTE_TABLE_1_ID" "1" || ((errors++)) || true
+if [[ -n "$ROUTE_TABLE_2_ID" ]]; then
+    check_route_table "$ROUTE_TABLE_2_ID" "2" || ((errors++)) || true
+fi
+if [[ -n "$ROUTE_TABLE_3_ID" ]]; then
+    check_route_table "$ROUTE_TABLE_3_ID" "3" || ((errors++)) || true
+fi
 
 # -----------------------------------------------------------------------------
 # 总结

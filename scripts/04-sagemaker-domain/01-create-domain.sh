@@ -87,11 +87,17 @@ EOF
 EOF
 )
         
+        # 构建子网列表（支持 2-3 个子网）
+        local subnet_ids="$PRIVATE_SUBNET_1_ID $PRIVATE_SUBNET_2_ID"
+        if [[ -n "$PRIVATE_SUBNET_3_ID" ]]; then
+            subnet_ids="$subnet_ids $PRIVATE_SUBNET_3_ID"
+        fi
+        
         DOMAIN_ID=$(aws sagemaker create-domain \
             --domain-name "$DOMAIN_NAME" \
             --auth-mode IAM \
             --vpc-id "$VPC_ID" \
-            --subnet-ids "$PRIVATE_SUBNET_1_ID" "$PRIVATE_SUBNET_2_ID" \
+            --subnet-ids $subnet_ids \
             --app-network-access-type VpcOnly \
             --default-user-settings "$default_user_settings" \
             --default-space-settings "$default_space_settings" \

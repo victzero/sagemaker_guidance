@@ -85,11 +85,12 @@ validate_vpc() {
 }
 
 # -----------------------------------------------------------------------------
-# 验证子网存在
+# 验证子网存在（支持 2-3 个子网）
 # -----------------------------------------------------------------------------
 validate_subnets() {
     log_info "Validating subnets..."
     
+    # 必需的子网 1 和 2
     for subnet_id in "$PRIVATE_SUBNET_1_ID" "$PRIVATE_SUBNET_2_ID"; do
         if ! aws ec2 describe-subnets --subnet-ids "$subnet_id" --region "$AWS_REGION" &> /dev/null; then
             log_error "Subnet $subnet_id not found"
@@ -97,7 +98,16 @@ validate_subnets() {
         fi
     done
     
-    log_success "Subnets validated"
+    # 可选的子网 3
+    if [[ -n "$PRIVATE_SUBNET_3_ID" ]]; then
+        if ! aws ec2 describe-subnets --subnet-ids "$PRIVATE_SUBNET_3_ID" --region "$AWS_REGION" &> /dev/null; then
+            log_error "Subnet $PRIVATE_SUBNET_3_ID not found"
+            exit 1
+        fi
+        log_success "Subnets validated (3 subnets configured)"
+    else
+        log_success "Subnets validated (2 subnets configured)"
+    fi
 }
 
 # -----------------------------------------------------------------------------
@@ -108,6 +118,9 @@ print_vpc_summary() {
     echo "  VPC CIDR:     $VPC_CIDR"
     echo "  Subnet 1:     $PRIVATE_SUBNET_1_ID"
     echo "  Subnet 2:     $PRIVATE_SUBNET_2_ID"
+    if [[ -n "$PRIVATE_SUBNET_3_ID" ]]; then
+        echo "  Subnet 3:     $PRIVATE_SUBNET_3_ID"
+    fi
     echo "  Route Table 1: $ROUTE_TABLE_1_ID"
     if [[ -n "$ROUTE_TABLE_2_ID" ]]; then
         echo "  Route Table 2: $ROUTE_TABLE_2_ID"

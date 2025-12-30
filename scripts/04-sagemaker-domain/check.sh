@@ -126,12 +126,20 @@ check_vpc() {
 }
 
 # -----------------------------------------------------------------------------
-# 检查子网
+# 检查子网（支持 2-3 个子网）
 # -----------------------------------------------------------------------------
 check_subnets() {
     log_section "子网检查"
     
-    for subnet_id in "$PRIVATE_SUBNET_1_ID" "$PRIVATE_SUBNET_2_ID"; do
+    # 构建子网列表
+    local subnet_list=("$PRIVATE_SUBNET_1_ID" "$PRIVATE_SUBNET_2_ID")
+    if [[ -n "$PRIVATE_SUBNET_3_ID" ]]; then
+        subnet_list+=("$PRIVATE_SUBNET_3_ID")
+    fi
+    
+    local azs=()
+    
+    for subnet_id in "${subnet_list[@]}"; do
         log_check "子网: $subnet_id"
         
         local subnet_info=$(aws ec2 describe-subnets \
@@ -158,6 +166,7 @@ check_subnets() {
         fi
         
         log_ok "存在于 $az"
+        azs+=("$az")
         
         # 检查可用 IP
         if [[ $available_ips -lt 10 ]]; then
@@ -171,15 +180,13 @@ check_subnets() {
     
     # 检查子网是否在不同 AZ
     log_check "子网高可用性"
-    local az1=$(aws ec2 describe-subnets --subnet-ids "$PRIVATE_SUBNET_1_ID" \
-        --query 'Subnets[0].AvailabilityZone' --output text --region "$AWS_REGION" 2>/dev/null)
-    local az2=$(aws ec2 describe-subnets --subnet-ids "$PRIVATE_SUBNET_2_ID" \
-        --query 'Subnets[0].AvailabilityZone' --output text --region "$AWS_REGION" 2>/dev/null)
+    local unique_azs=$(printf '%s\n' "${azs[@]}" | sort -u | wc -l | tr -d ' ')
+    local total_subnets=${#subnet_list[@]}
     
-    if [[ "$az1" != "$az2" ]]; then
-        log_ok "子网在不同 AZ: $az1, $az2"
+    if [[ $unique_azs -ge 2 ]]; then
+        log_ok "子网分布在 $unique_azs 个不同 AZ: ${azs[*]}"
     else
-        log_warn "子网在同一 AZ: $az1 (建议使用不同 AZ 提高可用性)"
+        log_warn "所有子网在同一 AZ: ${azs[0]} (建议使用不同 AZ 提高可用性)"
     fi
 }
 

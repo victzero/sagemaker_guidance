@@ -56,11 +56,17 @@ create_interface_endpoint() {
         return 0
     fi
     
+    # 构建子网列表（支持 2-3 个子网）
+    local subnet_ids="$PRIVATE_SUBNET_1_ID $PRIVATE_SUBNET_2_ID"
+    if [[ -n "$PRIVATE_SUBNET_3_ID" ]]; then
+        subnet_ids="$subnet_ids $PRIVATE_SUBNET_3_ID"
+    fi
+    
     local endpoint_id=$(aws ec2 create-vpc-endpoint \
         --vpc-id "$VPC_ID" \
         --vpc-endpoint-type Interface \
         --service-name "$full_service" \
-        --subnet-ids "$PRIVATE_SUBNET_1_ID" "$PRIVATE_SUBNET_2_ID" \
+        --subnet-ids $subnet_ids \
         --security-group-ids "$SG_VPC_ENDPOINTS" \
         --private-dns-enabled \
         --tag-specifications "ResourceType=vpc-endpoint,Tags=[{Key=Name,Value=${endpoint_name}},{Key=ManagedBy,Value=${TAG_PREFIX}}]" \
