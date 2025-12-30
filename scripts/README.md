@@ -108,6 +108,7 @@ cd ../03-s3
 # Step 4: SageMaker Domain
 # ============================================
 cd ../04-sagemaker-domain
+./check.sh       # 前置检查（推荐）
 ./setup-all.sh   # 创建 Domain + Lifecycle Config
 ./verify.sh
 
@@ -130,12 +131,14 @@ cd ../06-spaces
 
 ### 01-iam (IAM 权限)
 
-| 资源类型     | 数量 | 说明                            |
-| ------------ | ---- | ------------------------------- |
-| IAM Policies | 8+   | Base, Team, Project, Execution  |
-| IAM Groups   | 6+   | admins, readonly, team, project |
-| IAM Users    | 10+  | admin + team members            |
-| IAM Roles    | 4+   | SageMaker Execution Roles       |
+| 资源类型     | 数量 | 说明                                            |
+| ------------ | ---- | ----------------------------------------------- |
+| IAM Policies | 8+   | Base, Team, Project, Execution                  |
+| IAM Groups   | 6+   | admins, readonly, team, project                 |
+| IAM Users    | 10+  | admin + team members                            |
+| IAM Roles    | 5+   | **Domain 默认角色** + 项目 Execution Roles      |
+
+> ⚠️ **重要**：`SageMaker-Domain-DefaultExecutionRole` 是创建 Domain 的必要前置条件
 
 ### 02-vpc (VPC 网络)
 
@@ -158,6 +161,10 @@ cd ../06-spaces
 | ---------------- | ---- | ---------------------------- |
 | SageMaker Domain | 1    | VPCOnly + IAM 认证           |
 | Lifecycle Config | 1    | 空闲自动关机（默认 60 分钟） |
+
+**特殊脚本**：
+- `check.sh` - 前置检查和故障诊断（推荐在 setup 前运行）
+- `check.sh --diagnose` - 诊断失败的 Domain
 
 ### 05-user-profiles (User Profiles)
 

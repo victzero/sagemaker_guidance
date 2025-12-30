@@ -97,12 +97,13 @@
 
 ### 3.2 创建 IAM Roles (Execution Roles)
 
-| #   | Role 名称                             | Trust                   | 状态 |
-| --- | ------------------------------------- | ----------------------- | ---- |
-| 1   | SageMaker-RC-ProjectA-ExecutionRole   | sagemaker.amazonaws.com | ☐    |
-| 2   | SageMaker-RC-ProjectB-ExecutionRole   | sagemaker.amazonaws.com | ☐    |
-| 3   | SageMaker-Algo-ProjectX-ExecutionRole | sagemaker.amazonaws.com | ☐    |
-| 4   | SageMaker-Algo-ProjectY-ExecutionRole | sagemaker.amazonaws.com | ☐    |
+> ⚠️ **重要**：Domain 默认角色是创建 Domain 的**必需前置条件**
+
+| #   | Role 名称                             | Trust                   | 说明         | 状态 |
+| --- | ------------------------------------- | ----------------------- | ------------ | ---- |
+| 0   | **SageMaker-Domain-DefaultExecutionRole** | sagemaker.amazonaws.com | **Domain 必需** | ☐    |
+| 1   | SageMaker-{Team}-{Project}-ExecutionRole | sagemaker.amazonaws.com | 项目角色     | ☐    |
+| 2   | ...                                   | sagemaker.amazonaws.com | 其他项目     | ☐    |
 
 ### 3.3 创建 IAM Groups
 
@@ -201,26 +202,28 @@
 
 ### 6.1 创建 Domain
 
+> 💡 **推荐**：使用自动化脚本 `scripts/04-sagemaker-domain/setup-all.sh`
+
 ```bash
-# 详细命令见 05-sagemaker-domain.md § 10.1
-aws sagemaker create-domain \
-  --domain-name ml-platform-domain \
-  --auth-mode IAM \
-  --vpc-id {vpc-id} \
-  --subnet-ids {subnet-ids} \
-  --app-network-access-type VpcOnly \
-  --default-user-settings '{"SecurityGroups": ["sg-sagemaker-studio"]}'
+# 使用自动化脚本（推荐）
+cd scripts/04-sagemaker-domain
+./check.sh          # 前置检查
+./setup-all.sh      # 创建 Domain + Lifecycle Config
+./verify.sh         # 验证配置
 ```
 
-| 配置项          | 值                  | 状态 |
-| --------------- | ------------------- | ---- |
-| Domain Name     | ml-platform-domain  | ☐    |
-| Auth Mode       | IAM                 | ☐    |
-| Network Mode    | VPCOnly             | ☐    |
-| VPC             | {vpc-id}            | ☐    |
-| Subnets         | {subnet-ids}        | ☐    |
-| Security Groups | sg-sagemaker-studio | ☐    |
-| Domain ID       | d-xxxxxxxxx（记录） | ☐    |
+| 配置项                    | 值                                    | 状态 |
+| ------------------------- | ------------------------------------- | ---- |
+| Domain Name               | `{company}-ml-platform`               | ☐    |
+| Auth Mode                 | IAM                                   | ☐    |
+| Network Mode              | VPCOnly                               | ☐    |
+| VPC                       | {vpc-id}                              | ☐    |
+| Subnets                   | {subnet-ids}                          | ☐    |
+| Security Groups           | `{company}-sagemaker-studio`          | ☐    |
+| **Default Execution Role** | `SageMaker-Domain-DefaultExecutionRole` | ☐    |
+| Domain ID                 | d-xxxxxxxxx（记录）                   | ☐    |
+
+> ⚠️ **重要**：`DefaultUserSettings` 和 `DefaultSpaceSettings` 都必须包含 `ExecutionRole`
 
 ### 6.2 配置 Lifecycle Config（成本控制）
 
@@ -232,37 +235,46 @@ aws sagemaker create-domain \
 
 ### 6.3 创建 User Profiles
 
+> 💡 **推荐**：使用自动化脚本 `scripts/05-user-profiles/setup-all.sh`
+
 ```bash
-# 批量创建脚本见 06-user-profile.md § 12
-./create-user-profiles.sh d-xxxxxxxxx {account-id} users.csv
+# 使用自动化脚本（推荐）
+cd scripts/05-user-profiles
+./setup-all.sh      # 根据 .env.shared 配置创建所有 Profile
+./verify.sh         # 验证配置
 ```
 
-| #   | Profile 名称       | IAM User      | Execution Role | 状态 |
-| --- | ------------------ | ------------- | -------------- | ---- |
-| 1   | profile-rc-alice   | sm-rc-alice   | RC-ProjectA    | ☐    |
-| 2   | profile-rc-bob     | sm-rc-bob     | RC-ProjectA    | ☐    |
-| 3   | profile-rc-carol   | sm-rc-carol   | RC-ProjectA    | ☐    |
-| 4   | profile-rc-david   | sm-rc-david   | RC-ProjectB    | ☐    |
-| 5   | profile-rc-emma    | sm-rc-emma    | RC-ProjectB    | ☐    |
-| 6   | profile-algo-frank | sm-algo-frank | Algo-ProjectX  | ☐    |
-| 7   | profile-algo-grace | sm-algo-grace | Algo-ProjectX  | ☐    |
-| 8   | profile-algo-henry | sm-algo-henry | Algo-ProjectX  | ☐    |
-| 9   | profile-algo-ivy   | sm-algo-ivy   | Algo-ProjectY  | ☐    |
-| 10  | profile-algo-jack  | sm-algo-jack  | Algo-ProjectY  | ☐    |
+| Profile 命名格式 | 说明 |
+| ---------------- | ---- |
+| `profile-{team}-{name}` | 如 `profile-rc-alice` |
+
+脚本会自动：
+- 读取 `.env.shared` 中的团队和用户配置
+- 为每个用户创建对应的 User Profile
+- 绑定正确的 Execution Role
+- 设置正确的 Tags
 
 ### 6.4 创建 Shared Spaces
 
+> 💡 **推荐**：使用自动化脚本 `scripts/06-spaces/setup-all.sh`
+
 ```bash
-# 批量创建脚本见 07-shared-space.md § 11
-./create-spaces.sh d-xxxxxxxxx spaces.csv
+# 使用自动化脚本（推荐）
+cd scripts/06-spaces
+./setup-all.sh      # 根据 .env.shared 配置创建所有 Space
+./verify.sh         # 验证配置
 ```
 
-| #   | Space 名称           | Owner | 成员         | 状态 |
-| --- | -------------------- | ----- | ------------ | ---- |
-| 1   | space-rc-project-a   | alice | bob, carol   | ☐    |
-| 2   | space-rc-project-b   | david | emma         | ☐    |
-| 3   | space-algo-project-x | frank | grace, henry | ☐    |
-| 4   | space-algo-project-y | ivy   | jack         | ☐    |
+| Space 命名格式 | 说明 |
+| -------------- | ---- |
+| `space-{team}-{project}` | 如 `space-rc-fraud-detection` |
+
+脚本会自动：
+- 读取 `.env.shared` 中的项目配置
+- 为每个项目创建 Shared Space
+- 设置项目第一个用户为 Owner
+- 配置正确的 EBS 存储和 Tags
+- 自动检测并修复 Domain 的 DefaultSpaceSettings（如缺失）
 
 ---
 

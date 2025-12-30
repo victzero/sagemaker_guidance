@@ -43,12 +43,15 @@ SageMaker Domain 是 SageMaker Studio 的逻辑边界，包含：
 
 ### 2.1 基础配置
 
-| 配置项                 | 值                         | 说明            |
-| ---------------------- | -------------------------- | --------------- |
-| Domain Name            | ml-platform-domain         | 平台统一 Domain |
-| Auth Mode              | **IAM**                    | 使用 IAM Users  |
-| App Network Access     | **VPCOnly**                | 仅 VPC 内访问   |
-| Default Execution Role | 无（由 User Profile 指定） | -               |
+| 配置项                 | 值                                      | 说明                               |
+| ---------------------- | --------------------------------------- | ---------------------------------- |
+| Domain Name            | `{company}-ml-platform`                 | 如 `acme-ml-platform`              |
+| Auth Mode              | **IAM**                                 | 使用 IAM Users                     |
+| App Network Access     | **VPCOnly**                             | 仅 VPC 内访问                      |
+| Default Execution Role | `SageMaker-Domain-DefaultExecutionRole` | **必须**，用于 DefaultUserSettings |
+| Default Space Role     | `SageMaker-Domain-DefaultExecutionRole` | **必须**，用于创建 Shared Spaces   |
+
+> ⚠️ **重要**：`DefaultUserSettings` 和 `DefaultSpaceSettings` 都**必须**指定 `ExecutionRole`，否则无法创建 User Profile 或 Shared Space。
 
 ### 2.2 VPC 配置
 
@@ -296,25 +299,44 @@ Domain 被依赖:
 
 ### 10.1 创建 SageMaker Domain
 
+> 💡 **推荐**：使用自动化脚本 `scripts/04-sagemaker-domain/setup-all.sh`
+
+**手动创建命令**（参考）：
+
 ```bash
-# 创建 Domain（VPCOnly 模式）
+# 1. 获取 Domain 默认 Execution Role ARN（必须先创建）
+DEFAULT_ROLE_ARN=$(aws iam get-role \
+  --role-name "SageMaker-Domain-DefaultExecutionRole" \
+  --query 'Role.Arn' --output text)
+
+# 2. 创建 Domain（VPCOnly 模式）
 aws sagemaker create-domain \
-  --domain-name ml-platform-domain \
+  --domain-name {company}-ml-platform \
   --auth-mode IAM \
   --vpc-id vpc-xxxxxxxxx \
   --subnet-ids subnet-aaaaaaaa subnet-bbbbbbbb \
   --app-network-access-type VpcOnly \
-  --default-user-settings '{
-    "SecurityGroups": ["sg-sagemaker-studio"]
-  }' \
-  --default-space-settings '{
-    "SecurityGroups": ["sg-sagemaker-studio"]
-  }' \
+  --default-user-settings "{
+    \"ExecutionRole\": \"$DEFAULT_ROLE_ARN\",
+    \"SecurityGroups\": [\"sg-sagemaker-studio\"],
+    \"DefaultLandingUri\": \"studio::\",
+    \"StudioWebPortal\": \"ENABLED\",
+    \"JupyterLabAppSettings\": {
+      \"DefaultResourceSpec\": {
+        \"InstanceType\": \"ml.t3.medium\"
+      }
+    }
+  }" \
+  --default-space-settings "{
+    \"ExecutionRole\": \"$DEFAULT_ROLE_ARN\"
+  }" \
   --tags \
-    Key=Name,Value=ml-platform-domain \
+    Key=Name,Value={company}-ml-platform \
     Key=Environment,Value=production \
-    Key=ManagedBy,Value=platform-team
+    Key=ManagedBy,Value=sagemaker-scripts
 ```
+
+> ⚠️ **注意**：`ExecutionRole` 在 `default-user-settings` 和 `default-space-settings` 中都是**必填**的。
 
 ### 10.2 查询 Domain 状态
 

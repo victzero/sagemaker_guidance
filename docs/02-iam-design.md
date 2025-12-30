@@ -147,17 +147,32 @@ IAM Groups
 
 ### 4.1 Role 类型
 
-| Role 类型                | 用途                   | 信任实体                |
-| ------------------------ | ---------------------- | ----------------------- |
-| SageMaker Execution Role | Notebook 执行时的权限  | sagemaker.amazonaws.com |
-| Service-Linked Role      | SageMaker 服务内部使用 | 自动创建                |
+| Role 类型                      | 用途                               | 信任实体                |
+| ------------------------------ | ---------------------------------- | ----------------------- |
+| **Domain Default Role**        | Domain 默认设置必需                | sagemaker.amazonaws.com |
+| Project Execution Role         | Notebook 执行时的权限              | sagemaker.amazonaws.com |
+| Service-Linked Role            | SageMaker 服务内部使用             | 自动创建                |
 
-### 4.2 Execution Role 设计
+### 4.2 Domain Default Execution Role（必须）
+
+> ⚠️ **重要**：创建 SageMaker Domain 时，`DefaultUserSettings` 和 `DefaultSpaceSettings` 都**必须**指定 `ExecutionRole`。
+
+```
+SageMaker-Domain-DefaultExecutionRole
+├── Trust: sagemaker.amazonaws.com
+├── Policy: AmazonSageMakerFullAccess (AWS 托管)
+└── 用途: Domain 默认设置、新建 User Profile/Space 时的回退角色
+```
+
+### 4.3 Project Execution Role 设计
 
 **每个项目一个 Execution Role**（而非每用户一个）：
 
 ```
 IAM Roles
+├── SageMaker-Domain-DefaultExecutionRole    # Domain 默认（必须）
+│   └── 附加: AmazonSageMakerFullAccess
+│
 ├── SageMaker-RiskControl-ProjectA-ExecutionRole
 │   └── 可访问: s3://{company}-sm-rc-project-a/*
 ├── SageMaker-RiskControl-ProjectB-ExecutionRole
