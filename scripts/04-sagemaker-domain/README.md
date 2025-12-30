@@ -35,11 +35,43 @@ vi .env.local
 | 脚本 | 功能 |
 |------|------|
 | `setup-all.sh` | 主控脚本，按顺序执行所有配置 |
+| `check.sh` | **前置检查和诊断** |
 | `01-create-domain.sh` | 创建 SageMaker Domain |
 | `02-create-lifecycle-config.sh` | 创建自动关机脚本 |
 | `03-attach-lifecycle.sh` | 绑定 Lifecycle Config 到 Domain |
 | `verify.sh` | 验证配置 |
 | `cleanup.sh` | 清理所有资源（危险！） |
+
+## 问题诊断
+
+### 创建前检查
+
+```bash
+# 完整检查（推荐）
+./check.sh
+
+# 快速检查
+./check.sh --quick
+```
+
+### 创建失败后诊断
+
+```bash
+# 诊断失败的 Domain
+./check.sh --diagnose
+```
+
+### 检查项目
+
+| 检查项 | 说明 |
+|--------|------|
+| AWS 凭证 | CLI 配置和账号匹配 |
+| VPC DNS | DNS Hostnames/Support 必须启用 |
+| 子网 | 存在性、可用 IP、高可用性 |
+| 安全组 | Studio 安全组和入站规则 |
+| VPC Endpoints | 5 个必需 Endpoint 状态 |
+| IAM Roles | Execution Roles 存在性 |
+| Domain 状态 | 如存在，检查失败原因 |
 
 ## 配置参数
 

@@ -96,6 +96,22 @@ echo "  aws sagemaker list-domains --query \"Domains[?DomainName=='${DOMAIN_NAME
 echo "  aws sagemaker list-studio-lifecycle-configs --query \"StudioLifecycleConfigs[?StudioLifecycleConfigName=='${LIFECYCLE_CONFIG_NAME}']\""
 echo ""
 
+# 运行前置检查
+echo ""
+echo -e "${YELLOW}Running pre-flight checks...${NC}"
+echo ""
+
+if ! "${SCRIPT_DIR}/check.sh" --quick; then
+    echo ""
+    echo -e "${RED}Pre-flight checks failed. Please fix the issues above.${NC}"
+    echo ""
+    echo "For detailed diagnostics, run:"
+    echo "  ./check.sh"
+    echo ""
+    exit 1
+fi
+
+echo ""
 read -p "Do you want to proceed? [y/N] " -n 1 -r
 echo
 if [[ ! $REPLY =~ ^[Yy]$ ]]; then
