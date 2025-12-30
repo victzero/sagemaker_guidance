@@ -79,7 +79,13 @@ main() {
 EOF
 )
         
-        # Note: DefaultSpaceSettings removed - each Space will specify its own settings
+        # DefaultSpaceSettings is required for creating Shared Spaces
+        local default_space_settings=$(cat <<EOF
+{
+    "ExecutionRole": "${default_role_arn}"
+}
+EOF
+)
         
         DOMAIN_ID=$(aws sagemaker create-domain \
             --domain-name "$DOMAIN_NAME" \
@@ -88,6 +94,7 @@ EOF
             --subnet-ids "$PRIVATE_SUBNET_1_ID" "$PRIVATE_SUBNET_2_ID" \
             --app-network-access-type VpcOnly \
             --default-user-settings "$default_user_settings" \
+            --default-space-settings "$default_space_settings" \
             --tags \
                 Key=Name,Value="$DOMAIN_NAME" \
                 Key=Environment,Value=production \

@@ -54,6 +54,62 @@ if [[ -z "$DOMAIN_ID" || "$DOMAIN_ID" == "None" ]]; then
     exit 1
 fi
 
+# 检查 DefaultSpaceSettings 是否存在
+echo -e "${BLUE}[INFO]${NC} Checking Domain DefaultSpaceSettings..."
+default_space_role=$(aws sagemaker describe-domain \
+    --domain-id "$DOMAIN_ID" \
+    --query 'DefaultSpaceSettings.ExecutionRole' \
+    --output text \
+    --region "$AWS_REGION" 2>/dev/null || echo "")
+
+if [[ -z "$default_space_role" || "$default_space_role" == "None" ]]; then
+    echo -e "${YELLOW}[WARN]${NC} DefaultSpaceSettings not configured, fixing..."
+    
+    # 获取 Domain 默认 Execution Role
+    default_role_arn=$(aws iam get-role \
+        --role-name "SageMaker-Domain-DefaultExecutionRole" \
+        --query 'Role.Arn' \
+        --output text 2>/dev/null || echo "")
+    
+    if [[ -z "$default_role_arn" ]]; then
+        echo -e "${RED}[ERROR]${NC} Domain default execution role not found!"
+        echo "  Please run: cd ../01-iam && ./04-create-roles.sh"
+        exit 1
+    fi
+    
+    # 更新 Domain 添加 DefaultSpaceSettings
+    aws sagemaker update-domain \
+        --domain-id "$DOMAIN_ID" \
+        --default-space-settings "{\"ExecutionRole\": \"$default_role_arn\"}" \
+        --region "$AWS_REGION"
+    
+    echo -e "${GREEN}[OK]${NC} DefaultSpaceSettings configured"
+    
+    # 等待 Domain 更新完成
+    echo -e "${BLUE}[INFO]${NC} Waiting for Domain update..."
+    sleep 5
+    
+    while true; do
+        status=$(aws sagemaker describe-domain \
+            --domain-id "$DOMAIN_ID" \
+            --query 'Status' \
+            --output text \
+            --region "$AWS_REGION")
+        
+        if [[ "$status" == "InService" ]]; then
+            break
+        elif [[ "$status" == "Failed" ]]; then
+            echo -e "${RED}[ERROR]${NC} Domain update failed"
+            exit 1
+        fi
+        echo -n "."
+        sleep 3
+    done
+    echo ""
+else
+    echo -e "${GREEN}[OK]${NC} DefaultSpaceSettings already configured"
+fi
+
 # 辅助函数：获取项目 Owner
 get_project_owner() {
     local team=$1
