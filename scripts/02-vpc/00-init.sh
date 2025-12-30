@@ -108,9 +108,12 @@ print_vpc_summary() {
     echo "  VPC CIDR:     $VPC_CIDR"
     echo "  Subnet 1:     $PRIVATE_SUBNET_1_ID"
     echo "  Subnet 2:     $PRIVATE_SUBNET_2_ID"
-    echo "  Route Table:  $ROUTE_TABLE_1_ID"
+    echo "  Route Table 1: $ROUTE_TABLE_1_ID"
     if [[ -n "$ROUTE_TABLE_2_ID" ]]; then
         echo "  Route Table 2: $ROUTE_TABLE_2_ID"
+    fi
+    if [[ -n "$ROUTE_TABLE_3_ID" ]]; then
+        echo "  Route Table 3: $ROUTE_TABLE_3_ID"
     fi
 }
 

@@ -91,6 +91,7 @@ scripts/02-vpc/
 | 变量 | 默认值 | 说明 |
 |------|--------|------|
 | `ROUTE_TABLE_2_ID` | (空) | 第二个路由表（如子网用不同路由表） |
+| `ROUTE_TABLE_3_ID` | (空) | 第三个路由表（支持 1-3 个路由表） |
 | `CREATE_ECR_ENDPOINTS` | `false` | 创建 ECR Endpoints（拉取自定义镜像） |
 | `CREATE_KMS_ENDPOINT` | `false` | 创建 KMS Endpoint（KMS 加密） |
 | `CREATE_SSM_ENDPOINT` | `false` | 创建 SSM Endpoint（参数存储） |

@@ -99,11 +99,15 @@ create_gateway_endpoint() {
         return 0
     fi
     
-    # Gateway Endpoint 需要指定路由表
+    # Gateway Endpoint 需要指定路由表（支持 1-3 个）
     local route_tables="${ROUTE_TABLE_1_ID}"
     if [[ -n "$ROUTE_TABLE_2_ID" && "$ROUTE_TABLE_2_ID" != "$ROUTE_TABLE_1_ID" ]]; then
-        route_tables="${ROUTE_TABLE_1_ID} ${ROUTE_TABLE_2_ID}"
+        route_tables="${route_tables} ${ROUTE_TABLE_2_ID}"
     fi
+    if [[ -n "$ROUTE_TABLE_3_ID" && "$ROUTE_TABLE_3_ID" != "$ROUTE_TABLE_1_ID" && "$ROUTE_TABLE_3_ID" != "$ROUTE_TABLE_2_ID" ]]; then
+        route_tables="${route_tables} ${ROUTE_TABLE_3_ID}"
+    fi
+    log_info "Using route tables: $route_tables" >&2
     
     local endpoint_id=$(aws ec2 create-vpc-endpoint \
         --vpc-id "$VPC_ID" \
