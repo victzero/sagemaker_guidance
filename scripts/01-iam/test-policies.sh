@@ -1,17 +1,12 @@
 #!/bin/bash
 # 测试所有策略函数的 JSON 是否有效
 
-set -e
-
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-
-# 先初始化环境
 source "${SCRIPT_DIR}/00-init.sh"
-init
+init > /dev/null 2>&1
 
-# 现在从 01-create-policies.sh 中提取函数定义（跳过 init 调用）
-# 使用 sed 提取函数定义部分
-eval "$(sed -n '/^generate_/,/^}/p' "${SCRIPT_DIR}/01-create-policies.sh")"
+# 从脚本中提取函数定义
+source <(sed -n '/^generate_/,/^POLICYEOF$/p; /^get_/,/^}/p; /^format_name/,/^}/p' "${SCRIPT_DIR}/01-create-policies.sh" 2>/dev/null)
 
 echo ""
 echo "Testing policy JSON validity..."
@@ -23,19 +18,16 @@ test_policy() {
     
     if [ -z "$json" ]; then
         echo "✗ $name - EMPTY OUTPUT"
-        return
+        return 1
     fi
     
     if echo "$json" | python3 -m json.tool > /dev/null 2>&1; then
         echo "✓ $name"
+        return 0
     else
         echo "✗ $name - INVALID JSON:"
-        echo "--- Error: ---"
         echo "$json" | python3 -m json.tool 2>&1 | head -3
-        echo "--- First 300 chars of output: ---"
-        echo "$json" | head -c 300
-        echo ""
-        echo ""
+        return 1
     fi
 }
 

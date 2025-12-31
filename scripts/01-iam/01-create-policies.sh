@@ -2,7 +2,7 @@
 # =============================================================================
 # 01-create-policies.sh - 创建 IAM Policies
 # =============================================================================
-# 使用方法: ./01-create-policies.sh
+# 使用方法: ./01-create-policies.sh [--force]
 # =============================================================================
 
 set -e
@@ -12,13 +12,20 @@ source "${SCRIPT_DIR}/00-init.sh"
 
 init
 
+# 解析参数
+FORCE_UPDATE=false
+if [[ "$1" == "--force" ]]; then
+    FORCE_UPDATE=true
+    log_info "Force update mode enabled"
+fi
+
 # -----------------------------------------------------------------------------
 # Policy 生成函数
 # -----------------------------------------------------------------------------
 
 # 生成基础策略 - SageMaker-Studio-Base-Access
 generate_base_access_policy() {
-    cat << EOF
+    cat << POLICYEOF
 {
   "Version": "2012-10-17",
   "Statement": [
@@ -57,7 +64,7 @@ generate_base_access_policy() {
     }
   ]
 }
-EOF
+POLICYEOF
 }
 
 # 生成团队策略
@@ -65,7 +72,7 @@ generate_team_access_policy() {
     local team=$1
     local team_fullname=$(get_team_fullname "$team")
     
-    cat << EOF
+    cat << POLICYEOF
 {
   "Version": "2012-10-17",
   "Statement": [
@@ -94,7 +101,7 @@ generate_team_access_policy() {
     }
   ]
 }
-EOF
+POLICYEOF
 }
 
 # 生成项目策略
@@ -102,7 +109,7 @@ generate_project_access_policy() {
     local team=$1
     local project=$2
     
-    cat << EOF
+    cat << POLICYEOF
 {
   "Version": "2012-10-17",
   "Statement": [
@@ -113,7 +120,6 @@ generate_project_access_policy() {
         "sagemaker:DescribeSpace",
         "sagemaker:CreateApp",
         "sagemaker:DeleteApp",
-        "sagemaker:GetSagemakerServicecatalogPortfolioStatus",
         "sagemaker:DescribeApp"
       ],
       "Resource": [
@@ -156,7 +162,7 @@ generate_project_access_policy() {
       "Sid": "AllowPassRoleToSageMaker",
       "Effect": "Allow",
       "Action": "iam:PassRole",
-      "Resource": "arn:aws:iam::${AWS_ACCOUNT_ID}:role/SageMaker-${team^}-${project^}-ExecutionRole",
+      "Resource": "arn:aws:iam::${AWS_ACCOUNT_ID}:role/SageMaker-*-ExecutionRole",
       "Condition": {
         "StringEquals": {
           "iam:PassedToService": "sagemaker.amazonaws.com"
@@ -165,7 +171,7 @@ generate_project_access_policy() {
     }
   ]
 }
-EOF
+POLICYEOF
 }
 
 # 生成 Execution Role 策略
@@ -173,7 +179,7 @@ generate_execution_role_policy() {
     local team=$1
     local project=$2
     
-    cat << EOF
+    cat << POLICYEOF
 {
   "Version": "2012-10-17",
   "Statement": [
@@ -232,129 +238,74 @@ generate_execution_role_policy() {
     }
   ]
 }
-EOF
+POLICYEOF
 }
-# 生成 Permissions Boundary 策略
-# 生成 Permissions Boundary 策略 - 简化版 Deny-list 方案
-# 核心思路：Allow 几乎所有，只 Deny 危险操作
+
+# 生成 Permissions Boundary 策略 (Deny-list 方案)
 generate_user_boundary_policy() {
-    cat << EOF
+    cat << POLICYEOF
 {
   "Version": "2012-10-17",
   "Statement": [
     {
-      "Sid": "AllowSageMaker",
+      "Sid": "AllowSageMakerFullAccess",
       "Effect": "Allow",
       "Action": "sagemaker:*",
       "Resource": "*"
     },
     {
-      "Sid": "AllowS3",
+      "Sid": "AllowS3SageMakerBuckets",
       "Effect": "Allow",
       "Action": "s3:*",
-      "Resource": "*"
+      "Resource": [
+        "arn:aws:s3:::${COMPANY}-sm-*",
+        "arn:aws:s3:::${COMPANY}-sm-*/*",
+        "arn:aws:s3:::sagemaker-*",
+        "arn:aws:s3:::sagemaker-*/*"
+      ]
     },
     {
-      "Sid": "AllowECR",
-      "Effect": "Allow",
-      "Action": "ecr:*",
-      "Resource": "*"
-    },
-    {
-      "Sid": "AllowCloudWatch",
+      "Sid": "AllowSupportingServices",
       "Effect": "Allow",
       "Action": [
+        "ecr:*",
         "logs:*",
-        "cloudwatch:*"
+        "cloudwatch:*",
+        "ec2:Describe*",
+        "kms:Describe*",
+        "kms:List*",
+        "sts:GetCallerIdentity",
+        "sts:AssumeRole",
+        "glue:*",
+        "athena:*",
+        "codecommit:*",
+        "secretsmanager:GetSecretValue",
+        "servicecatalog:*"
       ],
       "Resource": "*"
     },
     {
-      "Sid": "AllowEC2Networking",
+      "Sid": "AllowPassRoleToSageMaker",
       "Effect": "Allow",
-      "Action": "ec2:Describe*",
-      "Resource": "*"
+      "Action": "iam:PassRole",
+      "Resource": "arn:aws:iam::${AWS_ACCOUNT_ID}:role/SageMaker-*",
+      "Condition": {
+        "StringEquals": {
+          "iam:PassedToService": "sagemaker.amazonaws.com"
+        }
+      }
     },
     {
-      "Sid": "AllowKMS",
-      "Effect": "Allow",
-      "Action": [
-        "kms:Decrypt",
-        "kms:Encrypt",
-        "kms:GenerateDataKey*",
-        "kms:DescribeKey",
-        "kms:ListAliases",
-        "kms:ListKeys"
-      ],
-      "Resource": "*"
-    },
-    {
-      "Sid": "AllowSTS",
-      "Effect": "Allow",
-      "Action": "sts:*",
-      "Resource": "*"
-    },
-    {
-      "Sid": "AllowIAMReadAndPassRole",
+      "Sid": "AllowGetRole",
       "Effect": "Allow",
       "Action": [
         "iam:GetRole",
-        "iam:GetRolePolicy",
-        "iam:ListRoles",
-        "iam:ListRolePolicies",
-        "iam:ListAttachedRolePolicies",
-        "iam:PassRole"
+        "iam:ListRoles"
       ],
       "Resource": "*"
     },
     {
-      "Sid": "AllowIAMSelfService",
-      "Effect": "Allow",
-      "Action": [
-        "iam:ChangePassword",
-        "iam:GetUser",
-        "iam:GetLoginProfile",
-        "iam:GetAccountPasswordPolicy",
-        "iam:GetAccountSummary",
-        "iam:*MFA*"
-      ],
-      "Resource": "*"
-    },
-    {
-      "Sid": "AllowGlueAthena",
-      "Effect": "Allow",
-      "Action": [
-        "glue:*",
-        "athena:*"
-      ],
-      "Resource": "*"
-    },
-    {
-      "Sid": "AllowCodeCommit",
-      "Effect": "Allow",
-      "Action": "codecommit:*",
-      "Resource": "*"
-    },
-    {
-      "Sid": "AllowSecretsManager",
-      "Effect": "Allow",
-      "Action": "secretsmanager:*",
-      "Resource": "*"
-    },
-    {
-      "Sid": "AllowServiceCatalog",
-      "Effect": "Allow",
-      "Action": "servicecatalog:*",
-      "Resource": "*"
-    },
-    {
-      "Sid": "AllowMarketplace",
-      "Effect": "Allow",
-      "Action": "aws-marketplace:ViewSubscriptions",
-      "Resource": "*"
-    },
-    {
-      "Sid": "DenyIAMAdmin",
+      "Sid": "DenyDangerousIAMActions",
       "Effect": "Deny",
       "Action": [
         "iam:CreateUser",
@@ -365,27 +316,30 @@ generate_user_boundary_policy() {
         "iam:DetachUserPolicy",
         "iam:AttachRolePolicy",
         "iam:DetachRolePolicy",
+        "iam:PutUserPolicy",
+        "iam:DeleteUserPolicy",
+        "iam:PutRolePolicy",
+        "iam:DeleteRolePolicy",
+        "iam:CreatePolicy",
+        "iam:DeletePolicy",
+        "iam:CreatePolicyVersion",
+        "iam:DeletePolicyVersion",
         "iam:PutUserPermissionsBoundary",
         "iam:DeleteUserPermissionsBoundary",
-        "iam:CreateAccessKey",
-        "iam:UpdateAccessKey",
-        "iam:DeleteAccessKey",
-        "iam:CreateLoginProfile",
-        "iam:DeleteLoginProfile",
-        "iam:UpdateLoginProfile"
+        "iam:PutRolePermissionsBoundary",
+        "iam:DeleteRolePermissionsBoundary"
       ],
       "Resource": "*"
     },
     {
-      "Sid": "DenySageMakerPlatformAdmin",
+      "Sid": "DenySageMakerAdminActions",
       "Effect": "Deny",
       "Action": [
         "sagemaker:CreateDomain",
         "sagemaker:DeleteDomain",
         "sagemaker:UpdateDomain",
         "sagemaker:CreateUserProfile",
-        "sagemaker:DeleteUserProfile",
-        "sagemaker:UpdateUserProfile"
+        "sagemaker:DeleteUserProfile"
       ],
       "Resource": "*"
     },
@@ -402,41 +356,23 @@ generate_user_boundary_policy() {
     }
   ]
 }
-EOF
+POLICYEOF
 }
 
 # 生成只读策略
 generate_readonly_policy() {
-    cat << EOF
+    cat << POLICYEOF
 {
   "Version": "2012-10-17",
   "Statement": [
     {
-      "Sid": "AllowSageMakerReadOnly",
+      "Sid": "AllowReadOnlyAccess",
       "Effect": "Allow",
       "Action": [
         "sagemaker:Describe*",
-        "sagemaker:List*"
-      ],
-      "Resource": "*"
-    },
-    {
-      "Sid": "AllowS3ReadOnlyForSageMakerBuckets",
-      "Effect": "Allow",
-      "Action": [
+        "sagemaker:List*",
         "s3:GetObject",
         "s3:ListBucket",
-        "s3:GetBucketLocation"
-      ],
-      "Resource": [
-        "arn:aws:s3:::${COMPANY}-sm-*",
-        "arn:aws:s3:::${COMPANY}-sm-*/*"
-      ]
-    },
-    {
-      "Sid": "AllowCloudWatchLogsReadOnly",
-      "Effect": "Allow",
-      "Action": [
         "logs:DescribeLogGroups",
         "logs:DescribeLogStreams",
         "logs:GetLogEvents"
@@ -445,12 +381,12 @@ generate_readonly_policy() {
     }
   ]
 }
-EOF
+POLICYEOF
 }
 
-# 生成用户自服务策略 - 修改密码、管理 MFA（禁止 Access Key）+ 强制 MFA
+# 生成用户自助服务策略 (改密码、MFA)
 generate_self_service_policy() {
-    cat << EOF
+    cat << POLICYEOF
 {
   "Version": "2012-10-17",
   "Statement": [
@@ -459,7 +395,6 @@ generate_self_service_policy() {
       "Effect": "Allow",
       "Action": [
         "iam:GetAccountPasswordPolicy",
-        "iam:GetAccountSummary",
         "iam:ListVirtualMFADevices"
       ],
       "Resource": "*"
@@ -469,44 +404,29 @@ generate_self_service_policy() {
       "Effect": "Allow",
       "Action": [
         "iam:ChangePassword",
-        "iam:GetUser",
-        "iam:GetLoginProfile"
+        "iam:GetUser"
       ],
       "Resource": "arn:aws:iam::${AWS_ACCOUNT_ID}:user${IAM_PATH}\${aws:username}"
     },
     {
-      "Sid": "AllowManageOwnVirtualMFADevice",
+      "Sid": "AllowManageOwnMFA",
       "Effect": "Allow",
       "Action": [
         "iam:CreateVirtualMFADevice",
-        "iam:DeleteVirtualMFADevice"
-      ],
-      "Resource": "arn:aws:iam::${AWS_ACCOUNT_ID}:mfa/*"
-    },
-    {
-      "Sid": "AllowManageOwnUserMFA",
-      "Effect": "Allow",
-      "Action": [
-        "iam:DeactivateMFADevice",
+        "iam:DeleteVirtualMFADevice",
         "iam:EnableMFADevice",
         "iam:ListMFADevices",
-        "iam:ResyncMFADevice"
+        "iam:ResyncMFADevice",
+        "iam:DeactivateMFADevice"
       ],
-      "Resource": "arn:aws:iam::${AWS_ACCOUNT_ID}:user${IAM_PATH}\${aws:username}"
-    },
-    {
-      "Sid": "DenyAccessKeyManagement",
-      "Effect": "Deny",
-      "Action": [
-        "iam:CreateAccessKey",
-        "iam:UpdateAccessKey",
-        "iam:DeleteAccessKey"
-      ],
-      "Resource": "*"
+      "Resource": [
+        "arn:aws:iam::${AWS_ACCOUNT_ID}:mfa/*",
+        "arn:aws:iam::${AWS_ACCOUNT_ID}:user${IAM_PATH}\${aws:username}"
+      ]
     }
   ]
 }
-EOF
+POLICYEOF
 }
 
 # -----------------------------------------------------------------------------
@@ -524,38 +444,42 @@ create_policy() {
     
     # 检查策略是否已存在
     if aws iam get-policy --policy-arn "arn:aws:iam::${AWS_ACCOUNT_ID}:policy${IAM_PATH}${policy_name}" &> /dev/null; then
-        log_warn "Policy $policy_name already exists, updating..."
-        
-        # 获取当前版本数量
-        local versions=$(aws iam list-policy-versions \
-            --policy-arn "arn:aws:iam::${AWS_ACCOUNT_ID}:policy${IAM_PATH}${policy_name}" \
-            --query 'Versions[?IsDefaultVersion==`false`].VersionId' --output text)
-        
-        # 如果版本数达到5个，删除最旧的非默认版本
-        local version_count=$(echo "$versions" | wc -w)
-        if [[ $version_count -ge 4 ]]; then
-            local oldest_version=$(aws iam list-policy-versions \
-                --policy-arn "arn:aws:iam::${AWS_ACCOUNT_ID}:policy${IAM_PATH}${policy_name}" \
-                --query 'Versions[?IsDefaultVersion==`false`] | sort_by(@, &CreateDate)[0].VersionId' --output text)
+        if [[ "$FORCE_UPDATE" == "true" ]]; then
+            log_warn "Policy $policy_name already exists, updating..."
             
-            aws iam delete-policy-version \
+            # 获取当前版本数量
+            local versions=$(aws iam list-policy-versions \
                 --policy-arn "arn:aws:iam::${AWS_ACCOUNT_ID}:policy${IAM_PATH}${policy_name}" \
-                --version-id "$oldest_version"
+                --query 'Versions[?IsDefaultVersion==`false`].VersionId' --output text)
+            
+            # 如果版本数达到5个，删除最旧的非默认版本
+            local version_count=$(echo "$versions" | wc -w)
+            if [[ $version_count -ge 4 ]]; then
+                local oldest_version=$(aws iam list-policy-versions \
+                    --policy-arn "arn:aws:iam::${AWS_ACCOUNT_ID}:policy${IAM_PATH}${policy_name}" \
+                    --query 'Versions[?IsDefaultVersion==`false`] | sort_by(@, &CreateDate)[0].VersionId' --output text)
+                
+                aws iam delete-policy-version \
+                    --policy-arn "arn:aws:iam::${AWS_ACCOUNT_ID}:policy${IAM_PATH}${policy_name}" \
+                    --version-id "$oldest_version"
+            fi
+            
+            aws iam create-policy-version \
+                --policy-arn "arn:aws:iam::${AWS_ACCOUNT_ID}:policy${IAM_PATH}${policy_name}" \
+                --policy-document "file://${policy_file}" \
+                --set-as-default
+            log_success "Policy $policy_name updated"
+        else
+            log_warn "Policy $policy_name already exists, skipping... (use --force to update)"
         fi
-        
-        aws iam create-policy-version \
-            --policy-arn "arn:aws:iam::${AWS_ACCOUNT_ID}:policy${IAM_PATH}${policy_name}" \
-            --policy-document "file://${policy_file}" \
-            --set-as-default
     else
         aws iam create-policy \
             --policy-name "$policy_name" \
             --path "${IAM_PATH}" \
             --policy-document "file://${policy_file}" \
             --description "${description:-SageMaker IAM Policy}"
+        log_success "Policy $policy_name created"
     fi
-    
-    log_success "Policy $policy_name created/updated"
 }
 
 # -----------------------------------------------------------------------------
@@ -580,19 +504,19 @@ main() {
         "$(generate_readonly_policy)" \
         "Read-only access for SageMaker resources"
     
-    # 3. 创建用户自服务策略（修改密码、MFA、Access Key）
-    log_info "Creating self-service policy..."
-    create_policy "SageMaker-User-SelfService" \
-        "$(generate_self_service_policy)" \
-        "Self-service policy for password, MFA, and access key management"
-    
-    # 5. 创建 Permissions Boundary
+    # 3. 创建 Permissions Boundary
     log_info "Creating permissions boundary..."
     create_policy "SageMaker-User-Boundary" \
         "$(generate_user_boundary_policy)" \
         "Permissions boundary for SageMaker users"
     
-    # 6. 创建团队策略
+    # 4. 创建用户自助服务策略 (改密码、MFA)
+    log_info "Creating self-service policy..."
+    create_policy "SageMaker-User-SelfService" \
+        "$(generate_self_service_policy)" \
+        "Self-service policy for password and MFA management"
+    
+    # 5. 创建团队策略
     for team in $TEAMS; do
         local team_fullname=$(get_team_fullname "$team")
         log_info "Creating team policy for: $team ($team_fullname)"
@@ -605,7 +529,7 @@ main() {
             "Team access policy for ${team_fullname} team"
     done
     
-    # 7. 创建项目策略
+    # 6. 创建项目策略
     for team in $TEAMS; do
         local projects=$(get_projects_for_team "$team")
         for project in $projects; do
@@ -633,3 +557,4 @@ main() {
     echo "Policy JSON files saved to: ${SCRIPT_DIR}/${OUTPUT_DIR}/"
 }
 
+main
