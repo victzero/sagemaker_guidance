@@ -259,7 +259,8 @@ generate_user_boundary_policy() {
         "s3:GetObject",
         "s3:PutObject",
         "s3:DeleteObject",
-        "s3:ListBucket"
+        "s3:ListBucket",
+        "s3:GetBucketLocation"
       ],
       "Resource": [
         "arn:aws:s3:::${COMPANY}-sm-*",
@@ -282,6 +283,7 @@ generate_user_boundary_policy() {
       "Action": [
         "iam:ChangePassword",
         "iam:GetUser",
+        "iam:GetLoginProfile",
         "iam:GetAccountPasswordPolicy",
         "iam:GetAccountSummary",
         "iam:CreateVirtualMFADevice",
@@ -291,6 +293,16 @@ generate_user_boundary_policy() {
         "iam:ListMFADevices",
         "iam:ListVirtualMFADevices",
         "iam:ResyncMFADevice"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "DenyS3ListAllBuckets",
+      "Effect": "Deny",
+      "Action": [
+        "s3:ListAllMyBuckets",
+        "s3:GetBucketAcl",
+        "s3:GetBucketPolicy"
       ],
       "Resource": "*"
     },
@@ -341,13 +353,31 @@ generate_readonly_policy() {
   "Version": "2012-10-17",
   "Statement": [
     {
-      "Sid": "AllowReadOnlyAccess",
+      "Sid": "AllowSageMakerReadOnly",
       "Effect": "Allow",
       "Action": [
         "sagemaker:Describe*",
-        "sagemaker:List*",
+        "sagemaker:List*"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "AllowS3ReadOnlyForSageMakerBuckets",
+      "Effect": "Allow",
+      "Action": [
         "s3:GetObject",
         "s3:ListBucket",
+        "s3:GetBucketLocation"
+      ],
+      "Resource": [
+        "arn:aws:s3:::${COMPANY}-sm-*",
+        "arn:aws:s3:::${COMPANY}-sm-*/*"
+      ]
+    },
+    {
+      "Sid": "AllowCloudWatchLogsReadOnly",
+      "Effect": "Allow",
+      "Action": [
         "logs:DescribeLogGroups",
         "logs:DescribeLogStreams",
         "logs:GetLogEvents"
@@ -359,7 +389,7 @@ generate_readonly_policy() {
 EOF
 }
 
-# 生成用户自服务策略 - 修改密码、管理 MFA（禁止 Access Key）
+# 生成用户自服务策略 - 修改密码、管理 MFA（禁止 Access Key）+ 强制 MFA
 generate_self_service_policy() {
     cat << EOF
 {
@@ -380,7 +410,8 @@ generate_self_service_policy() {
       "Effect": "Allow",
       "Action": [
         "iam:ChangePassword",
-        "iam:GetUser"
+        "iam:GetUser",
+        "iam:GetLoginProfile"
       ],
       "Resource": "arn:aws:iam::${AWS_ACCOUNT_ID}:user${IAM_PATH}\${aws:username}"
     },
@@ -391,7 +422,7 @@ generate_self_service_policy() {
         "iam:CreateVirtualMFADevice",
         "iam:DeleteVirtualMFADevice"
       ],
-      "Resource": "arn:aws:iam::${AWS_ACCOUNT_ID}:mfa/\${aws:username}"
+      "Resource": "arn:aws:iam::${AWS_ACCOUNT_ID}:mfa/*"
     },
     {
       "Sid": "AllowManageOwnUserMFA",
@@ -413,6 +444,28 @@ generate_self_service_policy() {
         "iam:DeleteAccessKey"
       ],
       "Resource": "*"
+    },
+    {
+      "Sid": "DenyAllExceptMFASetupWithoutMFA",
+      "Effect": "Deny",
+      "NotAction": [
+        "iam:CreateVirtualMFADevice",
+        "iam:EnableMFADevice",
+        "iam:GetUser",
+        "iam:GetLoginProfile",
+        "iam:ListMFADevices",
+        "iam:ListVirtualMFADevices",
+        "iam:ResyncMFADevice",
+        "iam:ChangePassword",
+        "iam:GetAccountPasswordPolicy",
+        "sts:GetSessionToken"
+      ],
+      "Resource": "*",
+      "Condition": {
+        "BoolIfExists": {
+          "aws:MultiFactorAuthPresent": "false"
+        }
+      }
     }
   ]
 }

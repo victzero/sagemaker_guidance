@@ -96,12 +96,23 @@ aws iam list-roles --path-prefix /acme-sagemaker/
 创建以下策略：
 
 - `SageMaker-Studio-Base-Access` - 基础访问策略
-- `SageMaker-ReadOnly-Access` - 只读策略
-- `SageMaker-User-SelfService` - 用户自服务策略（修改密码、MFA，禁止 Access Key）
+- `SageMaker-ReadOnly-Access` - 只读策略（S3 限制为 `${COMPANY}-sm-*` 桶）
+- `SageMaker-User-SelfService` - 用户自服务策略（修改密码、MFA、**强制 MFA**）
 - `SageMaker-User-Boundary` - 权限边界策略
 - `SageMaker-{Team}-Team-Access` - 团队访问策略
 - `SageMaker-{Team}-{Project}-Access` - 项目访问策略
 - `SageMaker-{Team}-{Project}-ExecutionPolicy` - 执行角色策略
+
+**安全策略说明：**
+
+| 功能 | 状态 |
+|------|------|
+| 修改密码 | ✅ 允许 |
+| 设置 MFA | ✅ 允许 |
+| **强制 MFA** | ✅ 未启用 MFA 时只能设置 MFA，其他操作被拒绝 |
+| 创建 Access Key | ❌ 禁止（显式 Deny） |
+| 查看所有 S3 桶 | ❌ 禁止（只能访问 `${COMPANY}-sm-*` 桶） |
+| 查看其他用户 | ❌ 禁止 |
 
 ### 02-create-groups.sh
 
