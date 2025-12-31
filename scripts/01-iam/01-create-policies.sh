@@ -189,6 +189,7 @@ POLICYEOF
 }
 
 # 生成 Execution Role 策略
+# 参考: https://docs.aws.amazon.com/sagemaker/latest/dg/security-iam-awsmanpol.html
 generate_execution_role_policy() {
     local team=$1
     local project=$2
@@ -210,6 +211,21 @@ generate_execution_role_policy() {
       "Resource": [
         "arn:aws:s3:::${COMPANY}-sm-${team}-${project}",
         "arn:aws:s3:::${COMPANY}-sm-${team}-${project}/*"
+      ]
+    },
+    {
+      "Sid": "AllowS3SageMakerDefaultBucket",
+      "Effect": "Allow",
+      "Action": [
+        "s3:GetObject",
+        "s3:PutObject",
+        "s3:DeleteObject",
+        "s3:ListBucket",
+        "s3:GetBucketLocation"
+      ],
+      "Resource": [
+        "arn:aws:s3:::sagemaker-${AWS_REGION}-${AWS_ACCOUNT_ID}",
+        "arn:aws:s3:::sagemaker-${AWS_REGION}-${AWS_ACCOUNT_ID}/*"
       ]
     },
     {
@@ -235,7 +251,31 @@ generate_execution_role_policy() {
       "Resource": "arn:aws:logs:${AWS_REGION}:${AWS_ACCOUNT_ID}:log-group:/aws/sagemaker/*"
     },
     {
-      "Sid": "AllowECRPull",
+      "Sid": "AllowECRReadWrite",
+      "Effect": "Allow",
+      "Action": [
+        "ecr:GetDownloadUrlForLayer",
+        "ecr:BatchGetImage",
+        "ecr:BatchCheckLayerAvailability",
+        "ecr:CreateRepository",
+        "ecr:DescribeRepositories",
+        "ecr:ListImages",
+        "ecr:BatchDeleteImage",
+        "ecr:InitiateLayerUpload",
+        "ecr:UploadLayerPart",
+        "ecr:CompleteLayerUpload",
+        "ecr:PutImage"
+      ],
+      "Resource": "arn:aws:ecr:${AWS_REGION}:${AWS_ACCOUNT_ID}:repository/${COMPANY}-sm-*"
+    },
+    {
+      "Sid": "AllowECRAuth",
+      "Effect": "Allow",
+      "Action": "ecr:GetAuthorizationToken",
+      "Resource": "*"
+    },
+    {
+      "Sid": "AllowECRPullAWSImages",
       "Effect": "Allow",
       "Action": [
         "ecr:GetDownloadUrlForLayer",
@@ -245,10 +285,31 @@ generate_execution_role_policy() {
       "Resource": "*"
     },
     {
-      "Sid": "AllowECRAuth",
+      "Sid": "AllowDataScienceAssistant",
       "Effect": "Allow",
-      "Action": "ecr:GetAuthorizationToken",
-      "Resource": "*"
+      "Action": [
+        "sagemaker-data-science-assistant:SendConversation"
+      ],
+      "Resource": "*",
+      "Condition": {
+        "StringEquals": {
+          "aws:ResourceAccount": "${AWS_ACCOUNT_ID}"
+        }
+      }
+    },
+    {
+      "Sid": "AllowAmazonQDeveloper",
+      "Effect": "Allow",
+      "Action": [
+        "q:SendMessage",
+        "q:StartConversation"
+      ],
+      "Resource": "*",
+      "Condition": {
+        "StringEquals": {
+          "aws:ResourceAccount": "${AWS_ACCOUNT_ID}"
+        }
+      }
     }
   ]
 }
