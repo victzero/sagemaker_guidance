@@ -7,7 +7,9 @@
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-source "${SCRIPT_DIR}/../common/init.sh"
+source "${SCRIPT_DIR}/00-init.sh"
+
+init
 
 # Trust Policy JSON
 TRUST_POLICY='{
@@ -53,18 +55,18 @@ for role_name in $roles; do
     
     # 检查是否包含 sagemaker.amazonaws.com
     if echo "$current_trust" | grep -q "sagemaker.amazonaws.com"; then
-        log_ok "  Trust policy already includes sagemaker.amazonaws.com"
+        log_success "  Trust policy already includes sagemaker.amazonaws.com"
     else
         log_warn "  Trust policy missing sagemaker.amazonaws.com, updating..."
         aws iam update-assume-role-policy \
             --role-name "$role_name" \
             --policy-document "$TRUST_POLICY"
-        log_ok "  Updated trust policy"
+        log_success "  Updated trust policy"
     fi
 done
 
 echo ""
-log_ok "All execution roles have correct trust policy!"
+log_success "All execution roles have correct trust policy!"
 echo ""
 echo "If you still see errors, please verify:"
 echo "  1. MFA is set up and you have re-logged in"
