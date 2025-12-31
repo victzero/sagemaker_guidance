@@ -14,8 +14,8 @@ init
 
 # -----------------------------------------------------------------------------
 # Trust Policy for SageMaker
-# 参考: https://docs.aws.amazon.com/sagemaker/latest/dg/security-iam-awsmanpol.html
-# 注意: sts:SetSourceIdentity 是新版 Studio 必需的权限
+# 参考: https://docs.aws.amazon.com/sagemaker/latest/dg/trustedidentitypropagation-setup.html
+# 注意: sts:SetContext 是 Trusted Identity Propagation 必需的权限
 # -----------------------------------------------------------------------------
 generate_trust_policy() {
     cat << EOF
@@ -29,7 +29,7 @@ generate_trust_policy() {
       },
       "Action": [
         "sts:AssumeRole",
-        "sts:SetSourceIdentity"
+        "sts:SetContext"
       ]
     }
   ]

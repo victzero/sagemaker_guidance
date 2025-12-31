@@ -7,7 +7,9 @@
 #
 # 原因: Trust Policy 需要包含:
 #   - sts:AssumeRole (基础)
-#   - sts:SetSourceIdentity (新版 Studio 需要，用于审计追踪)
+#   - sts:SetContext (Trusted Identity Propagation 必需)
+#
+# 参考: https://docs.aws.amazon.com/sagemaker/latest/dg/trustedidentitypropagation-setup.html
 #
 # 使用: ./fix-trust-policy.sh
 # =============================================================================
@@ -19,7 +21,7 @@ source "${SCRIPT_DIR}/00-init.sh"
 
 init
 
-# Trust Policy JSON (包含 SetSourceIdentity)
+# Trust Policy JSON (包含 SetContext - 官方文档要求)
 TRUST_POLICY='{
   "Version": "2012-10-17",
   "Statement": [
@@ -30,7 +32,7 @@ TRUST_POLICY='{
       },
       "Action": [
         "sts:AssumeRole",
-        "sts:SetSourceIdentity"
+        "sts:SetContext"
       ]
     }
   ]
@@ -66,11 +68,11 @@ for role_name in $roles; do
     # 获取当前 trust policy
     current_trust=$(aws iam get-role --role-name "$role_name" --query "Role.AssumeRolePolicyDocument" --output json 2>/dev/null || echo "{}")
     
-    # 检查是否已包含 SetSourceIdentity
-    if echo "$current_trust" | grep -q "SetSourceIdentity"; then
-        log_success "  Trust policy already includes SetSourceIdentity"
+    # 检查是否已包含 SetContext (官方文档要求)
+    if echo "$current_trust" | grep -q "SetContext"; then
+        log_success "  Trust policy already includes SetContext"
     else
-        log_warn "  Updating trust policy to include SetSourceIdentity..."
+        log_warn "  Updating trust policy to include SetContext..."
         aws iam update-assume-role-policy \
             --role-name "$role_name" \
             --policy-document "$TRUST_POLICY"
