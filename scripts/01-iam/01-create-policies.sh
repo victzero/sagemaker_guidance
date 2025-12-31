@@ -49,6 +49,20 @@ generate_base_access_policy() {
       "Resource": "*"
     },
     {
+      "Sid": "AllowListTags",
+      "Effect": "Allow",
+      "Action": [
+        "sagemaker:ListTags",
+        "sagemaker:AddTags"
+      ],
+      "Resource": [
+        "arn:aws:sagemaker:${AWS_REGION}:${AWS_ACCOUNT_ID}:domain/*",
+        "arn:aws:sagemaker:${AWS_REGION}:${AWS_ACCOUNT_ID}:user-profile/*",
+        "arn:aws:sagemaker:${AWS_REGION}:${AWS_ACCOUNT_ID}:space/*",
+        "arn:aws:sagemaker:${AWS_REGION}:${AWS_ACCOUNT_ID}:app/*"
+      ]
+    },
+    {
       "Sid": "AllowDescribeOwnProfile",
       "Effect": "Allow",
       "Action": [
