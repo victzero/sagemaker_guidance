@@ -40,6 +40,7 @@ generate_base_access_policy() {
         "sagemaker:ListApps"
       ],
       "Resource": "*"
+    }
     },
     {
       "Sid": "AllowDescribeOwnProfile",
@@ -223,12 +224,14 @@ generate_execution_role_policy() {
         "ecr:BatchCheckLayerAvailability"
       ],
       "Resource": "*"
+    }
     },
     {
       "Sid": "AllowECRAuth",
       "Effect": "Allow",
       "Action": "ecr:GetAuthorizationToken",
       "Resource": "*"
+    }
     }
   ]
 }
@@ -247,6 +250,7 @@ generate_user_boundary_policy() {
         "sagemaker:*"
       ],
       "Resource": "*"
+    }
     },
     {
       "Sid": "AllowSTSActions",
@@ -257,6 +261,7 @@ generate_user_boundary_policy() {
         "sts:AssumeRole"
       ],
       "Resource": "*"
+    }
     },
     {
       "Sid": "AllowPassRoleToSageMaker",
@@ -300,6 +305,7 @@ generate_user_boundary_policy() {
         "ecr:ListImages"
       ],
       "Resource": "*"
+    }
     },
     {
       "Sid": "AllowCloudWatchLogs",
@@ -314,6 +320,7 @@ generate_user_boundary_policy() {
         "logs:FilterLogEvents"
       ],
       "Resource": "*"
+    }
     },
     {
       "Sid": "AllowCloudWatchMetrics",
@@ -325,6 +332,7 @@ generate_user_boundary_policy() {
         "cloudwatch:ListMetrics"
       ],
       "Resource": "*"
+    }
     },
     {
       "Sid": "AllowEC2ForTraining",
@@ -339,6 +347,7 @@ generate_user_boundary_policy() {
         "ec2:DescribeVpcEndpoints"
       ],
       "Resource": "*"
+    }
     },
     {
       "Sid": "AllowKMSForEncryption",
@@ -369,6 +378,7 @@ generate_user_boundary_policy() {
         "servicecatalog:TerminateProvisionedProduct"
       ],
       "Resource": "*"
+    }
     },
     {
       "Sid": "AllowGlueForDataCatalog",
@@ -383,6 +393,7 @@ generate_user_boundary_policy() {
         "glue:SearchTables"
       ],
       "Resource": "*"
+    }
     },
     {
       "Sid": "AllowAthenaForQueries",
@@ -395,6 +406,7 @@ generate_user_boundary_policy() {
         "athena:GetWorkGroup"
       ],
       "Resource": "*"
+    }
     },
     {
       "Sid": "AllowCodeCommit",
@@ -409,6 +421,7 @@ generate_user_boundary_policy() {
         "codecommit:ListRepositories"
       ],
       "Resource": "*"
+    }
     },
     {
       "Sid": "AllowSelfServiceIAM",
@@ -430,6 +443,7 @@ generate_user_boundary_policy() {
         "iam:ListRoles"
       ],
       "Resource": "*"
+    }
     },
     {
       "Sid": "AllowListTagsForConsole",
@@ -441,6 +455,7 @@ generate_user_boundary_policy() {
         "ec2:DescribeTags"
       ],
       "Resource": "*"
+    }
     },
     {
       "Sid": "DenyS3ListAllBuckets",
@@ -451,6 +466,7 @@ generate_user_boundary_policy() {
         "s3:GetBucketPolicy"
       ],
       "Resource": "*"
+    }
     },
     {
       "Sid": "DenyAccessKeyManagement",
@@ -461,6 +477,7 @@ generate_user_boundary_policy() {
         "iam:DeleteAccessKey"
       ],
       "Resource": "*"
+    }
     },
     {
       "Sid": "DenyIAMAdminChanges",
@@ -479,6 +496,7 @@ generate_user_boundary_policy() {
         "iam:PutRolePermissionsBoundary"
       ],
       "Resource": "*"
+    }
     },
     {
       "Sid": "DenySageMakerDomainAdmin",
@@ -491,6 +509,7 @@ generate_user_boundary_policy() {
         "sagemaker:DeleteUserProfile"
       ],
       "Resource": "*"
+    }
     }
   ]
 }
@@ -511,6 +530,7 @@ generate_readonly_policy() {
         "sagemaker:List*"
       ],
       "Resource": "*"
+    }
     },
     {
       "Sid": "AllowS3ReadOnlyForSageMakerBuckets",
@@ -534,6 +554,7 @@ generate_readonly_policy() {
         "logs:GetLogEvents"
       ],
       "Resource": "*"
+    }
     }
   ]
 }
@@ -595,28 +616,6 @@ generate_self_service_policy() {
         "iam:DeleteAccessKey"
       ],
       "Resource": "*"
-    },
-    {
-      "Sid": "DenyAllExceptMFASetupWithoutMFA",
-      "Effect": "Deny",
-      "NotAction": [
-        "iam:CreateVirtualMFADevice",
-        "iam:EnableMFADevice",
-        "iam:GetUser",
-        "iam:GetLoginProfile",
-        "iam:ListMFADevices",
-        "iam:ListVirtualMFADevices",
-        "iam:ResyncMFADevice",
-        "iam:ChangePassword",
-        "iam:GetAccountPasswordPolicy",
-        "sts:GetSessionToken"
-      ],
-      "Resource": "*",
-      "Condition": {
-        "BoolIfExists": {
-          "aws:MultiFactorAuthPresent": "false"
-        }
-      }
     }
   ]
 }
