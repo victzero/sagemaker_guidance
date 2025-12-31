@@ -30,7 +30,7 @@ generate_base_access_policy() {
         "sagemaker:ListDomains"
       ],
       "Resource": "arn:aws:sagemaker:${AWS_REGION}:${AWS_ACCOUNT_ID}:domain/*"
-    },
+    }
     {
       "Sid": "AllowListUserProfiles",
       "Effect": "Allow",
@@ -41,7 +41,6 @@ generate_base_access_policy() {
       ],
       "Resource": "*"
     }
-    },
     {
       "Sid": "AllowDescribeOwnProfile",
       "Effect": "Allow",
@@ -83,7 +82,7 @@ generate_team_access_policy() {
           "sagemaker:ResourceTag/Team": "${team}"
         }
       }
-    },
+    }
     {
       "Sid": "AllowListTeamS3Buckets",
       "Effect": "Allow",
@@ -126,7 +125,7 @@ generate_project_access_policy() {
           "sagemaker:ResourceTag/Project": "${project}"
         }
       }
-    },
+    }
     {
       "Sid": "AllowProjectS3Access",
       "Effect": "Allow",
@@ -140,7 +139,7 @@ generate_project_access_policy() {
         "arn:aws:s3:::${COMPANY}-sm-${team}-${project}",
         "arn:aws:s3:::${COMPANY}-sm-${team}-${project}/*"
       ]
-    },
+    }
     {
       "Sid": "AllowSharedAssetsReadOnly",
       "Effect": "Allow",
@@ -152,7 +151,7 @@ generate_project_access_policy() {
         "arn:aws:s3:::${COMPANY}-sm-shared-assets",
         "arn:aws:s3:::${COMPANY}-sm-shared-assets/*"
       ]
-    },
+    }
     {
       "Sid": "AllowPassRoleToSageMaker",
       "Effect": "Allow",
@@ -192,7 +191,7 @@ generate_execution_role_policy() {
         "arn:aws:s3:::${COMPANY}-sm-${team}-${project}",
         "arn:aws:s3:::${COMPANY}-sm-${team}-${project}/*"
       ]
-    },
+    }
     {
       "Sid": "AllowSharedAssetsReadOnly",
       "Effect": "Allow",
@@ -204,7 +203,7 @@ generate_execution_role_policy() {
         "arn:aws:s3:::${COMPANY}-sm-shared-assets",
         "arn:aws:s3:::${COMPANY}-sm-shared-assets/*"
       ]
-    },
+    }
     {
       "Sid": "AllowCloudWatchLogs",
       "Effect": "Allow",
@@ -214,7 +213,7 @@ generate_execution_role_policy() {
         "logs:PutLogEvents"
       ],
       "Resource": "arn:aws:logs:${AWS_REGION}:${AWS_ACCOUNT_ID}:log-group:/aws/sagemaker/*"
-    },
+    }
     {
       "Sid": "AllowECRPull",
       "Effect": "Allow",
@@ -225,13 +224,11 @@ generate_execution_role_policy() {
       ],
       "Resource": "*"
     }
-    },
     {
       "Sid": "AllowECRAuth",
       "Effect": "Allow",
       "Action": "ecr:GetAuthorizationToken",
       "Resource": "*"
-    }
     }
   ]
 }
@@ -250,19 +247,19 @@ generate_user_boundary_policy() {
       "Effect": "Allow",
       "Action": "sagemaker:*",
       "Resource": "*"
-    },
+    }
     {
       "Sid": "AllowS3",
       "Effect": "Allow",
       "Action": "s3:*",
       "Resource": "*"
-    },
+    }
     {
       "Sid": "AllowECR",
       "Effect": "Allow",
       "Action": "ecr:*",
       "Resource": "*"
-    },
+    }
     {
       "Sid": "AllowCloudWatch",
       "Effect": "Allow",
@@ -271,13 +268,13 @@ generate_user_boundary_policy() {
         "cloudwatch:*"
       ],
       "Resource": "*"
-    },
+    }
     {
       "Sid": "AllowEC2Networking",
       "Effect": "Allow",
       "Action": "ec2:Describe*",
       "Resource": "*"
-    },
+    }
     {
       "Sid": "AllowKMS",
       "Effect": "Allow",
@@ -290,13 +287,13 @@ generate_user_boundary_policy() {
         "kms:ListKeys"
       ],
       "Resource": "*"
-    },
+    }
     {
       "Sid": "AllowSTS",
       "Effect": "Allow",
       "Action": "sts:*",
       "Resource": "*"
-    },
+    }
     {
       "Sid": "AllowIAMReadAndPassRole",
       "Effect": "Allow",
@@ -309,7 +306,7 @@ generate_user_boundary_policy() {
         "iam:PassRole"
       ],
       "Resource": "*"
-    },
+    }
     {
       "Sid": "AllowIAMSelfService",
       "Effect": "Allow",
@@ -322,7 +319,7 @@ generate_user_boundary_policy() {
         "iam:*MFA*"
       ],
       "Resource": "*"
-    },
+    }
     {
       "Sid": "AllowGlueAthena",
       "Effect": "Allow",
@@ -331,31 +328,31 @@ generate_user_boundary_policy() {
         "athena:*"
       ],
       "Resource": "*"
-    },
+    }
     {
       "Sid": "AllowCodeCommit",
       "Effect": "Allow",
       "Action": "codecommit:*",
       "Resource": "*"
-    },
+    }
     {
       "Sid": "AllowSecretsManager",
       "Effect": "Allow",
       "Action": "secretsmanager:*",
       "Resource": "*"
-    },
+    }
     {
       "Sid": "AllowServiceCatalog",
       "Effect": "Allow",
       "Action": "servicecatalog:*",
       "Resource": "*"
-    },
+    }
     {
       "Sid": "AllowMarketplace",
       "Effect": "Allow",
       "Action": "aws-marketplace:ViewSubscriptions",
       "Resource": "*"
-    },
+    }
     {
       "Sid": "DenyIAMAdmin",
       "Effect": "Deny",
@@ -378,7 +375,7 @@ generate_user_boundary_policy() {
         "iam:UpdateLoginProfile"
       ],
       "Resource": "*"
-    },
+    }
     {
       "Sid": "DenySageMakerPlatformAdmin",
       "Effect": "Deny",
@@ -391,7 +388,7 @@ generate_user_boundary_policy() {
         "sagemaker:UpdateUserProfile"
       ],
       "Resource": "*"
-    },
+    }
     {
       "Sid": "DenyS3BucketAdmin",
       "Effect": "Deny",
@@ -423,7 +420,6 @@ generate_readonly_policy() {
       ],
       "Resource": "*"
     }
-    },
     {
       "Sid": "AllowS3ReadOnlyForSageMakerBuckets",
       "Effect": "Allow",
@@ -436,7 +432,7 @@ generate_readonly_policy() {
         "arn:aws:s3:::${COMPANY}-sm-*",
         "arn:aws:s3:::${COMPANY}-sm-*/*"
       ]
-    },
+    }
     {
       "Sid": "AllowCloudWatchLogsReadOnly",
       "Effect": "Allow",
@@ -446,7 +442,6 @@ generate_readonly_policy() {
         "logs:GetLogEvents"
       ],
       "Resource": "*"
-    }
     }
   ]
 }
@@ -468,7 +463,7 @@ generate_self_service_policy() {
         "iam:ListVirtualMFADevices"
       ],
       "Resource": "*"
-    },
+    }
     {
       "Sid": "AllowManageOwnPasswords",
       "Effect": "Allow",
@@ -478,7 +473,7 @@ generate_self_service_policy() {
         "iam:GetLoginProfile"
       ],
       "Resource": "arn:aws:iam::${AWS_ACCOUNT_ID}:user${IAM_PATH}\${aws:username}"
-    },
+    }
     {
       "Sid": "AllowManageOwnVirtualMFADevice",
       "Effect": "Allow",
@@ -487,7 +482,7 @@ generate_self_service_policy() {
         "iam:DeleteVirtualMFADevice"
       ],
       "Resource": "arn:aws:iam::${AWS_ACCOUNT_ID}:mfa/*"
-    },
+    }
     {
       "Sid": "AllowManageOwnUserMFA",
       "Effect": "Allow",
@@ -498,7 +493,7 @@ generate_self_service_policy() {
         "iam:ResyncMFADevice"
       ],
       "Resource": "arn:aws:iam::${AWS_ACCOUNT_ID}:user${IAM_PATH}\${aws:username}"
-    },
+    }
     {
       "Sid": "DenyAccessKeyManagement",
       "Effect": "Deny",
