@@ -46,7 +46,12 @@ create_domain_default_role() {
     
     # 检查 Role 是否已存在
     if aws iam get-role --role-name "$role_name" &> /dev/null; then
-        log_warn "Role $role_name already exists, skipping creation..."
+        log_warn "Role $role_name already exists, updating trust policy..."
+        # 确保 trust policy 正确（修复之前创建的 role）
+        aws iam update-assume-role-policy \
+            --role-name "$role_name" \
+            --policy-document "file://${trust_policy_file}"
+        log_success "Trust policy updated for $role_name"
     else
         aws iam create-role \
             --role-name "$role_name" \
@@ -107,7 +112,12 @@ create_execution_role() {
     
     # 检查 Role 是否已存在
     if aws iam get-role --role-name "$role_name" &> /dev/null; then
-        log_warn "Role $role_name already exists, skipping creation..."
+        log_warn "Role $role_name already exists, updating trust policy..."
+        # 确保 trust policy 正确（修复之前创建的 role）
+        aws iam update-assume-role-policy \
+            --role-name "$role_name" \
+            --policy-document "file://${trust_policy_file}"
+        log_success "Trust policy updated for $role_name"
     else
         aws iam create-role \
             --role-name "$role_name" \

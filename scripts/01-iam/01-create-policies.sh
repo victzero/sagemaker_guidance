@@ -113,6 +113,7 @@ generate_project_access_policy() {
         "sagemaker:DescribeSpace",
         "sagemaker:CreateApp",
         "sagemaker:DeleteApp",
+        "sagemaker:GetSagemakerServicecatalogPortfolioStatus",
         "sagemaker:DescribeApp"
       ],
       "Resource": [
@@ -233,7 +234,6 @@ generate_execution_role_policy() {
 }
 EOF
 }
-
 # 生成 Permissions Boundary 策略
 generate_user_boundary_policy() {
     cat << EOF
@@ -241,16 +241,33 @@ generate_user_boundary_policy() {
   "Version": "2012-10-17",
   "Statement": [
     {
-      "Sid": "AllowSageMakerActions",
+      "Sid": "AllowAllSageMakerActions",
       "Effect": "Allow",
       "Action": [
-        "sagemaker:Describe*",
-        "sagemaker:List*",
-        "sagemaker:CreatePresignedDomainUrl",
-        "sagemaker:CreateApp",
-        "sagemaker:DeleteApp"
+        "sagemaker:*"
       ],
       "Resource": "*"
+    },
+    {
+      "Sid": "AllowSTSActions",
+      "Effect": "Allow",
+      "Action": [
+        "sts:GetCallerIdentity",
+        "sts:GetSessionToken",
+        "sts:AssumeRole"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "AllowPassRoleToSageMaker",
+      "Effect": "Allow",
+      "Action": "iam:PassRole",
+      "Resource": "arn:aws:iam::${AWS_ACCOUNT_ID}:role/*SageMaker*",
+      "Condition": {
+        "StringEquals": {
+          "iam:PassedToService": "sagemaker.amazonaws.com"
+        }
+      }
     },
     {
       "Sid": "AllowS3SageMakerBuckets",
@@ -260,20 +277,136 @@ generate_user_boundary_policy() {
         "s3:PutObject",
         "s3:DeleteObject",
         "s3:ListBucket",
-        "s3:GetBucketLocation"
+        "s3:GetBucketLocation",
+        "s3:AbortMultipartUpload",
+        "s3:ListMultipartUploadParts"
       ],
       "Resource": [
         "arn:aws:s3:::${COMPANY}-sm-*",
-        "arn:aws:s3:::${COMPANY}-sm-*/*"
+        "arn:aws:s3:::${COMPANY}-sm-*/*",
+        "arn:aws:s3:::sagemaker-${AWS_REGION}-${AWS_ACCOUNT_ID}",
+        "arn:aws:s3:::sagemaker-${AWS_REGION}-${AWS_ACCOUNT_ID}/*"
       ]
     },
     {
-      "Sid": "AllowCloudWatchReadOnly",
+      "Sid": "AllowECRForContainers",
       "Effect": "Allow",
       "Action": [
+        "ecr:GetAuthorizationToken",
+        "ecr:BatchCheckLayerAvailability",
+        "ecr:GetDownloadUrlForLayer",
+        "ecr:BatchGetImage",
+        "ecr:DescribeRepositories",
+        "ecr:ListImages"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "AllowCloudWatchLogs",
+      "Effect": "Allow",
+      "Action": [
+        "logs:CreateLogGroup",
+        "logs:CreateLogStream",
+        "logs:PutLogEvents",
         "logs:DescribeLogGroups",
         "logs:DescribeLogStreams",
-        "logs:GetLogEvents"
+        "logs:GetLogEvents",
+        "logs:FilterLogEvents"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "AllowCloudWatchMetrics",
+      "Effect": "Allow",
+      "Action": [
+        "cloudwatch:PutMetricData",
+        "cloudwatch:GetMetricData",
+        "cloudwatch:GetMetricStatistics",
+        "cloudwatch:ListMetrics"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "AllowEC2ForTraining",
+      "Effect": "Allow",
+      "Action": [
+        "ec2:DescribeSubnets",
+        "ec2:DescribeSecurityGroups",
+        "ec2:DescribeVpcs",
+        "ec2:DescribeNetworkInterfaces",
+        "ec2:DescribeRouteTables",
+        "ec2:DescribeDhcpOptions",
+        "ec2:DescribeVpcEndpoints"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "AllowKMSForEncryption",
+      "Effect": "Allow",
+      "Action": [
+        "kms:Encrypt",
+        "kms:Decrypt",
+        "kms:GenerateDataKey",
+        "kms:DescribeKey"
+      ],
+      "Resource": "*",
+      "Condition": {
+        "StringLike": {
+          "kms:ViaService": "sagemaker.*.amazonaws.com"
+        }
+      }
+    },
+    {
+      "Sid": "AllowServiceCatalog",
+      "Effect": "Allow",
+      "Action": [
+        "servicecatalog:DescribeProduct",
+        "servicecatalog:DescribeProductView",
+        "servicecatalog:ListLaunchPaths",
+        "servicecatalog:DescribeProvisioningParameters",
+        "servicecatalog:ProvisionProduct",
+        "servicecatalog:SearchProducts",
+        "servicecatalog:TerminateProvisionedProduct"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "AllowGlueForDataCatalog",
+      "Effect": "Allow",
+      "Action": [
+        "glue:GetDatabase",
+        "glue:GetDatabases",
+        "glue:GetTable",
+        "glue:GetTables",
+        "glue:GetPartition",
+        "glue:GetPartitions",
+        "glue:SearchTables"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "AllowAthenaForQueries",
+      "Effect": "Allow",
+      "Action": [
+        "athena:StartQueryExecution",
+        "athena:GetQueryExecution",
+        "athena:GetQueryResults",
+        "athena:StopQueryExecution",
+        "athena:GetWorkGroup"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "AllowCodeCommit",
+      "Effect": "Allow",
+      "Action": [
+        "codecommit:GitPull",
+        "codecommit:GitPush",
+        "codecommit:GetBranch",
+        "codecommit:GetCommit",
+        "codecommit:GetRepository",
+        "codecommit:ListBranches",
+        "codecommit:ListRepositories"
       ],
       "Resource": "*"
     },
@@ -292,7 +425,20 @@ generate_user_boundary_policy() {
         "iam:EnableMFADevice",
         "iam:ListMFADevices",
         "iam:ListVirtualMFADevices",
-        "iam:ResyncMFADevice"
+        "iam:ResyncMFADevice",
+        "iam:GetRole",
+        "iam:ListRoles"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "AllowListTagsForConsole",
+      "Effect": "Allow",
+      "Action": [
+        "sagemaker:ListTags",
+        "s3:GetBucketTagging",
+        "logs:ListTagsLogGroup",
+        "ec2:DescribeTags"
       ],
       "Resource": "*"
     },
@@ -317,7 +463,7 @@ generate_user_boundary_policy() {
       "Resource": "*"
     },
     {
-      "Sid": "DenyIAMChanges",
+      "Sid": "DenyIAMAdminChanges",
       "Effect": "Deny",
       "Action": [
         "iam:CreateUser",
@@ -326,20 +472,25 @@ generate_user_boundary_policy() {
         "iam:DeleteRole",
         "iam:AttachUserPolicy",
         "iam:DetachUserPolicy",
+        "iam:AttachRolePolicy",
+        "iam:DetachRolePolicy",
         "iam:PutUserPermissionsBoundary",
-        "iam:DeleteUserPermissionsBoundary"
+        "iam:DeleteUserPermissionsBoundary",
+        "iam:PutRolePermissionsBoundary"
       ],
       "Resource": "*"
     },
     {
-      "Sid": "DenyBoundaryModification",
+      "Sid": "DenySageMakerDomainAdmin",
       "Effect": "Deny",
       "Action": [
-        "iam:DeletePolicy",
-        "iam:CreatePolicyVersion",
-        "iam:DeletePolicyVersion"
+        "sagemaker:CreateDomain",
+        "sagemaker:DeleteDomain",
+        "sagemaker:UpdateDomain",
+        "sagemaker:CreateUserProfile",
+        "sagemaker:DeleteUserProfile"
       ],
-      "Resource": "arn:aws:iam::${AWS_ACCOUNT_ID}:policy/SageMaker-User-Boundary"
+      "Resource": "*"
     }
   ]
 }

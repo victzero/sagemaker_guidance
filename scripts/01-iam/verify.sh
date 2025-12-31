@@ -202,7 +202,28 @@ main() {
         done
     done
     
-    # 4.1 验证 Execution Roles 的 AmazonSageMakerFullAccess 策略（Phase 2 ML Jobs 支持）
+    # 4.1 验证 Trust Policy（SageMaker 可以 assume 这些 roles）
+    verify_section "Execution Roles - Trust Policy"
+    
+    # 检查所有 Execution Roles 的 trust policy
+    local all_roles=$(aws iam list-roles --path-prefix "${IAM_PATH}" \
+        --query "Roles[?contains(RoleName, 'ExecutionRole')].RoleName" --output text)
+    
+    for role_name in $all_roles; do
+        local trust_has_sagemaker=$(aws iam get-role --role-name "$role_name" \
+            --query "Role.AssumeRolePolicyDocument.Statement[?Principal.Service=='sagemaker.amazonaws.com']" \
+            --output text 2>/dev/null || echo "")
+        
+        if [[ -n "$trust_has_sagemaker" ]]; then
+            echo -e "  ${GREEN}✓${NC} $role_name trust policy includes sagemaker.amazonaws.com"
+        else
+            echo -e "  ${RED}✗${NC} $role_name trust policy MISSING sagemaker.amazonaws.com"
+            echo -e "      Run: ./04-create-roles.sh to fix (or ./fix-trust-policy.sh)"
+            ((errors++)) || true
+        fi
+    done
+    
+    # 4.2 验证 Execution Roles 的 AmazonSageMakerFullAccess 策略（Phase 2 ML Jobs 支持）
     verify_section "Execution Roles - AmazonSageMakerFullAccess (ML Jobs)"
     
     # Domain 默认角色
