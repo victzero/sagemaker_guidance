@@ -73,6 +73,10 @@ main() {
         local team_capitalized=$(format_name "$team_fullname")
         local group_name="sagemaker-${team_fullname}"
         
+        # AWS 托管策略 - 完整 SageMaker 权限
+        attach_policy_to_group "$group_name" \
+            "arn:aws:iam::aws:policy/AmazonSageMakerFullAccess"
+        
         # 基础访问策略
         attach_policy_to_group "$group_name" \
             "${policy_prefix}SageMaker-Studio-Base-Access"
@@ -81,7 +85,7 @@ main() {
         attach_policy_to_group "$group_name" \
             "${policy_prefix}SageMaker-User-SelfService"
         
-        # 团队访问策略
+        # 团队访问策略（S3 bucket 权限）
         attach_policy_to_group "$group_name" \
             "${policy_prefix}SageMaker-${team_capitalized}-Team-Access"
     done
