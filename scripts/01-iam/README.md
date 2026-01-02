@@ -22,6 +22,9 @@ vi .env.local  # 可修改 PASSWORD_PREFIX/SUFFIX, ENABLE_CONSOLE_LOGIN
 # 3. 执行创建（会显示预览，确认后执行）
 ./setup-all.sh
 
+# 或启用 Console 登录（生成用户密码）
+./setup-all.sh --enable-console-login
+
 # 4. 验证配置
 ./verify.sh
 ```
@@ -255,14 +258,16 @@ sm-rc-alice-profile    ──bindTo──►   SageMaker-RiskControl-
 默认情况下，用户**不能**登录 AWS Console，只能通过 API 访问：
 
 ```bash
-# 禁用 Console 登录（默认）
-./03-create-users.sh
+# 方式 1: setup-all.sh 一键配置（推荐）
+./setup-all.sh                      # 禁用 Console 登录（默认）
+./setup-all.sh --enable-console-login  # 启用 Console 登录
 
-# 启用 Console 登录
-./03-create-users.sh --enable-console-login
+# 方式 2: 单独运行用户创建脚本
+./03-create-users.sh                # 禁用 Console 登录（默认）
+./03-create-users.sh --enable-console-login  # 启用 Console 登录
 
-# 或通过环境变量
-ENABLE_CONSOLE_LOGIN=true ./03-create-users.sh
+# 方式 3: 通过环境变量
+ENABLE_CONSOLE_LOGIN=true ./setup-all.sh
 ```
 
 | 模式         | Console 登录 | API 访问 | 凭证文件 |
@@ -317,12 +322,12 @@ IAM 资源路径设计:
 
 **原因**：
 
-| 场景 | 使用 IAM_PATH | 使用默认路径 |
-|------|:-------------:|:------------:|
-| User Profile 绑定 Role | ❌ 需完整 ARN | ✅ 只需 Role 名称 |
-| SageMaker AssumeRole | ❌ 可能失败 | ✅ 自动识别 |
-| 控制台查看 | ❌ 需手动指定 path | ✅ 直接显示 |
-| 其他 AWS 服务集成 | ❌ 需完整 ARN | ✅ 兼容性好 |
+| 场景                   |   使用 IAM_PATH    |   使用默认路径    |
+| ---------------------- | :----------------: | :---------------: |
+| User Profile 绑定 Role |   ❌ 需完整 ARN    | ✅ 只需 Role 名称 |
+| SageMaker AssumeRole   |    ❌ 可能失败     |    ✅ 自动识别    |
+| 控制台查看             | ❌ 需手动指定 path |    ✅ 直接显示    |
+| 其他 AWS 服务集成      |   ❌ 需完整 ARN    |    ✅ 兼容性好    |
 
 **筛选方式**：通过名称前缀 `SageMaker-` 筛选 Execution Roles：
 
@@ -443,6 +448,44 @@ aws iam list-roles --query 'Roles[?starts_with(RoleName, `SageMaker-`)].RoleName
 **AWS Console 筛选**：在 IAM 控制台搜索框输入公司前缀（如 `acme`）或 `SageMaker-`。
 
 ## 脚本说明
+
+### setup-all.sh（主控脚本）
+
+一键执行所有 IAM 设置步骤，按顺序调用 01-06 脚本。
+
+**用法:**
+
+```bash
+./setup-all.sh [--enable-console-login]
+```
+
+**参数:**
+
+| 参数                     | 说明                                         |
+| ------------------------ | -------------------------------------------- |
+| `--enable-console-login` | 启用 Console 登录，生成用户密码              |
+| (无参数)                 | 禁用 Console 登录（默认），只能通过 API 访问 |
+
+**环境变量控制:**
+
+| 变量                   | 默认值  | 说明                  |
+| ---------------------- | ------- | --------------------- |
+| `ENABLE_CONSOLE_LOGIN` | `false` | 启用 AWS Console 登录 |
+| `ENABLE_CANVAS`        | `true`  | 启用 SageMaker Canvas |
+| `ENABLE_MLFLOW`        | `true`  | 启用 MLflow 实验追踪  |
+
+**执行流程:**
+
+```
+setup-all.sh
+    │
+    ├─► 01-create-policies.sh    # 创建策略
+    ├─► 02-create-groups.sh      # 创建用户组
+    ├─► 03-create-users.sh       # 创建用户 [--enable-console-login]
+    ├─► 04-create-roles.sh       # 创建执行角色
+    ├─► 05-bind-policies.sh      # 绑定策略到组
+    └─► 06-add-users-to-groups.sh # 添加用户到组
+```
 
 ### 01-create-policies.sh
 

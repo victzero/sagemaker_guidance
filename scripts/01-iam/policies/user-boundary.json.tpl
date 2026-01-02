@@ -107,6 +107,33 @@
       "Resource": "*"
     },
     {
+      "Sid": "AllowViewAccountPasswordPolicy",
+      "Effect": "Allow",
+      "Action": [
+        "iam:GetAccountPasswordPolicy",
+        "iam:ListVirtualMFADevices"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "AllowSelfServiceIAM",
+      "Effect": "Allow",
+      "Action": [
+        "iam:ChangePassword",
+        "iam:GetUser",
+        "iam:CreateVirtualMFADevice",
+        "iam:DeleteVirtualMFADevice",
+        "iam:EnableMFADevice",
+        "iam:ListMFADevices",
+        "iam:ResyncMFADevice",
+        "iam:DeactivateMFADevice"
+      ],
+      "Resource": [
+        "arn:aws:iam::${AWS_ACCOUNT_ID}:user${IAM_PATH}*",
+        "arn:aws:iam::${AWS_ACCOUNT_ID}:mfa/*"
+      ]
+    },
+    {
       "Sid": "DenyDangerousIAMActions",
       "Effect": "Deny",
       "Action": [
