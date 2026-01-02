@@ -12,7 +12,7 @@
 | `project-access.json.tpl`         | 项目访问策略            | `AWS_REGION`, `AWS_ACCOUNT_ID`, `COMPANY`, `TEAM`, `PROJECT` |
 | `execution-role.json.tpl`         | Execution Role 权限策略 | `AWS_REGION`, `AWS_ACCOUNT_ID`, `COMPANY`, `TEAM`, `PROJECT` |
 | `user-boundary.json.tpl`          | 用户权限边界            | `AWS_ACCOUNT_ID`, `COMPANY`                                  |
-| `readonly.json.tpl`               | 只读访问策略            | 无（静态）                                                   |
+| `readonly.json.tpl`               | 只读访问策略            | `AWS_REGION`, `AWS_ACCOUNT_ID`, `COMPANY`                    |
 | `self-service.json.tpl`           | 用户自助服务策略        | `AWS_ACCOUNT_ID`, `IAM_PATH`                                 |
 | `studio-app-permissions.json.tpl` | Studio App 用户隔离     | `AWS_REGION`, `AWS_ACCOUNT_ID`                               |
 | `mlflow-app-access.json.tpl`      | MLflow 实验追踪         | `AWS_REGION`, `AWS_ACCOUNT_ID`                               |
@@ -111,3 +111,97 @@ Domain 默认 Execution Role 只附加 **AmazonSageMakerFullAccess**：
 2. **分层设计**: AWS 托管策略 + 自定义策略
 3. **项目隔离**: S3 权限限定到项目桶
 4. **安全边界**: Permissions Boundary 防止权限提升
+
+## 安全加固设计
+
+### S3 访问控制
+
+| 控制点 | 实现方式 | 效果 |
+|--------|----------|------|
+| 禁止浏览桶列表 | `DenyS3BucketListing` 拒绝 `s3:ListAllMyBuckets` | 用户无法看到账号内所有桶 |
+| 限制桶访问范围 | `DenyAccessToOtherBuckets` + `NotResource` | 用户只能访问公司 SM 桶和 SageMaker 默认桶 |
+| 项目级隔离 | `project-access.json.tpl` 限定到具体项目桶 | 用户只能访问自己项目的桶 |
+| 禁止桶管理 | `DenyS3BucketAdmin` 拒绝 Create/Delete Bucket | 用户无法创建或删除桶 |
+
+**用户访问 S3 的方式**:
+- ❌ 不能通过 S3 Console 浏览所有桶
+- ✅ 通过 URL 直接访问项目桶: `s3://${COMPANY}-sm-${TEAM}-${PROJECT}/`
+- ✅ 通过 SageMaker SDK/boto3 读写文件
+
+### SageMaker 资源隔离
+
+| 控制点 | 实现方式 | 效果 |
+|--------|----------|------|
+| User Profile 隔离 | `sagemaker:ResourceTag/Owner` 条件 | 用户只能操作自己的 Profile |
+| Space/App 隔离 | `sagemaker:OwnerUserProfileArn` 条件 | 用户只能管理自己创建的 Space 和 App |
+| 项目 Space 访问 | `sagemaker:ResourceTag/Project` 条件 | 用户只能访问所属项目的共享 Space |
+| 禁止管理操作 | `DenySageMakerAdminActions` | 用户无法创建/删除 Domain 和 UserProfile |
+
+**跨项目隔离说明**:
+- `sagemaker:List*` 和 `sagemaker:Describe*` 对所有资源可见（SageMaker Studio Console 需要）
+- 实际的 Create/Update/Delete 操作通过标签条件限制
+- 敏感数据通过 S3 项目桶隔离保护
+
+### 安全边界 (Permissions Boundary)
+
+`user-boundary.json.tpl` 定义了用户权限的绝对上限：
+
+```
+┌─────────────────────────────────────────────────┐
+│            Permissions Boundary                  │
+│  ┌───────────────────────────────────────────┐  │
+│  │         实际授予的权限 (Policy)           │  │
+│  │  ┌─────────────────────────────────────┐  │  │
+│  │  │      用户有效权限                   │  │  │
+│  │  │   (Policy ∩ Boundary)              │  │  │
+│  │  └─────────────────────────────────────┘  │  │
+│  └───────────────────────────────────────────┘  │
+└─────────────────────────────────────────────────┘
+```
+
+**Deny 语句优先级**: Boundary 中的 Deny 语句无法被任何 Allow 覆盖
+
+### MFA 强制要求
+
+用户必须启用 MFA 才能访问 SageMaker 和 S3 资源。
+
+```
+┌─────────────────────────────────────────────────┐
+│              用户登录 AWS Console               │
+└─────────────────────────────────────────────────┘
+                       │
+                       ▼
+              ┌───────────────┐
+              │  MFA 已启用?  │
+              └───────────────┘
+               /           \
+              /             \
+           是 ✅            否 ❌
+            │                │
+            ▼                ▼
+    ┌─────────────┐   ┌──────────────────────┐
+    │ 正常使用    │   │ 只能进行以下操作:    │
+    │ SageMaker   │   │ - 修改密码           │
+    │ S3, ECR...  │   │ - 启用 MFA           │
+    └─────────────┘   │ - 查看身份           │
+                      └──────────────────────┘
+```
+
+**实现方式**: `DenyAllWithoutMFA` 使用 `NotAction` 排除自服务操作
+
+**允许的无 MFA 操作**:
+- `iam:CreateVirtualMFADevice` / `iam:EnableMFADevice` - 设置 MFA
+- `iam:ChangePassword` / `iam:GetUser` - 密码管理
+- `iam:GetAccountPasswordPolicy` - 查看密码策略
+- `sts:GetCallerIdentity` - 验证身份
+
+### 已实现的 Deny 控制
+
+| Sid | 拒绝的操作 | 目的 |
+|-----|-----------|------|
+| `DenyAllWithoutMFA` | 未启用 MFA 时拒绝所有非自服务操作 | 强制 MFA |
+| `DenyS3BucketListing` | `s3:ListAllMyBuckets` | 禁止浏览桶列表 |
+| `DenyAccessToOtherBuckets` | 非公司桶的所有 S3 操作 | 强制桶隔离 |
+| `DenyDangerousIAMActions` | IAM 策略创建/修改/删除 | 防止权限提升 |
+| `DenySageMakerAdminActions` | Domain/UserProfile 管理 | 防止越权管理 |
+| `DenyS3BucketAdmin` | Bucket 创建/删除/策略修改 | 防止基础设施变更 |

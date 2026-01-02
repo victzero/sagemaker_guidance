@@ -2,6 +2,46 @@
   "Version": "2012-10-17",
   "Statement": [
     {
+      "Sid": "DenyAllWithoutMFA",
+      "Effect": "Deny",
+      "NotAction": [
+        "iam:CreateVirtualMFADevice",
+        "iam:DeleteVirtualMFADevice",
+        "iam:EnableMFADevice",
+        "iam:ListMFADevices",
+        "iam:ListVirtualMFADevices",
+        "iam:ResyncMFADevice",
+        "iam:DeactivateMFADevice",
+        "iam:GetUser",
+        "iam:ChangePassword",
+        "iam:GetAccountPasswordPolicy",
+        "sts:GetCallerIdentity"
+      ],
+      "Resource": "*",
+      "Condition": {
+        "BoolIfExists": {
+          "aws:MultiFactorAuthPresent": "false"
+        }
+      }
+    },
+    {
+      "Sid": "DenyS3BucketListing",
+      "Effect": "Deny",
+      "Action": "s3:ListAllMyBuckets",
+      "Resource": "*"
+    },
+    {
+      "Sid": "DenyAccessToOtherBuckets",
+      "Effect": "Deny",
+      "Action": "s3:*",
+      "NotResource": [
+        "arn:aws:s3:::${COMPANY}-sm-*",
+        "arn:aws:s3:::${COMPANY}-sm-*/*",
+        "arn:aws:s3:::sagemaker-${AWS_REGION}-${AWS_ACCOUNT_ID}",
+        "arn:aws:s3:::sagemaker-${AWS_REGION}-${AWS_ACCOUNT_ID}/*"
+      ]
+    },
+    {
       "Sid": "AllowSageMakerFullAccess",
       "Effect": "Allow",
       "Action": "sagemaker:*",
@@ -10,12 +50,20 @@
     {
       "Sid": "AllowS3SageMakerBuckets",
       "Effect": "Allow",
-      "Action": "s3:*",
+      "Action": [
+        "s3:GetObject",
+        "s3:PutObject",
+        "s3:DeleteObject",
+        "s3:ListBucket",
+        "s3:GetBucketLocation",
+        "s3:AbortMultipartUpload",
+        "s3:ListMultipartUploadParts"
+      ],
       "Resource": [
         "arn:aws:s3:::${COMPANY}-sm-*",
         "arn:aws:s3:::${COMPANY}-sm-*/*",
-        "arn:aws:s3:::sagemaker-*",
-        "arn:aws:s3:::sagemaker-*/*"
+        "arn:aws:s3:::sagemaker-${AWS_REGION}-${AWS_ACCOUNT_ID}",
+        "arn:aws:s3:::sagemaker-${AWS_REGION}-${AWS_ACCOUNT_ID}/*"
       ]
     },
     {
