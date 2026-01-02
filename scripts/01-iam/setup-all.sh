@@ -23,6 +23,17 @@ echo " SageMaker IAM Setup - Master Script"
 echo "==============================================${NC}"
 echo ""
 
+# 解析命令行参数
+ENABLE_CONSOLE=""
+for arg in "$@"; do
+    case $arg in
+        --enable-console-login)
+            ENABLE_CONSOLE="--enable-console-login"
+            shift
+            ;;
+    esac
+done
+
 # 加载共享函数库和环境变量
 source "${SCRIPT_DIR}/../common.sh"
 load_env
@@ -36,6 +47,26 @@ if [[ -z "$IAM_PATH" ]]; then
 fi
 export IAM_PATH
 
+# Console 登录设置
+ENABLE_CONSOLE_LOGIN_DISPLAY="DISABLED (default)"
+if [[ -n "$ENABLE_CONSOLE" ]] || [[ "$ENABLE_CONSOLE_LOGIN" == "true" ]]; then
+    ENABLE_CONSOLE_LOGIN_DISPLAY="ENABLED"
+fi
+
+# Canvas 功能设置（默认开启）
+ENABLE_CANVAS="${ENABLE_CANVAS:-true}"
+ENABLE_CANVAS_DISPLAY="ENABLED (default)"
+if [[ "$ENABLE_CANVAS" != "true" ]]; then
+    ENABLE_CANVAS_DISPLAY="DISABLED"
+fi
+
+# MLflow 功能设置（默认开启）
+ENABLE_MLFLOW="${ENABLE_MLFLOW:-true}"
+ENABLE_MLFLOW_DISPLAY="ENABLED (default)"
+if [[ "$ENABLE_MLFLOW" != "true" ]]; then
+    ENABLE_MLFLOW_DISPLAY="DISABLED"
+fi
+
 # 别名函数（兼容旧代码）
 get_projects() { get_projects_for_team "$@"; }
 get_users() { get_users_for_project "$@"; }
@@ -43,8 +74,12 @@ get_users() { get_users_for_project "$@"; }
 # 确认执行
 echo -e "${YELLOW}This script will create the following AWS IAM resources:${NC}"
 echo ""
-echo "  Company:       $COMPANY"
-echo "  IAM Path:      ${IAM_PATH}"
+echo "  Company:          $COMPANY"
+echo "  IAM Path:         ${IAM_PATH}"
+echo "  Console Login:    ${ENABLE_CONSOLE_LOGIN_DISPLAY}"
+echo "  Canvas (ML):      ${ENABLE_CANVAS_DISPLAY}"
+echo "  MLflow (Track):   ${ENABLE_MLFLOW_DISPLAY}"
+echo "  Studio Isolation: ENABLED (always)"
 echo ""
 
 # ========== Policies ==========
@@ -169,6 +204,7 @@ run_step() {
     local step=$1
     local script=$2
     local description=$3
+    local extra_args=${4:-}
     
     echo ""
     echo -e "${BLUE}=============================================="
@@ -176,7 +212,7 @@ run_step() {
     echo -e "==============================================${NC}"
     
     if [[ -x "${SCRIPT_DIR}/${script}" ]]; then
-        "${SCRIPT_DIR}/${script}"
+        "${SCRIPT_DIR}/${script}" $extra_args
         echo -e "${GREEN}[OK]${NC} Step ${step} completed"
     else
         echo -e "${RED}[ERROR]${NC} Script ${script} not found or not executable"
@@ -187,7 +223,7 @@ run_step() {
 # 执行所有步骤
 run_step 1 "01-create-policies.sh" "Create IAM Policies"
 run_step 2 "02-create-groups.sh" "Create IAM Groups"
-run_step 3 "03-create-users.sh" "Create IAM Users"
+run_step 3 "03-create-users.sh" "Create IAM Users" "$ENABLE_CONSOLE"
 run_step 4 "04-create-roles.sh" "Create Execution Roles"
 run_step 5 "05-bind-policies.sh" "Bind Policies to Groups"
 run_step 6 "06-add-users-to-groups.sh" "Add Users to Groups"
@@ -203,10 +239,15 @@ echo "==============================================${NC}"
 echo ""
 echo "Duration: ${DURATION} seconds"
 echo ""
-echo -e "${YELLOW}[IMPORTANT]${NC} User credentials saved to:"
-echo "  ${SCRIPT_DIR}/output/user-credentials.txt"
-echo ""
-echo "Please distribute these credentials securely and delete the file!"
+if [[ -n "$ENABLE_CONSOLE" ]] || [[ "$ENABLE_CONSOLE_LOGIN" == "true" ]]; then
+    echo -e "${YELLOW}[IMPORTANT]${NC} Console login is ENABLED."
+    echo "  User credentials saved to: ${SCRIPT_DIR}/output/user-credentials.txt"
+    echo ""
+    echo "Please distribute these credentials securely and delete the file!"
+else
+    echo "Console login is DISABLED (default)."
+    echo "Users can access SageMaker via CreatePresignedDomainUrl API."
+fi
 echo ""
 echo "Verify resources with:"
 echo "  ./verify.sh"

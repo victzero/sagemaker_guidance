@@ -26,3 +26,4 @@ scripts/**/.env.local
 # Scripts - Generated output files
 scripts/**/output/
 
+*.json

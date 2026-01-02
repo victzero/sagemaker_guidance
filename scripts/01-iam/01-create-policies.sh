@@ -3,6 +3,8 @@
 # 01-create-policies.sh - 创建 IAM Policies
 # =============================================================================
 # 使用方法: ./01-create-policies.sh [--force]
+#
+# 策略模板文件位于 policies/ 目录，与脚本逻辑分离
 # =============================================================================
 
 set -e
@@ -19,489 +21,89 @@ if [[ "$1" == "--force" ]]; then
     log_info "Force update mode enabled"
 fi
 
+# 策略模板目录
+POLICY_TEMPLATES_DIR="${SCRIPT_DIR}/policies"
+
 # -----------------------------------------------------------------------------
-# Policy 生成函数
+# 模板渲染函数
 # -----------------------------------------------------------------------------
 
-# 生成基础策略 - SageMaker-Studio-Base-Access
+# 渲染模板文件，替换变量
+# 用法: render_template <template_file> [VAR1=value1 VAR2=value2 ...]
+render_template() {
+    local template_file=$1
+    shift
+    
+    if [[ ! -f "$template_file" ]]; then
+        log_error "Template file not found: $template_file"
+        exit 1
+    fi
+    
+    # 读取模板内容
+    local content=$(cat "$template_file")
+    
+    # 替换通用变量
+    content=$(echo "$content" | sed \
+        -e "s|\${AWS_REGION}|${AWS_REGION}|g" \
+        -e "s|\${AWS_ACCOUNT_ID}|${AWS_ACCOUNT_ID}|g" \
+        -e "s|\${COMPANY}|${COMPANY}|g" \
+        -e "s|\${IAM_PATH}|${IAM_PATH}|g")
+    
+    # 替换额外传入的变量
+    for var in "$@"; do
+        local key="${var%%=*}"
+        local value="${var#*=}"
+        content=$(echo "$content" | sed "s|\${${key}}|${value}|g")
+    done
+    
+    echo "$content"
+}
+
+# -----------------------------------------------------------------------------
+# Policy 生成函数 (使用模板)
+# -----------------------------------------------------------------------------
+
 generate_base_access_policy() {
-    cat << POLICYEOF
-{
-  "Version": "2012-10-17",
-  "Statement": [
-    {
-      "Sid": "AllowDescribeDomain",
-      "Effect": "Allow",
-      "Action": [
-        "sagemaker:DescribeDomain",
-        "sagemaker:ListDomains"
-      ],
-      "Resource": "arn:aws:sagemaker:${AWS_REGION}:${AWS_ACCOUNT_ID}:domain/*"
-    },
-    {
-      "Sid": "AllowListUserProfiles",
-      "Effect": "Allow",
-      "Action": [
-        "sagemaker:ListUserProfiles",
-        "sagemaker:ListSpaces",
-        "sagemaker:ListApps"
-      ],
-      "Resource": "*"
-    },
-    {
-      "Sid": "AllowListTags",
-      "Effect": "Allow",
-      "Action": [
-        "sagemaker:ListTags",
-        "sagemaker:AddTags"
-      ],
-      "Resource": [
-        "arn:aws:sagemaker:${AWS_REGION}:${AWS_ACCOUNT_ID}:domain/*",
-        "arn:aws:sagemaker:${AWS_REGION}:${AWS_ACCOUNT_ID}:user-profile/*",
-        "arn:aws:sagemaker:${AWS_REGION}:${AWS_ACCOUNT_ID}:space/*",
-        "arn:aws:sagemaker:${AWS_REGION}:${AWS_ACCOUNT_ID}:app/*"
-      ]
-    },
-    {
-      "Sid": "AllowDescribeOwnProfile",
-      "Effect": "Allow",
-      "Action": [
-        "sagemaker:DescribeUserProfile",
-        "sagemaker:CreatePresignedDomainUrl"
-      ],
-      "Resource": "arn:aws:sagemaker:${AWS_REGION}:${AWS_ACCOUNT_ID}:user-profile/*/*",
-      "Condition": {
-        "StringEquals": {
-          "sagemaker:ResourceTag/Owner": "\${aws:username}"
-        }
-      }
-    }
-  ]
-}
-POLICYEOF
+    render_template "${POLICY_TEMPLATES_DIR}/base-access.json.tpl"
 }
 
-# 生成团队策略
 generate_team_access_policy() {
     local team=$1
-    local team_fullname=$(get_team_fullname "$team")
-    
-    cat << POLICYEOF
-{
-  "Version": "2012-10-17",
-  "Statement": [
-    {
-      "Sid": "AllowDescribeTeamSpaces",
-      "Effect": "Allow",
-      "Action": [
-        "sagemaker:DescribeSpace",
-        "sagemaker:ListApps"
-      ],
-      "Resource": "arn:aws:sagemaker:${AWS_REGION}:${AWS_ACCOUNT_ID}:space/*",
-      "Condition": {
-        "StringEquals": {
-          "sagemaker:ResourceTag/Team": "${team}"
-        }
-      }
-    },
-    {
-      "Sid": "AllowListTeamS3Buckets",
-      "Effect": "Allow",
-      "Action": [
-        "s3:ListBucket",
-        "s3:GetBucketLocation"
-      ],
-      "Resource": "arn:aws:s3:::${COMPANY}-sm-${team}-*"
-    }
-  ]
-}
-POLICYEOF
+    render_template "${POLICY_TEMPLATES_DIR}/team-access.json.tpl" "TEAM=${team}"
 }
 
-# 生成项目策略
 generate_project_access_policy() {
     local team=$1
     local project=$2
-    
-    cat << POLICYEOF
-{
-  "Version": "2012-10-17",
-  "Statement": [
-    {
-      "Sid": "AllowProjectSpaceAccess",
-      "Effect": "Allow",
-      "Action": [
-        "sagemaker:DescribeSpace",
-        "sagemaker:CreateApp",
-        "sagemaker:DeleteApp",
-        "sagemaker:DescribeApp"
-      ],
-      "Resource": [
-        "arn:aws:sagemaker:${AWS_REGION}:${AWS_ACCOUNT_ID}:space/*/space-${team}-${project}",
-        "arn:aws:sagemaker:${AWS_REGION}:${AWS_ACCOUNT_ID}:app/*/*/*/*"
-      ],
-      "Condition": {
-        "StringEquals": {
-          "sagemaker:ResourceTag/Project": "${project}"
-        }
-      }
-    },
-    {
-      "Sid": "AllowProjectS3Access",
-      "Effect": "Allow",
-      "Action": [
-        "s3:GetObject",
-        "s3:PutObject",
-        "s3:DeleteObject",
-        "s3:ListBucket"
-      ],
-      "Resource": [
-        "arn:aws:s3:::${COMPANY}-sm-${team}-${project}",
-        "arn:aws:s3:::${COMPANY}-sm-${team}-${project}/*"
-      ]
-    },
-    {
-      "Sid": "AllowSharedAssetsReadOnly",
-      "Effect": "Allow",
-      "Action": [
-        "s3:GetObject",
-        "s3:ListBucket"
-      ],
-      "Resource": [
-        "arn:aws:s3:::${COMPANY}-sm-shared-assets",
-        "arn:aws:s3:::${COMPANY}-sm-shared-assets/*"
-      ]
-    },
-    {
-      "Sid": "AllowPassRoleToSageMaker",
-      "Effect": "Allow",
-      "Action": "iam:PassRole",
-      "Resource": "arn:aws:iam::${AWS_ACCOUNT_ID}:role/SageMaker-*-ExecutionRole",
-      "Condition": {
-        "StringEquals": {
-          "iam:PassedToService": "sagemaker.amazonaws.com"
-        }
-      }
-    }
-  ]
-}
-POLICYEOF
+    render_template "${POLICY_TEMPLATES_DIR}/project-access.json.tpl" \
+        "TEAM=${team}" "PROJECT=${project}"
 }
 
-# 生成 Execution Role 策略
-# 参考: https://docs.aws.amazon.com/sagemaker/latest/dg/security-iam-awsmanpol.html
 generate_execution_role_policy() {
     local team=$1
     local project=$2
-    
-    cat << POLICYEOF
-{
-  "Version": "2012-10-17",
-  "Statement": [
-    {
-      "Sid": "AllowS3ProjectAccess",
-      "Effect": "Allow",
-      "Action": [
-        "s3:GetObject",
-        "s3:PutObject",
-        "s3:DeleteObject",
-        "s3:ListBucket",
-        "s3:GetBucketLocation"
-      ],
-      "Resource": [
-        "arn:aws:s3:::${COMPANY}-sm-${team}-${project}",
-        "arn:aws:s3:::${COMPANY}-sm-${team}-${project}/*"
-      ]
-    },
-    {
-      "Sid": "AllowS3SageMakerDefaultBucket",
-      "Effect": "Allow",
-      "Action": [
-        "s3:GetObject",
-        "s3:PutObject",
-        "s3:DeleteObject",
-        "s3:ListBucket",
-        "s3:GetBucketLocation"
-      ],
-      "Resource": [
-        "arn:aws:s3:::sagemaker-${AWS_REGION}-${AWS_ACCOUNT_ID}",
-        "arn:aws:s3:::sagemaker-${AWS_REGION}-${AWS_ACCOUNT_ID}/*"
-      ]
-    },
-    {
-      "Sid": "AllowSharedAssetsReadOnly",
-      "Effect": "Allow",
-      "Action": [
-        "s3:GetObject",
-        "s3:ListBucket"
-      ],
-      "Resource": [
-        "arn:aws:s3:::${COMPANY}-sm-shared-assets",
-        "arn:aws:s3:::${COMPANY}-sm-shared-assets/*"
-      ]
-    },
-    {
-      "Sid": "AllowCloudWatchLogs",
-      "Effect": "Allow",
-      "Action": [
-        "logs:CreateLogGroup",
-        "logs:CreateLogStream",
-        "logs:PutLogEvents"
-      ],
-      "Resource": "arn:aws:logs:${AWS_REGION}:${AWS_ACCOUNT_ID}:log-group:/aws/sagemaker/*"
-    },
-    {
-      "Sid": "AllowECRReadWrite",
-      "Effect": "Allow",
-      "Action": [
-        "ecr:GetDownloadUrlForLayer",
-        "ecr:BatchGetImage",
-        "ecr:BatchCheckLayerAvailability",
-        "ecr:CreateRepository",
-        "ecr:DescribeRepositories",
-        "ecr:ListImages",
-        "ecr:BatchDeleteImage",
-        "ecr:InitiateLayerUpload",
-        "ecr:UploadLayerPart",
-        "ecr:CompleteLayerUpload",
-        "ecr:PutImage"
-      ],
-      "Resource": "arn:aws:ecr:${AWS_REGION}:${AWS_ACCOUNT_ID}:repository/${COMPANY}-sm-*"
-    },
-    {
-      "Sid": "AllowECRAuth",
-      "Effect": "Allow",
-      "Action": "ecr:GetAuthorizationToken",
-      "Resource": "*"
-    },
-    {
-      "Sid": "AllowECRPullAWSImages",
-      "Effect": "Allow",
-      "Action": [
-        "ecr:GetDownloadUrlForLayer",
-        "ecr:BatchGetImage",
-        "ecr:BatchCheckLayerAvailability"
-      ],
-      "Resource": "*"
-    },
-    {
-      "Sid": "AllowDataScienceAssistant",
-      "Effect": "Allow",
-      "Action": [
-        "sagemaker-data-science-assistant:SendConversation"
-      ],
-      "Resource": "*",
-      "Condition": {
-        "StringEquals": {
-          "aws:ResourceAccount": "${AWS_ACCOUNT_ID}"
-        }
-      }
-    },
-    {
-      "Sid": "AllowAmazonQDeveloper",
-      "Effect": "Allow",
-      "Action": [
-        "q:SendMessage",
-        "q:StartConversation"
-      ],
-      "Resource": "*",
-      "Condition": {
-        "StringEquals": {
-          "aws:ResourceAccount": "${AWS_ACCOUNT_ID}"
-        }
-      }
-    }
-  ]
-}
-POLICYEOF
+    render_template "${POLICY_TEMPLATES_DIR}/execution-role.json.tpl" \
+        "TEAM=${team}" "PROJECT=${project}"
 }
 
-# 生成 Permissions Boundary 策略 (Deny-list 方案)
 generate_user_boundary_policy() {
-    cat << POLICYEOF
-{
-  "Version": "2012-10-17",
-  "Statement": [
-    {
-      "Sid": "AllowSageMakerFullAccess",
-      "Effect": "Allow",
-      "Action": "sagemaker:*",
-      "Resource": "*"
-    },
-    {
-      "Sid": "AllowS3SageMakerBuckets",
-      "Effect": "Allow",
-      "Action": "s3:*",
-      "Resource": [
-        "arn:aws:s3:::${COMPANY}-sm-*",
-        "arn:aws:s3:::${COMPANY}-sm-*/*",
-        "arn:aws:s3:::sagemaker-*",
-        "arn:aws:s3:::sagemaker-*/*"
-      ]
-    },
-    {
-      "Sid": "AllowSupportingServices",
-      "Effect": "Allow",
-      "Action": [
-        "ecr:*",
-        "logs:*",
-        "cloudwatch:*",
-        "ec2:Describe*",
-        "kms:Describe*",
-        "kms:List*",
-        "sts:GetCallerIdentity",
-        "sts:AssumeRole",
-        "glue:*",
-        "athena:*",
-        "codecommit:*",
-        "secretsmanager:GetSecretValue",
-        "servicecatalog:*"
-      ],
-      "Resource": "*"
-    },
-    {
-      "Sid": "AllowPassRoleToSageMaker",
-      "Effect": "Allow",
-      "Action": "iam:PassRole",
-      "Resource": "arn:aws:iam::${AWS_ACCOUNT_ID}:role/SageMaker-*",
-      "Condition": {
-        "StringEquals": {
-          "iam:PassedToService": "sagemaker.amazonaws.com"
-        }
-      }
-    },
-    {
-      "Sid": "AllowGetRole",
-      "Effect": "Allow",
-      "Action": [
-        "iam:GetRole",
-        "iam:ListRoles"
-      ],
-      "Resource": "*"
-    },
-    {
-      "Sid": "DenyDangerousIAMActions",
-      "Effect": "Deny",
-      "Action": [
-        "iam:CreateUser",
-        "iam:DeleteUser",
-        "iam:CreateRole",
-        "iam:DeleteRole",
-        "iam:AttachUserPolicy",
-        "iam:DetachUserPolicy",
-        "iam:AttachRolePolicy",
-        "iam:DetachRolePolicy",
-        "iam:PutUserPolicy",
-        "iam:DeleteUserPolicy",
-        "iam:PutRolePolicy",
-        "iam:DeleteRolePolicy",
-        "iam:CreatePolicy",
-        "iam:DeletePolicy",
-        "iam:CreatePolicyVersion",
-        "iam:DeletePolicyVersion",
-        "iam:PutUserPermissionsBoundary",
-        "iam:DeleteUserPermissionsBoundary",
-        "iam:PutRolePermissionsBoundary",
-        "iam:DeleteRolePermissionsBoundary"
-      ],
-      "Resource": "*"
-    },
-    {
-      "Sid": "DenySageMakerAdminActions",
-      "Effect": "Deny",
-      "Action": [
-        "sagemaker:CreateDomain",
-        "sagemaker:DeleteDomain",
-        "sagemaker:UpdateDomain",
-        "sagemaker:CreateUserProfile",
-        "sagemaker:DeleteUserProfile"
-      ],
-      "Resource": "*"
-    },
-    {
-      "Sid": "DenyS3BucketAdmin",
-      "Effect": "Deny",
-      "Action": [
-        "s3:CreateBucket",
-        "s3:DeleteBucket",
-        "s3:PutBucketPolicy",
-        "s3:DeleteBucketPolicy"
-      ],
-      "Resource": "*"
-    }
-  ]
-}
-POLICYEOF
+    render_template "${POLICY_TEMPLATES_DIR}/user-boundary.json.tpl"
 }
 
-# 生成只读策略
 generate_readonly_policy() {
-    cat << POLICYEOF
-{
-  "Version": "2012-10-17",
-  "Statement": [
-    {
-      "Sid": "AllowReadOnlyAccess",
-      "Effect": "Allow",
-      "Action": [
-        "sagemaker:Describe*",
-        "sagemaker:List*",
-        "s3:GetObject",
-        "s3:ListBucket",
-        "logs:DescribeLogGroups",
-        "logs:DescribeLogStreams",
-        "logs:GetLogEvents"
-      ],
-      "Resource": "*"
-    }
-  ]
-}
-POLICYEOF
+    render_template "${POLICY_TEMPLATES_DIR}/readonly.json.tpl"
 }
 
-# 生成用户自助服务策略 (改密码、MFA)
 generate_self_service_policy() {
-    cat << POLICYEOF
-{
-  "Version": "2012-10-17",
-  "Statement": [
-    {
-      "Sid": "AllowViewAccountInfo",
-      "Effect": "Allow",
-      "Action": [
-        "iam:GetAccountPasswordPolicy",
-        "iam:ListVirtualMFADevices"
-      ],
-      "Resource": "*"
-    },
-    {
-      "Sid": "AllowManageOwnPasswords",
-      "Effect": "Allow",
-      "Action": [
-        "iam:ChangePassword",
-        "iam:GetUser"
-      ],
-      "Resource": "arn:aws:iam::${AWS_ACCOUNT_ID}:user${IAM_PATH}\${aws:username}"
-    },
-    {
-      "Sid": "AllowManageOwnMFA",
-      "Effect": "Allow",
-      "Action": [
-        "iam:CreateVirtualMFADevice",
-        "iam:DeleteVirtualMFADevice",
-        "iam:EnableMFADevice",
-        "iam:ListMFADevices",
-        "iam:ResyncMFADevice",
-        "iam:DeactivateMFADevice"
-      ],
-      "Resource": [
-        "arn:aws:iam::${AWS_ACCOUNT_ID}:mfa/*",
-        "arn:aws:iam::${AWS_ACCOUNT_ID}:user${IAM_PATH}\${aws:username}"
-      ]
-    }
-  ]
+    render_template "${POLICY_TEMPLATES_DIR}/self-service.json.tpl"
 }
-POLICYEOF
+
+generate_studio_app_permissions_policy() {
+    render_template "${POLICY_TEMPLATES_DIR}/studio-app-permissions.json.tpl"
+}
+
+generate_mlflow_app_access_policy() {
+    render_template "${POLICY_TEMPLATES_DIR}/mlflow-app-access.json.tpl"
 }
 
 # -----------------------------------------------------------------------------
@@ -567,6 +169,14 @@ main() {
     echo "=============================================="
     echo ""
     
+    # 检查模板目录
+    if [[ ! -d "$POLICY_TEMPLATES_DIR" ]]; then
+        log_error "Policy templates directory not found: $POLICY_TEMPLATES_DIR"
+        exit 1
+    fi
+    log_info "Using policy templates from: $POLICY_TEMPLATES_DIR"
+    echo ""
+    
     # 1. 创建基础策略
     log_info "Creating base access policy..."
     create_policy "SageMaker-Studio-Base-Access" \
@@ -591,7 +201,19 @@ main() {
         "$(generate_self_service_policy)" \
         "Self-service policy for password and MFA management"
     
-    # 5. 创建团队策略
+    # 5. 创建 Studio App 权限策略 (安全必须，始终创建)
+    log_info "Creating Studio App permissions policy..."
+    create_policy "SageMaker-StudioAppPermissions" \
+        "$(generate_studio_app_permissions_policy)" \
+        "Studio App permissions with user profile isolation"
+    
+    # 6. 创建 MLflow 访问策略 (实验追踪)
+    log_info "Creating MLflow App access policy..."
+    create_policy "SageMaker-MLflowAppAccess" \
+        "$(generate_mlflow_app_access_policy)" \
+        "MLflow App access for experiment tracking"
+    
+    # 8. 创建团队策略
     for team in $TEAMS; do
         local team_fullname=$(get_team_fullname "$team")
         log_info "Creating team policy for: $team ($team_fullname)"
@@ -604,7 +226,7 @@ main() {
             "Team access policy for ${team_fullname} team"
     done
     
-    # 6. 创建项目策略
+    # 9. 创建项目策略
     for team in $TEAMS; do
         local projects=$(get_projects_for_team "$team")
         for project in $projects; do
@@ -630,6 +252,7 @@ main() {
     log_success "All policies created successfully!"
     echo ""
     echo "Policy JSON files saved to: ${SCRIPT_DIR}/${OUTPUT_DIR}/"
+    echo "Policy templates located at: ${POLICY_TEMPLATES_DIR}/"
 }
 
 main

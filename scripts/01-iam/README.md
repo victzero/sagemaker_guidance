@@ -17,7 +17,7 @@ vi .env.shared  # 填入 COMPANY, AWS_ACCOUNT_ID, TEAMS, USERS 等
 # 2. 配置 IAM 特有变量（可选，通常使用默认值）
 cd 01-iam/
 cp .env.local.example .env.local
-vi .env.local  # 可修改 PASSWORD_PREFIX/SUFFIX
+vi .env.local  # 可修改 PASSWORD_PREFIX/SUFFIX, ENABLE_CONSOLE_LOGIN
 
 # 3. 执行创建（会显示预览，确认后执行）
 ./setup-all.sh
@@ -36,20 +36,32 @@ scripts/
 └── 01-iam/
     ├── .env.local.example    # IAM 特有变量模板 (可选)
     ├── .env.local            # IAM 特有变量 (不提交到 Git)
+    │
+    ├── policies/             # 策略模板文件 (与脚本分离)
+    │   ├── README.md
+    │   ├── trust-policy-sagemaker.json  # Trust Policy (静态)
+    │   ├── base-access.json.tpl
+    │   ├── team-access.json.tpl
+    │   ├── project-access.json.tpl
+    │   ├── execution-role.json.tpl
+    │   ├── user-boundary.json.tpl
+    │   ├── readonly.json.tpl
+    │   └── self-service.json.tpl
+    │
     ├── 00-init.sh           # 初始化和工具函数
-├── 01-create-policies.sh # 创建 IAM Policies
-├── 02-create-groups.sh  # 创建 IAM Groups
-├── 03-create-users.sh   # 创建 IAM Users
-├── 04-create-roles.sh   # 创建 Execution Roles
-├── 05-bind-policies.sh  # 绑定 Policies 到 Groups
-├── 06-add-users-to-groups.sh # 添加 Users 到 Groups
-├── setup-all.sh         # 主控脚本 (顺序执行所有步骤)
-├── verify.sh            # 验证配置
-├── cleanup.sh           # 清理资源 (危险!)
-├── output/              # 生成的策略 JSON 和凭证文件
-│   ├── policy-*.json
-│   └── user-credentials.txt
-└── README.md
+    ├── 01-create-policies.sh # 创建 IAM Policies
+    ├── 02-create-groups.sh  # 创建 IAM Groups
+    ├── 03-create-users.sh   # 创建 IAM Users
+    ├── 04-create-roles.sh   # 创建 Execution Roles
+    ├── 05-bind-policies.sh  # 绑定 Policies 到 Groups
+    ├── 06-add-users-to-groups.sh # 添加 Users 到 Groups
+    ├── setup-all.sh         # 主控脚本 (顺序执行所有步骤)
+    ├── verify.sh            # 验证配置
+    ├── cleanup.sh           # 清理资源 (危险!)
+    ├── output/              # 生成的策略 JSON 和凭证文件
+    │   ├── policy-*.json
+    │   └── user-credentials.txt
+    └── README.md
 ```
 
 ## 环境变量说明
@@ -66,6 +78,145 @@ scripts/
 | `TEAM_RC_FULLNAME`         | 团队全称                | `risk-control`           |
 | `RC_PROJECTS`              | 团队项目                | `"fraud-detection"`      |
 | `RC_FRAUD_DETECTION_USERS` | 项目用户                | `"alice bob"`            |
+| `ENABLE_CONSOLE_LOGIN`     | 启用 Console 登录       | `false` (默认)           |
+| `ENABLE_CANVAS`            | 启用 Canvas 低代码 ML   | `true` (默认)            |
+| `ENABLE_MLFLOW`            | 启用 MLflow 实验追踪    | `true` (默认)            |
+
+## Console 登录控制
+
+默认情况下，用户**不能**登录 AWS Console，只能通过 API 访问：
+
+```bash
+# 禁用 Console 登录（默认）
+./03-create-users.sh
+
+# 启用 Console 登录
+./03-create-users.sh --enable-console-login
+
+# 或通过环境变量
+ENABLE_CONSOLE_LOGIN=true ./03-create-users.sh
+```
+
+| 模式 | Console 登录 | API 访问 | 凭证文件 |
+|------|-------------|---------|---------|
+| 默认（禁用） | ❌ | ✅ | 不生成 |
+| 启用 | ✅ | ✅ | 生成 |
+
+**用户访问 SageMaker Studio 的方式：**
+
+1. **Console 登录禁用**: 通过 `CreatePresignedDomainUrl` API 获取预签名 URL
+2. **Console 登录启用**: 直接登录 AWS Console 访问 SageMaker Studio
+
+## Execution Role 设计
+
+### Trust Policy（信任策略）
+
+所有 Execution Role 使用统一的 Trust Policy：
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Principal": {
+        "Service": "sagemaker.amazonaws.com"
+      },
+      "Action": "sts:AssumeRole"
+    }
+  ]
+}
+```
+
+> 位置: `policies/trust-policy-sagemaker.json`
+
+### 权限层次
+
+**Domain Default Execution Role:**
+
+| 顺序 | 权限 | 说明 |
+|------|------|------|
+| 1 | AmazonSageMakerFullAccess | AWS 托管策略，SageMaker 全功能 |
+| 2 | Canvas 策略组 (可选) | 低代码 ML 平台，默认开启 |
+| 3 | StudioAppPermissions | 用户隔离，始终启用 |
+| 4 | MLflowAppAccess (可选) | 实验追踪，默认开启 |
+
+**Project Execution Role (用于 User Profile):**
+
+| 顺序 | 权限 | 说明 |
+|------|------|------|
+| 1 | AmazonSageMakerFullAccess | AWS 托管策略（必须先附加） |
+| 2 | Canvas 策略组 (可选) | 低代码 ML 平台，默认开启 |
+| 3 | StudioAppPermissions | 用户隔离，始终启用 |
+| 4 | MLflowAppAccess (可选) | 实验追踪，默认开启 |
+| 5 | 项目自定义策略 | S3、ECR、CloudWatch 等权限 |
+
+### Canvas 策略组（默认开启）
+
+Canvas 是 SageMaker 的低代码 ML 平台。`ENABLE_CANVAS=true`（默认）时附加以下策略：
+
+| 策略 | 用途 |
+|------|------|
+| AmazonSageMakerCanvasFullAccess | Canvas 核心功能 |
+| AmazonSageMakerCanvasAIServicesAccess | AI 服务 (Bedrock, Textract, Comprehend 等) |
+| AmazonSageMakerCanvasDataPrepFullAccess | 数据准备 (Data Wrangler, Glue, Athena) |
+| AmazonSageMakerCanvasDirectDeployAccess | 模型部署到 Endpoint |
+
+```bash
+# 禁用 Canvas（减少权限范围）
+ENABLE_CANVAS=false ./04-create-roles.sh
+```
+
+### Studio App Permissions（始终启用）
+
+提供精细化的 Studio 权限隔离，**安全必须**：
+
+| 功能 | 说明 |
+|------|------|
+| Private Space 隔离 | 用户只能操作自己的私有空间 |
+| Shared Space 协作 | 可以在共享空间创建/删除 App |
+| 预签名 URL | 只能为自己的 Profile 生成登录 URL |
+| 防误操作 | 防止用户误删他人资源 |
+
+### MLflow App Access（默认开启）
+
+提供 MLflow 实验追踪能力：
+
+| 功能 | 说明 |
+|------|------|
+| MLflow App 管理 | 创建/删除/描述 MLflow 应用 |
+| 实验追踪 | 记录参数、指标、模型版本 |
+| Model Registry 集成 | 与 SageMaker Model Registry 无缝对接 |
+| Artifact 存储 | S3 存储实验 artifacts |
+
+```bash
+# 禁用 MLflow（减少权限范围）
+ENABLE_MLFLOW=false ./04-create-roles.sh
+```
+
+### 权限内容
+
+**AmazonSageMakerFullAccess 包含:**
+
+- SageMaker 全功能（Notebook, Processing, Training, Inference）
+- 模型注册表、实验、Pipeline
+- 数据科学助手、Amazon Q
+
+**Canvas 策略组包含:**
+
+- SageMaker Canvas 低代码 ML 平台
+- AI 服务集成（Bedrock, Textract, Comprehend, Rekognition）
+- 数据准备（Data Wrangler, Glue, Athena）
+- 直接部署模型到 Endpoint
+
+**项目自定义策略包含:**
+
+- S3 项目桶读写
+- S3 SageMaker 默认桶
+- S3 共享资产桶（只读）
+- CloudWatch Logs
+- ECR 镜像仓库
+- Amazon Q / Data Science Assistant
 
 ## 资源筛选
 
@@ -93,7 +244,7 @@ aws iam list-roles --path-prefix /acme-sagemaker/
 
 ### 01-create-policies.sh
 
-创建以下策略：
+创建以下策略（使用 `policies/` 目录下的模板）：
 
 - `SageMaker-Studio-Base-Access` - 基础访问策略
 - `SageMaker-ReadOnly-Access` - 只读策略（S3 限制为 `${COMPANY}-sm-*` 桶）
@@ -127,17 +278,24 @@ aws iam list-roles --path-prefix /acme-sagemaker/
 
 创建用户并：
 
-- 设置初始密码 (需要首次登录重置)
+- 设置初始密码 (需要首次登录重置) - **仅当启用 Console 登录时**
 - 应用 Permissions Boundary
 - 添加 Tags (Team, Owner, ManagedBy)
+
+**参数:**
+
+```bash
+./03-create-users.sh [--enable-console-login]
+```
 
 ### 04-create-roles.sh
 
 创建 SageMaker Execution Roles：
 
+- Domain 默认执行角色（AmazonSageMakerFullAccess）
 - 每个项目一个执行角色
-- 信任 sagemaker.amazonaws.com
-- 绑定对应的 ExecutionPolicy
+- 信任 sagemaker.amazonaws.com (仅 `sts:AssumeRole`)
+- 先附加 AmazonSageMakerFullAccess，再附加项目策略
 
 ### 05-bind-policies.sh
 
@@ -167,6 +325,23 @@ aws iam list-roles --path-prefix /acme-sagemaker/
 5. bind-policies    # 绑定策略到组
 6. add-users-to-groups  # 添加用户到组
 ```
+
+## 策略模板
+
+策略内容与 Shell 脚本分离，位于 `policies/` 目录：
+
+| 模板文件 | 说明 | 变量 |
+|---------|------|------|
+| `trust-policy-sagemaker.json` | Trust Policy | 无（静态） |
+| `base-access.json.tpl` | 基础访问 | `AWS_REGION`, `AWS_ACCOUNT_ID` |
+| `team-access.json.tpl` | 团队访问 | + `COMPANY`, `TEAM` |
+| `project-access.json.tpl` | 项目访问 | + `PROJECT` |
+| `execution-role.json.tpl` | Execution Role | + `PROJECT` |
+| `user-boundary.json.tpl` | 权限边界 | `AWS_ACCOUNT_ID`, `COMPANY` |
+| `readonly.json.tpl` | 只读访问 | 无 |
+| `self-service.json.tpl` | 自助服务 | `AWS_ACCOUNT_ID`, `IAM_PATH` |
+
+详见 `policies/README.md`。
 
 ## 验证
 
@@ -216,7 +391,7 @@ Verification PASSED - All resources configured correctly
 
 ## 安全注意事项
 
-1. **凭证文件**: `output/user-credentials.txt` 包含初始密码，请：
+1. **凭证文件**: `output/user-credentials.txt` 包含初始密码（仅启用 Console 登录时生成），请：
 
    - 安全传递给用户
    - 传递后立即删除文件
@@ -227,6 +402,8 @@ Verification PASSED - All resources configured correctly
 3. **IAM Path**: 所有资源使用 `/${COMPANY}-sagemaker/` 路径，便于管理和审计
 
 4. **最小权限**: 用户只能访问自己项目的资源
+
+5. **Console 登录**: 默认禁用，推荐通过预签名 URL 访问 SageMaker Studio
 
 ## 常见问题
 
@@ -251,7 +428,7 @@ vi .env
 #    改为: RC_FRAUD_DETECTION_USERS="alice bob frank"
 
 # 2. 运行创建用户脚本（会跳过已存在的 alice、bob）
-./03-create-users.sh
+./03-create-users.sh [--enable-console-login]
 
 # 3. 运行加组脚本（将新用户添加到团队组和项目组）
 ./06-add-users-to-groups.sh
@@ -263,7 +440,7 @@ vi .env
 新用户将获得：
 
 - 用户名：`sm-rc-frank`
-- 初始密码：保存在 `output/user-credentials.txt`
+- 初始密码：保存在 `output/user-credentials.txt`（仅启用 Console 登录时）
 - 所属组：`sagemaker-risk-control` + `sagemaker-rc-fraud-detection`
 
 ### Q: 如何添加新项目？
@@ -305,8 +482,37 @@ aws iam list-roles --path-prefix /${COMPANY}-sagemaker/
 aws iam list-policies --scope Local --path-prefix /${COMPANY}-sagemaker/
 ```
 
+### Q: 如何修改策略模板？
+
+A: 直接编辑 `policies/` 目录下的模板文件，然后运行：
+
+```bash
+./01-create-policies.sh --force
+```
+
+### Q: 为什么 User Profile 的 Execution Role 需要 AmazonSageMakerFullAccess？
+
+A: SageMaker 的很多功能（Processing Job, Training Job, Inference）需要 AmazonSageMakerFullAccess 中的权限。项目自定义策略只补充 S3、ECR 等资源的权限。
+
+### Q: 如何禁用 Canvas 功能？
+
+A: 在 `.env.shared` 或 `.env.local` 中设置：
+
+```bash
+ENABLE_CANVAS=false
+```
+
+或者运行时指定：
+
+```bash
+ENABLE_CANVAS=false ./04-create-roles.sh
+```
+
+禁用后，Execution Role 不会附加 Canvas 相关的 4 个策略，减少权限范围。
+
 ## 相关文档
 
 - [02-iam-design.md](../../docs/02-iam-design.md) - IAM 设计文档
 - [05-sagemaker-domain.md](../../docs/05-sagemaker-domain.md) - Domain 创建
 - [06-user-profile.md](../../docs/06-user-profile.md) - User Profile 创建
+- [policies/README.md](./policies/README.md) - 策略模板说明
