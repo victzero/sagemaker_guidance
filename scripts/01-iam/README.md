@@ -46,7 +46,9 @@ scripts/
     │   ├── execution-role.json.tpl
     │   ├── user-boundary.json.tpl
     │   ├── readonly.json.tpl
-    │   └── self-service.json.tpl
+    │   ├── self-service.json.tpl
+    │   ├── studio-app-permissions.json.tpl  # Studio 用户隔离
+    │   └── mlflow-app-access.json.tpl       # MLflow 实验追踪
     │
     ├── 00-init.sh           # 初始化和工具函数
     ├── 01-create-policies.sh # 创建 IAM Policies
@@ -63,6 +65,172 @@ scripts/
     │   └── user-credentials.txt
     └── README.md
 ```
+
+## 架构设计
+
+### 多团队/项目组织结构
+
+```
+Company (acme)
+│
+├── Team: risk-control (rc)
+│   ├── Project: fraud-detection
+│   │   └── Users: alice, bob
+│   └── Project: anti-money-laundering
+│       └── Users: charlie
+│
+└── Team: algorithm (algo)
+    └── Project: recommendation
+        └── Users: david, eve
+```
+
+**命名约定**:
+
+| 资源类型         | 命名规则                                   | 示例                                                 |
+| ---------------- | ------------------------------------------ | ---------------------------------------------------- |
+| IAM User         | `sm-{team}-{username}`                     | `sm-rc-alice`                                        |
+| IAM Group (团队) | `sagemaker-{team-fullname}`                | `sagemaker-risk-control`                             |
+| IAM Group (项目) | `sagemaker-{team}-{project}`               | `sagemaker-rc-fraud-detection`                       |
+| Execution Role   | `SageMaker-{Team}-{Project}-ExecutionRole` | `SageMaker-RiskControl-FraudDetection-ExecutionRole` |
+| S3 Bucket        | `{company}-sm-{team}-{project}`            | `acme-sm-rc-fraud-detection`                         |
+
+### 项目级 S3 隔离架构
+
+```
+S3 Buckets
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+项目桶 (完全隔离):
+┌────────────────────────────────┐
+│ acme-sm-rc-fraud-detection     │ ← rc/fraud-detection 专用
+├────────────────────────────────┤
+│ acme-sm-rc-anti-money-launder  │ ← rc/aml 专用
+├────────────────────────────────┤
+│ acme-sm-algo-recommendation    │ ← algo/recommendation 专用
+└────────────────────────────────┘
+
+共享桶 (只读):
+┌────────────────────────────────┐
+│ acme-sm-shared-assets          │ ← 所有项目可读取
+│   ├── datasets/                │   公共数据集
+│   ├── models/                  │   预训练模型
+│   └── scripts/                 │   共享脚本
+└────────────────────────────────┘
+
+SageMaker 默认桶:
+┌────────────────────────────────┐
+│ sagemaker-{region}-{account}   │ ← ML 作业自动使用
+└────────────────────────────────┘
+```
+
+### IAM 多层权限控制
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    IAM 多层权限控制架构                      │
+├─────────────────────────────────────────────────────────────┤
+│                                                             │
+│   ┌─────────────┐                                          │
+│   │  IAM User   │ ← Permissions Boundary (最大权限边界)     │
+│   └──────┬──────┘                                          │
+│          │                                                  │
+│          ▼                                                  │
+│   ┌─────────────┐                                          │
+│   │  IAM Group  │ ← 团队组 + 项目组 (双重归属)              │
+│   └──────┬──────┘                                          │
+│          │                                                  │
+│          ▼                                                  │
+│   ┌─────────────┐                                          │
+│   │User Profile │ ← 绑定 Project Execution Role            │
+│   └──────┬──────┘                                          │
+│          │                                                  │
+│          ▼                                                  │
+│   ┌─────────────┐                                          │
+│   │Execution Role│ ← 项目级 S3/ECR 权限                    │
+│   └─────────────┘                                          │
+│                                                             │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### 权限绑定关系
+
+```
+                           ┌─────────────────────────────────┐
+                           │      IAM User: sm-rc-alice      │
+                           └───────────────┬─────────────────┘
+                                           │
+                    ┌──────────────────────┼──────────────────────┐
+                    │                      │                      │
+                    ▼                      ▼                      ▼
+        ┌───────────────────┐  ┌───────────────────┐  ┌───────────────────┐
+        │ Permissions       │  │ Team Group        │  │ Project Group     │
+        │ Boundary          │  │ sagemaker-rc      │  │ sagemaker-rc-     │
+        │                   │  │                   │  │ fraud-detection   │
+        └───────────────────┘  └───────────────────┘  └───────────────────┘
+                │                      │                      │
+                │                      │                      │
+                ▼                      ▼                      ▼
+        ┌───────────────────────────────────────────────────────────────┐
+        │                     有效权限 = 三者交集                        │
+        │  • 只能访问 rc 团队的 S3 桶前缀                                │
+        │  • 只能访问 fraud-detection 项目的资源                        │
+        │  • 不能执行 IAM/Domain 管理操作                               │
+        └───────────────────────────────────────────────────────────────┘
+```
+
+### Execution Role 项目隔离
+
+```
+User Profile                          Execution Role
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+sm-rc-alice-profile    ──bindTo──►   SageMaker-RiskControl-
+                                     FraudDetection-ExecutionRole
+                                           │
+                                           ▼
+                                     ┌─────────────────────┐
+                                     │ 项目 S3 权限:       │
+                                     │ acme-sm-rc-fraud-*  │
+                                     │                     │
+                                     │ 共享资产 (只读):    │
+                                     │ acme-sm-shared-*    │
+                                     │                     │
+                                     │ ECR (项目隔离):     │
+                                     │ acme-sm-rc-fraud-*  │
+                                     └─────────────────────┘
+```
+
+**关键点**:
+
+- 每个项目有独立的 Execution Role
+- Execution Role 的 S3 权限**硬编码**到项目桶
+- User Profile 绑定项目 Execution Role，**不是** Domain 默认 Role
+
+### 权限层次总结
+
+| 层次                      | 控制内容                    | 隔离粒度 |
+| ------------------------- | --------------------------- | -------- |
+| **Permissions Boundary**  | 最大权限上限，禁止危险操作  | 全局     |
+| **Team Group Policy**     | 团队级 S3 桶前缀访问        | 团队     |
+| **Project Group Policy**  | 项目 Space 访问、项目 S3 桶 | 项目     |
+| **Execution Role Policy** | ML 作业的 S3/ECR 访问       | 项目     |
+
+### 访问矩阵示例
+
+| 用户             | fraud-detection S3 | aml S3  | recommendation S3 | shared-assets |
+| ---------------- | :----------------: | :-----: | :---------------: | :-----------: |
+| alice (rc/fraud) |      ✅ 读写       |   ❌    |        ❌         |    ✅ 只读    |
+| charlie (rc/aml) |         ❌         | ✅ 读写 |        ❌         |    ✅ 只读    |
+| david (algo/rec) |         ❌         |   ❌    |      ✅ 读写      |    ✅ 只读    |
+
+### 与控制台创建的区别
+
+| 方面           | 控制台快速设置       | 我们的设计                             |
+| -------------- | -------------------- | -------------------------------------- |
+| S3 权限        | 通配符 `sagemaker-*` | 项目桶 `{company}-sm-{team}-{project}` |
+| 隔离粒度       | 无隔离               | 团队 → 项目 → 用户                     |
+| Execution Role | 所有用户共用一个     | 每个项目独立 Role                      |
+| 扩展性         | 手动管理             | 脚本化，加项目只需改 .env              |
 
 ## 环境变量说明
 
@@ -97,10 +265,10 @@ scripts/
 ENABLE_CONSOLE_LOGIN=true ./03-create-users.sh
 ```
 
-| 模式 | Console 登录 | API 访问 | 凭证文件 |
-|------|-------------|---------|---------|
-| 默认（禁用） | ❌ | ✅ | 不生成 |
-| 启用 | ✅ | ✅ | 生成 |
+| 模式         | Console 登录 | API 访问 | 凭证文件 |
+| ------------ | ------------ | -------- | -------- |
+| 默认（禁用） | ❌           | ✅       | 不生成   |
+| 启用         | ✅           | ✅       | 生成     |
 
 **用户访问 SageMaker Studio 的方式：**
 
@@ -134,33 +302,33 @@ ENABLE_CONSOLE_LOGIN=true ./03-create-users.sh
 
 **Domain Default Execution Role:**
 
-| 顺序 | 权限 | 说明 |
-|------|------|------|
-| 1 | AmazonSageMakerFullAccess | AWS 托管策略，SageMaker 全功能 |
-| 2 | Canvas 策略组 (可选) | 低代码 ML 平台，默认开启 |
-| 3 | StudioAppPermissions | 用户隔离，始终启用 |
-| 4 | MLflowAppAccess (可选) | 实验追踪，默认开启 |
+| 顺序 | 权限                      | 说明                           |
+| ---- | ------------------------- | ------------------------------ |
+| 1    | AmazonSageMakerFullAccess | AWS 托管策略，SageMaker 全功能 |
+| 2    | Canvas 策略组 (可选)      | 低代码 ML 平台，默认开启       |
+| 3    | StudioAppPermissions      | 用户隔离，始终启用             |
+| 4    | MLflowAppAccess (可选)    | 实验追踪，默认开启             |
 
 **Project Execution Role (用于 User Profile):**
 
-| 顺序 | 权限 | 说明 |
-|------|------|------|
-| 1 | AmazonSageMakerFullAccess | AWS 托管策略（必须先附加） |
-| 2 | Canvas 策略组 (可选) | 低代码 ML 平台，默认开启 |
-| 3 | StudioAppPermissions | 用户隔离，始终启用 |
-| 4 | MLflowAppAccess (可选) | 实验追踪，默认开启 |
-| 5 | 项目自定义策略 | S3、ECR、CloudWatch 等权限 |
+| 顺序 | 权限                      | 说明                       |
+| ---- | ------------------------- | -------------------------- |
+| 1    | AmazonSageMakerFullAccess | AWS 托管策略（必须先附加） |
+| 2    | Canvas 策略组 (可选)      | 低代码 ML 平台，默认开启   |
+| 3    | StudioAppPermissions      | 用户隔离，始终启用         |
+| 4    | MLflowAppAccess (可选)    | 实验追踪，默认开启         |
+| 5    | 项目自定义策略            | S3、ECR、CloudWatch 等权限 |
 
 ### Canvas 策略组（默认开启）
 
 Canvas 是 SageMaker 的低代码 ML 平台。`ENABLE_CANVAS=true`（默认）时附加以下策略：
 
-| 策略 | 用途 |
-|------|------|
-| AmazonSageMakerCanvasFullAccess | Canvas 核心功能 |
-| AmazonSageMakerCanvasAIServicesAccess | AI 服务 (Bedrock, Textract, Comprehend 等) |
-| AmazonSageMakerCanvasDataPrepFullAccess | 数据准备 (Data Wrangler, Glue, Athena) |
-| AmazonSageMakerCanvasDirectDeployAccess | 模型部署到 Endpoint |
+| 策略                                    | 用途                                       |
+| --------------------------------------- | ------------------------------------------ |
+| AmazonSageMakerCanvasFullAccess         | Canvas 核心功能                            |
+| AmazonSageMakerCanvasAIServicesAccess   | AI 服务 (Bedrock, Textract, Comprehend 等) |
+| AmazonSageMakerCanvasDataPrepFullAccess | 数据准备 (Data Wrangler, Glue, Athena)     |
+| AmazonSageMakerCanvasDirectDeployAccess | 模型部署到 Endpoint                        |
 
 ```bash
 # 禁用 Canvas（减少权限范围）
@@ -171,23 +339,23 @@ ENABLE_CANVAS=false ./04-create-roles.sh
 
 提供精细化的 Studio 权限隔离，**安全必须**：
 
-| 功能 | 说明 |
-|------|------|
-| Private Space 隔离 | 用户只能操作自己的私有空间 |
-| Shared Space 协作 | 可以在共享空间创建/删除 App |
-| 预签名 URL | 只能为自己的 Profile 生成登录 URL |
-| 防误操作 | 防止用户误删他人资源 |
+| 功能               | 说明                              |
+| ------------------ | --------------------------------- |
+| Private Space 隔离 | 用户只能操作自己的私有空间        |
+| Shared Space 协作  | 可以在共享空间创建/删除 App       |
+| 预签名 URL         | 只能为自己的 Profile 生成登录 URL |
+| 防误操作           | 防止用户误删他人资源              |
 
 ### MLflow App Access（默认开启）
 
 提供 MLflow 实验追踪能力：
 
-| 功能 | 说明 |
-|------|------|
-| MLflow App 管理 | 创建/删除/描述 MLflow 应用 |
-| 实验追踪 | 记录参数、指标、模型版本 |
+| 功能                | 说明                                 |
+| ------------------- | ------------------------------------ |
+| MLflow App 管理     | 创建/删除/描述 MLflow 应用           |
+| 实验追踪            | 记录参数、指标、模型版本             |
 | Model Registry 集成 | 与 SageMaker Model Registry 无缝对接 |
-| Artifact 存储 | S3 存储实验 artifacts |
+| Artifact 存储       | S3 存储实验 artifacts                |
 
 ```bash
 # 禁用 MLflow（减少权限范围）
@@ -246,24 +414,31 @@ aws iam list-roles --path-prefix /acme-sagemaker/
 
 创建以下策略（使用 `policies/` 目录下的模板）：
 
+**通用策略:**
+
 - `SageMaker-Studio-Base-Access` - 基础访问策略
 - `SageMaker-ReadOnly-Access` - 只读策略（S3 限制为 `${COMPANY}-sm-*` 桶）
 - `SageMaker-User-SelfService` - 用户自服务策略（修改密码、MFA、**强制 MFA**）
 - `SageMaker-User-Boundary` - 权限边界策略
+- `SageMaker-StudioAppPermissions` - Studio 用户隔离（安全必须）
+- `SageMaker-MLflowAppAccess` - MLflow 实验追踪
+
+**团队/项目策略:**
+
 - `SageMaker-{Team}-Team-Access` - 团队访问策略
 - `SageMaker-{Team}-{Project}-Access` - 项目访问策略
-- `SageMaker-{Team}-{Project}-ExecutionPolicy` - 执行角色策略
+- `SageMaker-{Team}-{Project}-ExecutionPolicy` - 执行角色策略（项目 S3 隔离）
 
 **安全策略说明：**
 
-| 功能 | 状态 |
-|------|------|
-| 修改密码 | ✅ 允许 |
-| 设置 MFA | ✅ 允许 |
-| **强制 MFA** | ✅ 未启用 MFA 时只能设置 MFA，其他操作被拒绝 |
-| 创建 Access Key | ❌ 禁止（显式 Deny） |
-| 查看所有 S3 桶 | ❌ 禁止（只能访问 `${COMPANY}-sm-*` 桶） |
-| 查看其他用户 | ❌ 禁止 |
+| 功能            | 状态                                         |
+| --------------- | -------------------------------------------- |
+| 修改密码        | ✅ 允许                                      |
+| 设置 MFA        | ✅ 允许                                      |
+| **强制 MFA**    | ✅ 未启用 MFA 时只能设置 MFA，其他操作被拒绝 |
+| 创建 Access Key | ❌ 禁止（显式 Deny）                         |
+| 查看所有 S3 桶  | ❌ 禁止（只能访问 `${COMPANY}-sm-*` 桶）     |
+| 查看其他用户    | ❌ 禁止                                      |
 
 ### 02-create-groups.sh
 
@@ -330,16 +505,18 @@ aws iam list-roles --path-prefix /acme-sagemaker/
 
 策略内容与 Shell 脚本分离，位于 `policies/` 目录：
 
-| 模板文件 | 说明 | 变量 |
-|---------|------|------|
-| `trust-policy-sagemaker.json` | Trust Policy | 无（静态） |
-| `base-access.json.tpl` | 基础访问 | `AWS_REGION`, `AWS_ACCOUNT_ID` |
-| `team-access.json.tpl` | 团队访问 | + `COMPANY`, `TEAM` |
-| `project-access.json.tpl` | 项目访问 | + `PROJECT` |
-| `execution-role.json.tpl` | Execution Role | + `PROJECT` |
-| `user-boundary.json.tpl` | 权限边界 | `AWS_ACCOUNT_ID`, `COMPANY` |
-| `readonly.json.tpl` | 只读访问 | 无 |
-| `self-service.json.tpl` | 自助服务 | `AWS_ACCOUNT_ID`, `IAM_PATH` |
+| 模板文件                          | 说明                    | 变量                           |
+| --------------------------------- | ----------------------- | ------------------------------ |
+| `trust-policy-sagemaker.json`     | Trust Policy            | 无（静态）                     |
+| `base-access.json.tpl`            | 基础访问                | `AWS_REGION`, `AWS_ACCOUNT_ID` |
+| `team-access.json.tpl`            | 团队访问                | + `COMPANY`, `TEAM`            |
+| `project-access.json.tpl`         | 项目访问                | + `PROJECT`                    |
+| `execution-role.json.tpl`         | Execution Role 项目权限 | + `PROJECT`                    |
+| `user-boundary.json.tpl`          | 权限边界                | `AWS_ACCOUNT_ID`, `COMPANY`    |
+| `readonly.json.tpl`               | 只读访问                | 无                             |
+| `self-service.json.tpl`           | 自助服务                | `AWS_ACCOUNT_ID`, `IAM_PATH`   |
+| `studio-app-permissions.json.tpl` | Studio 用户隔离         | `AWS_REGION`, `AWS_ACCOUNT_ID` |
+| `mlflow-app-access.json.tpl`      | MLflow 实验追踪         | `AWS_REGION`, `AWS_ACCOUNT_ID` |
 
 详见 `policies/README.md`。
 
