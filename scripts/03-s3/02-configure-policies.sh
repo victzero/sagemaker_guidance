@@ -24,12 +24,8 @@ generate_project_bucket_policy() {
     local project_formatted=$(format_name "$project")
     local execution_role_name="SageMaker-${team_formatted}-${project_formatted}-ExecutionRole"
     
-    # IAM Role 使用了 path，ARN 格式: arn:aws:iam::ACCOUNT:role/PATH/ROLE_NAME
-    local iam_path="${IAM_PATH:-/${COMPANY}-sagemaker/}"
-    # 移除首尾斜杠用于 ARN 拼接
-    local iam_path_clean="${iam_path#/}"
-    iam_path_clean="${iam_path_clean%/}"
-    local execution_role="${iam_path_clean}/${execution_role_name}"
+    # 注意: Execution Role 使用默认路径 (/)，不使用 IAM_PATH
+    # ARN 格式: arn:aws:iam::ACCOUNT:role/ROLE_NAME
     
     local policy='{
   "Version": "2012-10-17",
@@ -38,7 +34,7 @@ generate_project_bucket_policy() {
       "Sid": "AllowExecutionRoleAccess",
       "Effect": "Allow",
       "Principal": {
-        "AWS": "arn:aws:iam::'"${AWS_ACCOUNT_ID}"':role/'"${execution_role}"'"
+        "AWS": "arn:aws:iam::'"${AWS_ACCOUNT_ID}"':role/'"${execution_role_name}"'"
       },
       "Action": [
         "s3:GetObject",

@@ -135,9 +135,11 @@ aws iam list-groups --path-prefix /acme-sagemaker/
 # 列出所有用户
 aws iam list-users --path-prefix /acme-sagemaker/
 
-# 列出所有角色
-aws iam list-roles --path-prefix /acme-sagemaker/
+# 列出所有角色（使用名称前缀，因为 Roles 使用默认路径 /）
+aws iam list-roles --query 'Roles[?starts_with(RoleName, `SageMaker-`)].RoleName'
 ```
+
+**注意**：Execution Role 使用默认路径 (`/`) 而非 IAM_PATH，以便 SageMaker 服务可以正确引用。
 
 ---
 

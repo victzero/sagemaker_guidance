@@ -26,7 +26,7 @@ echo ""
 echo "This will DELETE the following resources:"
 echo "  - All IAM Users with path ${IAM_PATH}"
 echo "  - All IAM Groups with path ${IAM_PATH}"
-echo "  - All IAM Roles with path ${IAM_PATH}"
+echo "  - All IAM Roles matching SageMaker-*-ExecutionRole (default path)"
 echo "  - All IAM Policies with path ${IAM_PATH}"
 echo ""
 
@@ -230,10 +230,11 @@ main() {
         delete_group "$group"
     done
     
-    # 3. 删除角色
+    # 3. 删除角色（不使用 path，通过名称前缀筛选）
     log_info "Step 3: Deleting roles..."
-    local roles=$(aws iam list-roles --path-prefix "${IAM_PATH}" \
-        --query 'Roles[].RoleName' --output text 2>/dev/null || echo "")
+    local roles=$(aws iam list-roles \
+        --query 'Roles[?starts_with(RoleName, `SageMaker-`) && contains(RoleName, `ExecutionRole`)].RoleName' \
+        --output text 2>/dev/null || echo "")
     
     for role in $roles; do
         delete_role "$role"

@@ -298,6 +298,38 @@ ENABLE_CONSOLE_LOGIN=true ./03-create-users.sh
 
 > 位置: `policies/trust-policy-sagemaker.json`
 
+### IAM Path 设计
+
+**重要设计决策**：Execution Role 使用默认路径 (`/`)，而非 IAM_PATH（如 `/acme-sagemaker/`）。
+
+```
+IAM 资源路径设计:
+├── /acme-sagemaker/                    # 用于组织和筛选
+│   ├── Users                           # IAM 用户
+│   ├── Groups                          # IAM 用户组
+│   └── Policies                        # IAM 策略
+│
+└── / (default path)                    # 用于服务兼容
+    └── Roles                           # Execution Roles
+        ├── SageMaker-Domain-DefaultExecutionRole
+        └── SageMaker-{Team}-{Project}-ExecutionRole
+```
+
+**原因**：
+
+| 场景 | 使用 IAM_PATH | 使用默认路径 |
+|------|:-------------:|:------------:|
+| User Profile 绑定 Role | ❌ 需完整 ARN | ✅ 只需 Role 名称 |
+| SageMaker AssumeRole | ❌ 可能失败 | ✅ 自动识别 |
+| 控制台查看 | ❌ 需手动指定 path | ✅ 直接显示 |
+| 其他 AWS 服务集成 | ❌ 需完整 ARN | ✅ 兼容性好 |
+
+**筛选方式**：通过名称前缀 `SageMaker-` 筛选 Execution Roles：
+
+```bash
+aws iam list-roles --query 'Roles[?starts_with(RoleName, `SageMaker-`) && contains(RoleName, `ExecutionRole`)].RoleName'
+```
+
 ### 权限层次
 
 **Domain Default Execution Role:**
@@ -402,11 +434,13 @@ aws iam list-groups --path-prefix /acme-sagemaker/
 # Users
 aws iam list-users --path-prefix /acme-sagemaker/
 
-# Roles
-aws iam list-roles --path-prefix /acme-sagemaker/
+# Roles (不使用 path，通过名称前缀筛选)
+aws iam list-roles --query 'Roles[?starts_with(RoleName, `SageMaker-`)].RoleName'
 ```
 
-**AWS Console 筛选**：在 IAM 控制台搜索框输入公司前缀（如 `acme`）。
+**注意**：Execution Role 使用默认路径 (`/`)，这是因为 SageMaker 服务在 AssumeRole 时通常引用默认路径下的 Role。通过名称前缀 `SageMaker-` 进行筛选。
+
+**AWS Console 筛选**：在 IAM 控制台搜索框输入公司前缀（如 `acme`）或 `SageMaker-`。
 
 ## 脚本说明
 
@@ -646,7 +680,7 @@ vi .env
 
 ### Q: 如何查看创建了哪些资源？
 
-A: 使用路径前缀筛选：
+A: 使用路径前缀筛选（注意 Roles 使用名称前缀）：
 
 ```bash
 # 查看所有资源
@@ -655,8 +689,10 @@ A: 使用路径前缀筛选：
 # 或手动查询
 aws iam list-users --path-prefix /${COMPANY}-sagemaker/
 aws iam list-groups --path-prefix /${COMPANY}-sagemaker/
-aws iam list-roles --path-prefix /${COMPANY}-sagemaker/
 aws iam list-policies --scope Local --path-prefix /${COMPANY}-sagemaker/
+
+# Roles 使用默认路径，通过名称前缀筛选
+aws iam list-roles --query 'Roles[?starts_with(RoleName, `SageMaker-`)].RoleName'
 ```
 
 ### Q: 如何修改策略模板？

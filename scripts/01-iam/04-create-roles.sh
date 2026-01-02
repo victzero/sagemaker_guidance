@@ -213,6 +213,7 @@ create_domain_default_role() {
     echo ""
     
     # 检查 Role 是否已存在
+    # 注意: Execution Role 不使用 IAM_PATH，便于 SageMaker 服务引用
     if aws iam get-role --role-name "$role_name" &> /dev/null; then
         log_warn "Role $role_name already exists, updating trust policy..."
         # 确保 trust policy 正确
@@ -223,12 +224,12 @@ create_domain_default_role() {
     else
         aws iam create-role \
             --role-name "$role_name" \
-            --path "${IAM_PATH}" \
             --assume-role-policy-document "file://${trust_policy_file}" \
             --description "Default execution role for SageMaker Domain" \
             --tags \
                 "Key=Purpose,Value=DomainDefault" \
-                "Key=ManagedBy,Value=sagemaker-iam-script"
+                "Key=ManagedBy,Value=sagemaker-iam-script" \
+                "Key=Company,Value=${COMPANY}"
         
         log_success "Role $role_name created"
     fi
@@ -316,6 +317,7 @@ create_execution_role() {
     local trust_policy_file=$(get_trust_policy_file)
     
     # 检查 Role 是否已存在
+    # 注意: Execution Role 不使用 IAM_PATH，便于 SageMaker 服务引用
     if aws iam get-role --role-name "$role_name" &> /dev/null; then
         log_warn "Role $role_name already exists, updating trust policy..."
         # 确保 trust policy 正确
@@ -326,13 +328,13 @@ create_execution_role() {
     else
         aws iam create-role \
             --role-name "$role_name" \
-            --path "${IAM_PATH}" \
             --assume-role-policy-document "file://${trust_policy_file}" \
             --description "SageMaker Execution Role for ${team}/${project}" \
             --tags \
                 "Key=Team,Value=${team}" \
                 "Key=Project,Value=${project}" \
-                "Key=ManagedBy,Value=sagemaker-iam-script"
+                "Key=ManagedBy,Value=sagemaker-iam-script" \
+                "Key=Company,Value=${COMPANY}"
         
         log_success "Role $role_name created"
     fi
@@ -480,10 +482,10 @@ main() {
     log_success "All execution roles created successfully!"
     echo ""
     
-    # 显示创建的 Roles
+    # 显示创建的 Roles (通过名称前缀筛选，不使用 path)
     echo "Created Execution Roles:"
-    aws iam list-roles --path-prefix "${IAM_PATH}" \
-        --query 'Roles[?contains(RoleName, `ExecutionRole`)].{Name:RoleName,Arn:Arn}' \
+    aws iam list-roles \
+        --query 'Roles[?starts_with(RoleName, `SageMaker-`) && contains(RoleName, `ExecutionRole`)].{Name:RoleName,Arn:Arn}' \
         --output table
     
     echo ""

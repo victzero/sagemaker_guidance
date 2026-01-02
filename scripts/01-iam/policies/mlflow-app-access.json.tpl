@@ -88,7 +88,7 @@
       "Sid": "PassRoleForMLflow",
       "Effect": "Allow",
       "Action": "iam:PassRole",
-      "Resource": "arn:aws:iam::${AWS_ACCOUNT_ID}:role/*/SageMaker-*",
+      "Resource": "arn:aws:iam::${AWS_ACCOUNT_ID}:role/SageMaker-*",
       "Condition": {
         "StringEquals": {
           "iam:PassedToService": "sagemaker.amazonaws.com"

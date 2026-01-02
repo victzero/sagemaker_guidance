@@ -77,8 +77,10 @@ count_actual_resources() {
     ACTUAL_USERS=$(aws iam list-users --path-prefix "${IAM_PATH}" \
         --query 'length(Users)' --output text 2>/dev/null || echo "0")
     
-    ACTUAL_ROLES=$(aws iam list-roles --path-prefix "${IAM_PATH}" \
-        --query 'length(Roles)' --output text 2>/dev/null || echo "0")
+    # Roles 不使用 path，通过名称前缀筛选
+    ACTUAL_ROLES=$(aws iam list-roles \
+        --query 'length(Roles[?starts_with(RoleName, `SageMaker-`) && contains(RoleName, `ExecutionRole`)])' \
+        --output text 2>/dev/null || echo "0")
     
     echo ""
     echo "Resource Summary:"
@@ -114,9 +116,10 @@ list_actual_resources() {
         --query 'Users[].UserName' --output text 2>/dev/null | tr '\t' '\n' | sed 's/^/  - /' || echo "  (none)"
     
     echo ""
-    echo "Roles (path: ${IAM_PATH}):"
-    aws iam list-roles --path-prefix "${IAM_PATH}" \
-        --query 'Roles[].RoleName' --output text 2>/dev/null | tr '\t' '\n' | sed 's/^/  - /' || echo "  (none)"
+    echo "Roles (SageMaker-*-ExecutionRole):"
+    aws iam list-roles \
+        --query 'Roles[?starts_with(RoleName, `SageMaker-`) && contains(RoleName, `ExecutionRole`)].RoleName' \
+        --output text 2>/dev/null | tr '\t' '\n' | sed 's/^/  - /' || echo "  (none)"
 }
 
 # -----------------------------------------------------------------------------
@@ -205,9 +208,9 @@ main() {
     # 4.1 验证 Trust Policy（SageMaker 可以 assume 这些 roles）
     verify_section "Execution Roles - Trust Policy"
     
-    # 检查所有 Execution Roles 的 trust policy
-    local all_roles=$(aws iam list-roles --path-prefix "${IAM_PATH}" \
-        --query "Roles[?contains(RoleName, 'ExecutionRole')].RoleName" --output text)
+    # 检查所有 Execution Roles 的 trust policy（不使用 path，通过名称筛选）
+    local all_roles=$(aws iam list-roles \
+        --query "Roles[?starts_with(RoleName, 'SageMaker-') && contains(RoleName, 'ExecutionRole')].RoleName" --output text)
     
     for role_name in $all_roles; do
         local trust_has_sagemaker=$(aws iam get-role --role-name "$role_name" \
@@ -338,7 +341,7 @@ main() {
     echo "  aws iam list-policies --scope Local --path-prefix ${IAM_PATH}"
     echo "  aws iam list-groups --path-prefix ${IAM_PATH}"
     echo "  aws iam list-users --path-prefix ${IAM_PATH}"
-    echo "  aws iam list-roles --path-prefix ${IAM_PATH}"
+    echo "  aws iam list-roles --query 'Roles[?starts_with(RoleName, \`SageMaker-\`)].RoleName'"
     echo ""
     
     return $errors
