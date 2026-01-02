@@ -34,10 +34,14 @@ ENABLE_CANVAS="${ENABLE_CANVAS:-true}"
 ENABLE_MLFLOW="${ENABLE_MLFLOW:-true}"
 
 # Canvas 相关托管策略
+# 注意: 大部分策略在根路径，DirectDeployAccess 在 service-role/ 路径下
 CANVAS_MANAGED_POLICIES=(
     "AmazonSageMakerCanvasFullAccess"
     "AmazonSageMakerCanvasAIServicesAccess"
     "AmazonSageMakerCanvasDataPrepFullAccess"
+)
+# service-role 路径下的策略需要单独处理
+CANVAS_SERVICE_ROLE_POLICIES=(
     "AmazonSageMakerCanvasDirectDeployAccess"
 )
 
@@ -81,8 +85,29 @@ attach_canvas_policies() {
     
     log_info "Attaching Canvas policies to $role_name..."
     
+    # 附加根路径下的策略
     for policy_name in "${CANVAS_MANAGED_POLICIES[@]}"; do
         local policy_arn="arn:aws:iam::aws:policy/${policy_name}"
+        
+        # 检查是否已附加
+        local attached=$(aws iam list-attached-role-policies \
+            --role-name "$role_name" \
+            --query "AttachedPolicies[?PolicyName=='${policy_name}'].PolicyName" \
+            --output text 2>/dev/null || echo "")
+        
+        if [[ -n "$attached" ]]; then
+            log_warn "  $policy_name already attached"
+        else
+            aws iam attach-role-policy \
+                --role-name "$role_name" \
+                --policy-arn "$policy_arn"
+            log_success "  $policy_name attached"
+        fi
+    done
+    
+    # 附加 service-role 路径下的策略
+    for policy_name in "${CANVAS_SERVICE_ROLE_POLICIES[@]}"; do
+        local policy_arn="arn:aws:iam::aws:policy/service-role/${policy_name}"
         
         # 检查是否已附加
         local attached=$(aws iam list-attached-role-policies \

@@ -328,7 +328,7 @@ Canvas 是 SageMaker 的低代码 ML 平台。`ENABLE_CANVAS=true`（默认）�
 | AmazonSageMakerCanvasFullAccess         | Canvas 核心功能                            |
 | AmazonSageMakerCanvasAIServicesAccess   | AI 服务 (Bedrock, Textract, Comprehend 等) |
 | AmazonSageMakerCanvasDataPrepFullAccess | 数据准备 (Data Wrangler, Glue, Athena)     |
-| AmazonSageMakerCanvasDirectDeployAccess | 模型部署到 Endpoint                        |
+| AmazonSageMakerCanvasDirectDeployAccess | 模型部署到 Endpoint (service-role 路径)    |
 
 ```bash
 # 禁用 Canvas（减少权限范围）
