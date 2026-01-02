@@ -150,6 +150,7 @@ check_endpoint "ecr.api" "ecr.api" || true
 check_endpoint "ecr.dkr" "ecr.dkr" || true
 check_endpoint "kms" "kms" || true
 check_endpoint "ssm" "ssm" || true
+check_endpoint "bedrock-runtime" "bedrock-runtime (Canvas AI)" || true
 
 # -----------------------------------------------------------------------------
 # 验证子网

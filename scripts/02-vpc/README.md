@@ -67,12 +67,13 @@ scripts/02-vpc/
 
 ### VPC Endpoints (可选)
 
-| Endpoint | 环境变量                  | 用途            |
-| -------- | ------------------------- | --------------- |
-| ecr.api  | CREATE_ECR_ENDPOINTS=true | ECR API         |
-| ecr.dkr  | CREATE_ECR_ENDPOINTS=true | ECR Docker      |
-| kms      | CREATE_KMS_ENDPOINT=true  | KMS 加密        |
-| ssm      | CREATE_SSM_ENDPOINT=true  | Systems Manager |
+| Endpoint        | 环境变量                    | 用途                                  |
+| --------------- | --------------------------- | ------------------------------------- |
+| ecr.api         | CREATE_ECR_ENDPOINTS=true   | ECR API                               |
+| ecr.dkr         | CREATE_ECR_ENDPOINTS=true   | ECR Docker                            |
+| kms             | CREATE_KMS_ENDPOINT=true    | KMS 加密                              |
+| ssm             | CREATE_SSM_ENDPOINT=true    | Systems Manager                       |
+| bedrock-runtime | CREATE_BEDROCK_ENDPOINT=true| Amazon Bedrock (Canvas AI 功能必需)   |
 
 ## 环境变量说明
 
@@ -93,10 +94,11 @@ scripts/02-vpc/
 | `PRIVATE_SUBNET_3_ID`  | (空)                   | 第三个私有子网（AZ-c），支持 2-3 个子网 |
 | `ROUTE_TABLE_2_ID`     | (空)                   | 第二个路由表（如子网用不同路由表）      |
 | `ROUTE_TABLE_3_ID`     | (空)                   | 第三个路由表（支持 1-3 个路由表）       |
-| `CREATE_ECR_ENDPOINTS` | `false`                | 创建 ECR Endpoints（拉取自定义镜像）    |
-| `CREATE_KMS_ENDPOINT`  | `false`                | 创建 KMS Endpoint（KMS 加密）           |
-| `CREATE_SSM_ENDPOINT`  | `false`                | 创建 SSM Endpoint（参数存储）           |
-| `TAG_PREFIX`           | `${COMPANY}-sagemaker` | 资源命名前缀                            |
+| `CREATE_ECR_ENDPOINTS`   | `false`                | 创建 ECR Endpoints（拉取自定义镜像）    |
+| `CREATE_KMS_ENDPOINT`    | `false`                | 创建 KMS Endpoint（KMS 加密）           |
+| `CREATE_SSM_ENDPOINT`    | `false`                | 创建 SSM Endpoint（参数存储）           |
+| `CREATE_BEDROCK_ENDPOINT`| `false`                | 创建 Bedrock Endpoint（Canvas AI 功能） |
+| `TAG_PREFIX`             | `${COMPANY}-sagemaker` | 资源命名前缀                            |
 
 > **注意**：子网数量必须为 2 或 3 个（不支持 1 个子网），路由表数量可以为 1-3 个。
 
@@ -123,6 +125,25 @@ aws ec2 describe-subnets --filters "Name=vpc-id,Values=vpc-xxx" \
 aws ec2 describe-route-tables --filters "Name=vpc-id,Values=vpc-xxx" \
     --query 'RouteTables[].{ID:RouteTableId,Associations:Associations[].SubnetId}' --output table
 ```
+
+## SageMaker Canvas 支持
+
+如果需要在 VPCOnly 模式下使用 SageMaker Canvas 的 AI 功能（如 Chat for data prep），必须启用 Bedrock endpoint：
+
+```bash
+# 在 .env.local 中添加
+CREATE_BEDROCK_ENDPOINT=true
+```
+
+Canvas 需要 Bedrock 端点的功能：
+- Chat for data prep (自然语言数据准备)
+- AI-powered insights
+- Model explanations
+
+> **注意**: 如果未配置 Bedrock endpoint，Canvas 控制台会显示警告：
+> "The selected VPC is not connected to Amazon Bedrock"
+
+---
 
 ## 安全组规则
 

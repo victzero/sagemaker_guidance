@@ -66,6 +66,7 @@ export TAG_PREFIX="${TAG_PREFIX:-${COMPANY}-sagemaker}"
 export CREATE_ECR_ENDPOINTS="${CREATE_ECR_ENDPOINTS:-false}"
 export CREATE_KMS_ENDPOINT="${CREATE_KMS_ENDPOINT:-false}"
 export CREATE_SSM_ENDPOINT="${CREATE_SSM_ENDPOINT:-false}"
+export CREATE_BEDROCK_ENDPOINT="${CREATE_BEDROCK_ENDPOINT:-false}"
 
 # 确认执行
 echo -e "${YELLOW}This script will create the following AWS VPC resources:${NC}"
@@ -175,6 +176,17 @@ else
     echo "  SSM Endpoint: disabled (set CREATE_SSM_ENDPOINT=true to enable)"
 fi
 
+if [[ "${CREATE_BEDROCK_ENDPOINT}" == "true" ]]; then
+    echo "  Bedrock Endpoint (enabled):"
+    echo "    - vpce-${TAG_PREFIX}-bedrock-runtime"
+    echo "        Service: com.amazonaws.${AWS_REGION}.bedrock-runtime"
+    echo "        Note: Required for SageMaker Canvas AI features"
+    ((endpoint_count++)) || true
+    ((optional_count++)) || true
+else
+    echo "  Bedrock Endpoint: disabled (set CREATE_BEDROCK_ENDPOINT=true to enable)"
+fi
+
 echo "  Total optional: $optional_count endpoints"
 echo ""
 
@@ -268,6 +280,9 @@ if [[ "${CREATE_KMS_ENDPOINT}" == "true" ]]; then
 fi
 if [[ "${CREATE_SSM_ENDPOINT}" == "true" ]]; then
     echo "    - ssm"
+fi
+if [[ "${CREATE_BEDROCK_ENDPOINT}" == "true" ]]; then
+    echo "    - bedrock-runtime"
 fi
 echo ""
 echo "Resource IDs saved to:"

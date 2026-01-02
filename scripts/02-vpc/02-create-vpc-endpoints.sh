@@ -228,6 +228,14 @@ main() {
             "vpce-${TAG_PREFIX}-ssm")
     fi
     
+    if [[ "${CREATE_BEDROCK_ENDPOINT}" == "true" ]]; then
+        log_info "Creating Bedrock endpoint (for SageMaker Canvas AI features)..."
+        
+        ENDPOINTS["bedrock-runtime"]=$(create_interface_endpoint \
+            "bedrock-runtime" \
+            "vpce-${TAG_PREFIX}-bedrock-runtime")
+    fi
+    
     # 保存 Endpoint IDs 到文件
     cat > "${SCRIPT_DIR}/${OUTPUT_DIR}/vpc-endpoints.env" << EOF
 # VPC Endpoint IDs - Generated $(date)
@@ -241,6 +249,7 @@ VPCE_ECR_API=${ENDPOINTS["ecr.api"]:-}
 VPCE_ECR_DKR=${ENDPOINTS["ecr.dkr"]:-}
 VPCE_KMS=${ENDPOINTS["kms"]:-}
 VPCE_SSM=${ENDPOINTS["ssm"]:-}
+VPCE_BEDROCK_RUNTIME=${ENDPOINTS["bedrock-runtime"]:-}
 EOF
     
     echo ""
