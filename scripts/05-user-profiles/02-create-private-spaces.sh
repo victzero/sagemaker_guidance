@@ -20,7 +20,7 @@ source "${SCRIPT_DIR}/00-init.sh"
 init
 
 # 默认 EBS 大小 (GB)
-SPACE_EBS_SIZE_GB=${SPACE_EBS_SIZE_GB:-20}
+SPACE_EBS_SIZE_GB=${SPACE_EBS_SIZE_GB:-50}
 
 # -----------------------------------------------------------------------------
 # 创建 Private Space
@@ -54,13 +54,20 @@ create_private_space() {
     log_info "Creating Private Space: $space_name"
     log_info "  Owner Profile: $profile_name"
     
-    # Space 设置
+    # Space 设置（继承 Domain 的 idle shutdown 配置）
     local space_settings=$(cat <<EOF
 {
     "AppType": "JupyterLab",
     "SpaceStorageSettings": {
         "EbsStorageSettings": {
             "EbsVolumeSizeInGb": ${SPACE_EBS_SIZE_GB}
+        }
+    },
+    "JupyterLabAppSettings": {
+        "AppLifecycleManagement": {
+            "IdleSettings": {
+                "LifecycleManagement": "ENABLED"
+            }
         }
     }
 }
@@ -99,6 +106,7 @@ main() {
     echo ""
     echo "Naming format: space-{team}-{project}-{user}"
     echo "EBS Size: ${SPACE_EBS_SIZE_GB} GB"
+    echo "Idle Shutdown: ENABLED (inherits from Domain)"
     echo ""
     
     local created=0
