@@ -122,9 +122,9 @@ AWS Account
 SageMaker Domain (ml-platform-domain)
 │
 ├── User Profiles
-│   ├── profile-rc-alice    ──▶ IAM User: sm-rc-alice
-│   ├── profile-rc-bob      ──▶ IAM User: sm-rc-bob
-│   ├── profile-algo-frank  ──▶ IAM User: sm-algo-frank
+│   ├── profile-rc-fraud-alice    ──▶ IAM User: sm-rc-alice
+│   ├── profile-rc-proja-bob      ──▶ IAM User: sm-rc-bob
+│   ├── profile-algo-rec-frank  ──▶ IAM User: sm-algo-frank
 │   └── ...
 │
 ├── Shared Spaces (项目级共享)

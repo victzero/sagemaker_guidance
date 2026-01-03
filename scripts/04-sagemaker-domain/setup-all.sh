@@ -165,6 +165,6 @@ echo ""
 echo "Next Steps:"
 echo "  1. Verify configuration: ./verify.sh"
 echo "  2. Create User Profiles: cd ../05-user-profiles && ./setup-all.sh"
-echo "  3. Create Shared Spaces: cd ../06-spaces && ./setup-all.sh"
+echo "  Users can now login to Studio and use Private Space"
 echo ""
 

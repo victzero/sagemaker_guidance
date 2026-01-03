@@ -94,8 +94,12 @@ Company (acme)
 | IAM User         | `sm-{team}-{username}`                     | `sm-rc-alice`                                        |
 | IAM Group (团队) | `sagemaker-{team-fullname}`                | `sagemaker-risk-control`                             |
 | IAM Group (项目) | `sagemaker-{team}-{project}`               | `sagemaker-rc-fraud-detection`                       |
+| **User Profile** | `profile-{team}-{project}-{user}`          | `profile-rc-fraud-alice`                             |
 | Execution Role   | `SageMaker-{Team}-{Project}-ExecutionRole` | `SageMaker-RiskControl-FraudDetection-ExecutionRole` |
 | S3 Bucket        | `{company}-sm-{team}-{project}`            | `acme-sm-rc-fraud-detection`                         |
+
+> **Note**: 一个用户可以有多个 User Profile（每个参与的项目一个），
+> 例如 Alice 参与两个项目会有 `profile-rc-fraud-alice` 和 `profile-rc-aml-alice`。
 
 ### 项目级 S3 隔离架构
 
@@ -184,30 +188,64 @@ SageMaker 默认桶:
 ### Execution Role 项目隔离
 
 ```
-User Profile                          Execution Role
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+User Profile (按项目独立)                    Execution Role
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-sm-rc-alice-profile    ──bindTo──►   SageMaker-RiskControl-
-                                     FraudDetection-ExecutionRole
-                                           │
-                                           ▼
-                                     ┌─────────────────────┐
-                                     │ 项目 S3 权限:       │
-                                     │ acme-sm-rc-fraud-*  │
-                                     │                     │
-                                     │ 共享资产 (只读):    │
-                                     │ acme-sm-shared-*    │
-                                     │                     │
-                                     │ ECR (项目隔离):     │
-                                     │ acme-sm-rc-fraud-*  │
-                                     └─────────────────────┘
+IAM User: sm-rc-alice (参与两个项目)
+    │
+    ├── profile-rc-fraud-alice  ──bindTo──►  SageMaker-RC-Fraud-ExecutionRole
+    │       └── Private Space                      │
+    │               └── S3: acme-sm-rc-fraud-detection/*
+    │
+    └── profile-rc-aml-alice    ──bindTo──►  SageMaker-RC-AML-ExecutionRole
+            └── Private Space                      │
+                    └── S3: acme-sm-rc-anti-money-laundering/*
+
+用户切换项目时，选择不同的 User Profile 进入 Studio
 ```
 
 **关键点**:
 
 - 每个项目有独立的 Execution Role
-- Execution Role 的 S3 权限**硬编码**到项目桶
+- 每个用户在每个参与的项目有独立的 User Profile
 - User Profile 绑定项目 Execution Role，**不是** Domain 默认 Role
+- 用户切换项目需要切换 User Profile
+
+### Private Space 与 Execution Role
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                    Private Space 权限架构                               │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                         │
+│   Private Space (私有空间)                                              │
+│   ━━━━━━━━━━━━━━━━━━━━━━━━━━                                            │
+│   • 用户选择 Profile 进入 Studio 后自动获得                             │
+│   • Execution Role 来自: UserProfile.ExecutionRole (项目级)             │
+│   • ✅ 可以访问项目 S3 桶                                               │
+│   • ✅ 可以访问共享资产桶 (只读)                                        │
+│   • 用途: 日常开发、训练、实验                                          │
+│                                                                         │
+│   User Profile: profile-algo-rec-david (命名: team-project-user)        │
+│       └── Execution Role: SageMaker-Algorithm-Recommendation-ExecRole   │
+│               │                                                         │
+│               ▼                                                         │
+│       ┌───────────────────────────────────────┐                         │
+│       │ 权限:                                 │                         │
+│       │ • acme-sm-algo-recommendation/* 读写  │                         │
+│       │ • acme-sm-shared-assets/* 只读        │                         │
+│       │ • sagemaker-{region}-{account}/* 读写 │                         │
+│       │ • ECR: acme-sm-* 读写                 │                         │
+│       └───────────────────────────────────────┘                         │
+│                                                                         │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+**设计优势**:
+
+1. **项目隔离**: 每个 Profile 只能访问对应项目的 S3 桶
+2. **多项目支持**: 用户可以有多个 Profile，切换项目只需切换 Profile
+3. **权限清晰**: Execution Role 直接绑定项目资源
 
 ### 权限层次总结
 
@@ -516,6 +554,8 @@ setup-all.sh
 | 创建 Access Key | ❌ 禁止（显式 Deny）                         |
 | 查看所有 S3 桶  | ❌ 禁止（只能访问 `${COMPANY}-sm-*` 桶）     |
 | 查看其他用户    | ❌ 禁止                                      |
+| **创建 Space**  | ❌ 禁止（防止用户创建非项目 Space）          |
+| 修改/删除 Space | ❌ 禁止（Space 由管理员管理）                |
 
 ### 02-create-groups.sh
 
@@ -766,6 +806,30 @@ ENABLE_CANVAS=false ./04-create-roles.sh
 
 禁用后，Execution Role 不会附加 Canvas 相关的 4 个策略，减少权限范围。
 
+### Q: 在 JupyterLab 中无法访问项目 S3 桶？
+
+A: 确保您使用的是 **Private Space**，它会使用 User Profile 的项目级 Execution Role。
+
+**检查步骤**：
+
+1. 登录 SageMaker Studio
+2. 在左侧导航中选择 "JupyterLab"
+3. 确保选择的是 **Private Space**（不是 Shared Space）
+4. 创建或使用已有的 Private Space
+
+**验证 Execution Role**：
+
+```bash
+# 在 JupyterLab 中运行
+import boto3
+sts = boto3.client('sts')
+print(sts.get_caller_identity()['Arn'])
+
+# 应该显示: arn:aws:sts::xxx:assumed-role/SageMaker-{Team}-{Project}-ExecutionRole/...
+```
+
+如果显示的是 `SageMaker-Domain-DefaultExecutionRole`，说明您在使用 Shared Space，请切换到 Private Space。
+
 ### Q: JupyterLab 启动报错 "unable to assume role"，怎么办？
 
 A: 这通常是因为 SageMaker Domain 绑定的 Role ARN 是旧格式（带 IAM_PATH），而实际 Role 使用新格式（不带 path）。
@@ -773,7 +837,7 @@ A: 这通常是因为 SageMaker Domain 绑定的 Role ARN 是旧格式（带 IAM
 **错误示例：**
 
 ```
-PermissionError: SageMaker was unable to assume the role 
+PermissionError: SageMaker was unable to assume the role
 'arn:aws:iam::xxx:role/acme-sagemaker/SageMaker-Domain-DefaultExecutionRole'
 ```
 

@@ -13,7 +13,7 @@
 | `{company}`   | 公司/组织名称前缀  | `acme`                   |
 | `{team}`      | 团队缩写           | `rc`、`algo`             |
 | `{project}`   | 项目名称           | `project-a`、`project-x` |
-| `{owner}`     | 空间所有者 Profile | `profile-rc-alice`       |
+| `{owner}`     | 空间所有者 Profile | `profile-rc-proja-alice`       |
 | `d-xxxxxxxxx` | Domain ID          | `d-abc123def456`         |
 
 ---
@@ -97,14 +97,14 @@ Space 名称: space-{team}-{project}
 
 ```
 space-rc-project-a:
-├── Owner: profile-rc-alice (项目负责人)
-├── Contributor: profile-rc-bob
-└── Contributor: profile-rc-carol
+├── Owner: profile-rc-proja-alice (项目负责人)
+├── Contributor: profile-rc-proja-bob
+└── Contributor: profile-rc-proja-carol
 
 space-algo-project-x:
-├── Owner: profile-algo-frank (项目负责人)
-├── Contributor: profile-algo-grace
-└── Contributor: profile-algo-henry
+├── Owner: profile-algo-projx-frank (项目负责人)
+├── Contributor: profile-algo-projx-grace
+└── Contributor: profile-algo-projx-henry
 ```
 
 ---
@@ -204,7 +204,7 @@ Shared Space 支持：
 | Team        | {team}     | risk-control     |
 | Project     | {project}  | project-a        |
 | Environment | production | production       |
-| Owner       | {owner}    | profile-rc-alice |
+| Owner       | {owner}    | profile-rc-proja-alice |
 
 ---
 
@@ -221,7 +221,7 @@ aws sagemaker create-space \
     "SharingType": "Shared"
   }' \
   --ownership-settings '{
-    "OwnerUserProfileName": "profile-rc-alice"
+    "OwnerUserProfileName": "profile-rc-proja-alice"
   }' \
   --space-settings '{
     "AppType": "JupyterLab",
@@ -235,7 +235,7 @@ aws sagemaker create-space \
     Key=Team,Value=risk-control \
     Key=Project,Value=project-a \
     Key=Environment,Value=production \
-    Key=Owner,Value=profile-rc-alice
+    Key=Owner,Value=profile-rc-proja-alice
 ```
 
 ### 10.2 查询 Space
@@ -296,10 +296,10 @@ aws sagemaker delete-space \
 
 ```csv
 space_name,team,project,owner_profile,execution_role,members
-space-rc-project-a,risk-control,project-a,profile-rc-alice,RC-ProjectA-ExecutionRole,profile-rc-bob;profile-rc-carol
-space-rc-project-b,risk-control,project-b,profile-rc-david,RC-ProjectB-ExecutionRole,profile-rc-emma
-space-algo-project-x,algorithm,project-x,profile-algo-frank,Algo-ProjectX-ExecutionRole,profile-algo-grace;profile-algo-henry
-space-algo-project-y,algorithm,project-y,profile-algo-ivy,Algo-ProjectY-ExecutionRole,profile-algo-jack
+space-rc-project-a,risk-control,project-a,profile-rc-proja-alice,RC-ProjectA-ExecutionRole,profile-rc-proja-bob;profile-rc-proja-carol
+space-rc-project-b,risk-control,project-b,profile-rc-projb-david,RC-ProjectB-ExecutionRole,profile-rc-projb-emma
+space-algo-project-x,algorithm,project-x,profile-algo-projx-frank,Algo-ProjectX-ExecutionRole,profile-algo-projx-grace;profile-algo-projx-henry
+space-algo-project-y,algorithm,project-y,profile-algo-projy-ivy,Algo-ProjectY-ExecutionRole,profile-algo-projy-jack
 ```
 
 ### 11.2 批量创建 Space 脚本 `create-spaces.sh`
@@ -394,7 +394,7 @@ aws sagemaker list-spaces --domain-id "$DOMAIN_ID" --query 'Spaces[].SpaceName'
 # 1. 确保成员有 User Profile
 aws sagemaker describe-user-profile \
   --domain-id d-xxxxxxxxx \
-  --user-profile-name profile-rc-newmember
+  --user-profile-name profile-rc-proja-newmember
 
 # 2. 将成员添加到对应的 IAM Group（Group 已有 Space 访问策略）
 aws iam add-user-to-group \

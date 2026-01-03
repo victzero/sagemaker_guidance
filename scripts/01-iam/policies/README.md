@@ -135,7 +135,7 @@ Domain 默认 Execution Role 只附加 **AmazonSageMakerFullAccess**：
 | User Profile 隔离 | `sagemaker:ResourceTag/Owner` 条件 | 用户只能操作自己的 Profile |
 | Space/App 隔离 | `sagemaker:OwnerUserProfileArn` 条件 | 用户只能管理自己创建的 Space 和 App |
 | 项目 Space 访问 | `sagemaker:ResourceTag/Project` 条件 | 用户只能访问所属项目的共享 Space |
-| 禁止管理操作 | `DenySageMakerAdminActions` | 用户无法创建/删除 Domain 和 UserProfile |
+| 禁止管理操作 | `DenySageMakerAdminActions` | 用户无法创建/删除 Domain、UserProfile 和 Space |
 
 **跨项目隔离说明**:
 - `sagemaker:List*` 和 `sagemaker:Describe*` 对所有资源可见（SageMaker Studio Console 需要）
@@ -203,5 +203,5 @@ Domain 默认 Execution Role 只附加 **AmazonSageMakerFullAccess**：
 | `DenyS3BucketListing` | `s3:ListAllMyBuckets` | 禁止浏览桶列表 |
 | `DenyAccessToOtherBuckets` | 非公司桶的所有 S3 操作 | 强制桶隔离 |
 | `DenyDangerousIAMActions` | IAM 策略创建/修改/删除 | 防止权限提升 |
-| `DenySageMakerAdminActions` | Domain/UserProfile 管理 | 防止越权管理 |
+| `DenySageMakerAdminActions` | Domain/UserProfile/Space 管理 | 防止越权管理，禁止用户自建 Space |
 | `DenyS3BucketAdmin` | Bucket 创建/删除/策略修改 | 防止基础设施变更 |

@@ -168,7 +168,10 @@
         "sagemaker:DeleteDomain",
         "sagemaker:UpdateDomain",
         "sagemaker:CreateUserProfile",
-        "sagemaker:DeleteUserProfile"
+        "sagemaker:DeleteUserProfile",
+        "sagemaker:CreateSpace",
+        "sagemaker:UpdateSpace",
+        "sagemaker:DeleteSpace"
       ],
       "Resource": "*"
     },

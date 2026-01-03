@@ -75,7 +75,7 @@
 **Step 3: 选择 User Profile**
 
 1. 在 Studio 启动页面，您会看到您的 User Profile
-2. Profile 名称格式：`profile-{team}-{name}`（如 `profile-rc-alice`）
+2. Profile 名称格式：`profile-{team}-{project}-{user}`（如 `profile-rc-fraud-alice`）
 3. 点击您的 Profile 右侧的 **Open** 按钮
 
 > ⚠️ **注意**：您只能看到和访问属于您的 User Profile
@@ -401,7 +401,7 @@ model = joblib.load('s3://acme-sm-shared-assets/models/pretrained_encoder.pkl')
 | 资源类型     | 命名格式                        | 示例                         |
 | ------------ | ------------------------------- | ---------------------------- |
 | IAM User     | `sm-{team}-{name}`              | `sm-rc-alice`                |
-| User Profile | `profile-{team}-{name}`         | `profile-rc-alice`           |
+| User Profile | `profile-{team}-{project}-{user}`         | `profile-rc-fraud-alice`           |
 | Shared Space | `space-{team}-{project}`        | `space-rc-fraud-detection`   |
 | S3 Bucket    | `{company}-sm-{team}-{project}` | `acme-sm-rc-fraud-detection` |
 

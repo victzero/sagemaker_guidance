@@ -246,7 +246,7 @@ cd scripts/05-user-profiles
 
 | Profile 命名格式 | 说明 |
 | ---------------- | ---- |
-| `profile-{team}-{name}` | 如 `profile-rc-alice` |
+| `profile-{team}-{project}-{user}` | 如 `profile-rc-fraud-alice` |
 
 脚本会自动：
 - 读取 `.env.shared` 中的团队和用户配置
@@ -255,31 +255,6 @@ cd scripts/05-user-profiles
 - 设置正确的 Tags
 
 ### 6.4 创建 Shared Spaces
-
-> 💡 **推荐**：使用自动化脚本 `scripts/06-spaces/setup-all.sh`
-
-```bash
-# 使用自动化脚本（推荐）
-cd scripts/06-spaces
-./setup-all.sh      # 根据 .env.shared 配置创建所有 Space
-./verify.sh         # 验证配置
-```
-
-| Space 命名格式 | 说明 |
-| -------------- | ---- |
-| `space-{team}-{project}` | 如 `space-rc-fraud-detection` |
-
-脚本会自动：
-- 读取 `.env.shared` 中的项目配置
-- 为每个项目创建 Shared Space
-- 设置项目第一个用户为 Owner
-- 配置正确的 EBS 存储和 Tags
-- 自动检测并修复 Domain 的 DefaultSpaceSettings（如缺失）
-
----
-
-## 7. Phase 6: 验证与交付
-
 ### 7.1 功能验证
 
 | #   | 测试项                   | 预期结果 | 实际结果 | 状态 |

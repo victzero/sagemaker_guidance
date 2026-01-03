@@ -21,12 +21,14 @@ scripts/
 ├── 03-s3/               # S3 数据管理 (对应 docs/04-s3-data-management.md)
 ├── 04-sagemaker-domain/ # SageMaker Domain (对应 docs/05-sagemaker-domain.md)
 ├── 05-user-profiles/    # User Profiles (对应 docs/06-user-profile.md)
-├── 06-spaces/           # Shared Spaces (对应 docs/07-shared-space.md)
 ├── common.sh            # 共享函数库
 ├── .env.shared.example  # 共享配置模板
 ├── CONVENTIONS.md       # 开发规范
 └── README.md
 ```
+
+> **Note**: 使用 Private Space (用户在 Studio 中自动获得)，不创建 Shared Space。
+> Private Space 使用 User Profile 的项目级 Execution Role，可以访问项目 S3 桶。
 
 ## 执行顺序
 
@@ -37,7 +39,7 @@ Phase 1-3: 基础资源
 01-iam  →  02-vpc  →  03-s3
 
 Phase 4: SageMaker 配置
-  04-sagemaker-domain  →  05-user-profiles  →  06-spaces
+  04-sagemaker-domain  →  05-user-profiles
 ```
 
 ```
@@ -53,18 +55,18 @@ Phase 4: SageMaker 配置
     │
     ▼
 ┌─────────────────────┐
-│ 04-sagemaker-domain │  ← Domain + Lifecycle Config
+│ 04-sagemaker-domain │  ← Domain + Idle Shutdown
 └─────────┬───────────┘
           │
           ▼
 ┌─────────────────────┐
 │  05-user-profiles   │  ← User Profiles (per user)
-└─────────┬───────────┘
+└─────────────────────┘
           │
           ▼
-┌─────────────────────┐
-│     06-spaces       │  ← Shared Spaces (per project)
-└─────────────────────┘
+   ┌──────────────┐
+   │ Private Space│  ← 用户在 Studio 中自动获得
+   └──────────────┘
 ```
 
 ## AWS Profile 配置
@@ -130,11 +132,8 @@ cd ../05-user-profiles
 ./verify.sh
 
 # ============================================
-# Step 6: Shared Spaces
+# 完成！用户可以登录 Studio 使用 Private Space
 # ============================================
-cd ../06-spaces
-./setup-all.sh   # 为每个项目创建 Space
-./verify.sh
 ```
 
 ## 各步骤创建的资源
@@ -183,12 +182,9 @@ cd ../06-spaces
 | 资源类型      | 数量   | 说明              |
 | ------------- | ------ | ----------------- |
 | User Profiles | N 用户 | 每个 IAM 用户一个 |
+| Private Space | 自动 | 用户在 Studio 中自动获得 |
 
-### 06-spaces (Shared Spaces)
-
-| 资源类型      | 数量   | 说明                 |
-| ------------- | ------ | -------------------- |
-| Shared Spaces | N 项目 | 每个项目一个协作空间 |
+> **Note**: 使用 Private Space 进行开发，可访问项目 S3 桶。
 
 ## 环境变量配置
 
@@ -208,9 +204,7 @@ scripts/
 │   └── .env.local.example
 ├── 04-sagemaker-domain/
 │   └── .env.local.example
-├── 05-user-profiles/
-│   └── .env.local.example
-└── 06-spaces/
+└── 05-user-profiles/
     └── .env.local.example
 ```
 
@@ -236,7 +230,6 @@ scripts/
 | 03-s3               | ❌   | ENCRYPTION_TYPE, Lifecycle        |
 | 04-sagemaker-domain | ❌   | DOMAIN_NAME, IDLE_TIMEOUT_MINUTES |
 | 05-user-profiles    | ❌   | （使用共享配置）                  |
-| 06-spaces           | ❌   | SPACE_EBS_SIZE_GB                 |
 
 ### 加载顺序
 
@@ -327,7 +320,6 @@ Do you want to proceed? [y/N]
 
 ```bash
 # 1. 先清理 Spaces
-cd 06-spaces && ./cleanup.sh
 
 # 2. 清理 User Profiles
 cd ../05-user-profiles && ./cleanup.sh
@@ -353,4 +345,4 @@ cd ../01-iam && ./cleanup.sh
 2. 导航到 SageMaker → Studio
 3. 选择自己的 User Profile (`profile-{team}-{name}`)
 4. 点击 "Open Studio"
-5. 在 Studio 中访问项目的 Shared Space
+5. 在 Studio 中使用 Private Space 进行开发

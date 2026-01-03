@@ -157,7 +157,7 @@ echo "  ./verify.sh"
 echo ""
 echo "Next Steps:"
 echo "  1. Verify configuration: ./verify.sh"
-echo "  2. Create Shared Spaces: cd ../06-spaces && ./setup-all.sh"
+echo "  Users can now login to Studio and use Private Space"
 echo "  3. Distribute credentials to users (see 01-iam/output/user-credentials.txt)"
 echo ""
 

@@ -2,6 +2,10 @@
 # =============================================================================
 # verify.sh - 验证 User Profiles 配置
 # =============================================================================
+#
+# 命名规范: profile-{team}-{project}-{user}
+#
+# =============================================================================
 
 set -e
 
@@ -16,6 +20,7 @@ echo " User Profiles Verification"
 echo "=============================================="
 echo ""
 echo "Domain ID: $DOMAIN_ID"
+echo "Naming format: profile-{team}-{project}-{user}"
 echo ""
 
 errors=0
@@ -50,8 +55,13 @@ for team in $TEAMS; do
         expected_role="SageMaker-${team_formatted}-${project_formatted}-ExecutionRole"
         users=$(get_users_for_project "$team" "$project")
         
+        # 简化项目名用于 Profile 命名
+        project_short=$(echo "$project" | cut -d'-' -f1)
+        
+        echo "  Project [$project]:"
+        
         for user in $users; do
-            profile_name="profile-${team}-${user}"
+            profile_name="profile-${team}-${project_short}-${user}"
             ((expected_count++)) || true
             
             # 检查 Profile 是否存在
@@ -66,20 +76,21 @@ for team in $TEAMS; do
                 
                 if [[ "$status" == "InService" ]]; then
                     if [[ "$actual_role" == "$expected_role" ]]; then
-                        echo -e "  ${GREEN}✓${NC} $profile_name (Role: $actual_role)"
+                        echo -e "    ${GREEN}✓${NC} $profile_name"
+                        echo -e "      Role: $actual_role"
                         ((actual_count++)) || true
                     else
-                        echo -e "  ${YELLOW}!${NC} $profile_name - Role mismatch"
-                        echo "      Expected: $expected_role"
-                        echo "      Actual:   $actual_role"
+                        echo -e "    ${YELLOW}!${NC} $profile_name - Role mismatch"
+                        echo "        Expected: $expected_role"
+                        echo "        Actual:   $actual_role"
                         ((errors++)) || true
                     fi
                 else
-                    echo -e "  ${YELLOW}!${NC} $profile_name - Status: $status"
+                    echo -e "    ${YELLOW}!${NC} $profile_name - Status: $status"
                     ((errors++)) || true
                 fi
             else
-                echo -e "  ${RED}✗${NC} $profile_name - NOT FOUND"
+                echo -e "    ${RED}✗${NC} $profile_name - NOT FOUND"
                 ((errors++)) || true
             fi
         done
@@ -146,4 +157,3 @@ echo "  aws sagemaker list-user-profiles --domain-id $DOMAIN_ID"
 echo ""
 
 exit $errors
-

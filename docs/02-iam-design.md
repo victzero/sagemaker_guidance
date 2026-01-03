@@ -323,8 +323,8 @@ sm-rc-alice:
 
 | Role                                         | User Profile                           | Space                |
 | -------------------------------------------- | -------------------------------------- | -------------------- |
-| SageMaker-RiskControl-ProjectA-ExecutionRole | profile-rc-alice, profile-rc-bob       | space-rc-project-a   |
-| SageMaker-Algorithm-ProjectX-ExecutionRole   | profile-algo-frank, profile-algo-grace | space-algo-project-x |
+| SageMaker-RiskControl-ProjectA-ExecutionRole | profile-rc-proja-alice, profile-rc-proja-bob       | space-rc-project-a   |
+| SageMaker-Algorithm-ProjectX-ExecutionRole   | profile-algo-projx-frank, profile-algo-projx-grace | space-algo-project-x |
 
 ---
 

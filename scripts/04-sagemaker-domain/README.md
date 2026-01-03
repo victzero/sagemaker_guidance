@@ -211,7 +211,7 @@ aws sagemaker update-domain \
 ## 下一步
 
 1. 创建 User Profiles: `cd ../05-user-profiles && ./setup-all.sh`
-2. 创建 Shared Spaces: `cd ../06-spaces && ./setup-all.sh`
+2. 用户登录 Studio 使用 Private Space（自动获得）
 
 ## 参考文档
 

@@ -2,6 +2,10 @@
 # =============================================================================
 # cleanup.sh - 清理 User Profiles (危险操作!)
 # =============================================================================
+#
+# 命名规范: profile-{team}-{project}-{user}
+#
+# =============================================================================
 
 set -e
 
@@ -33,8 +37,11 @@ for team in $TEAMS; do
     projects=$(get_projects_for_team "$team")
     for project in $projects; do
         users=$(get_users_for_project "$team" "$project")
+        # 简化项目名用于 Profile 命名
+        project_short=$(echo "$project" | cut -d'-' -f1)
+        
         for user in $users; do
-            profile_name="profile-${team}-${user}"
+            profile_name="profile-${team}-${project_short}-${user}"
             echo "  - $profile_name"
             ((profile_count++)) || true
         done
@@ -65,8 +72,11 @@ for team in $TEAMS; do
     projects=$(get_projects_for_team "$team")
     for project in $projects; do
         users=$(get_users_for_project "$team" "$project")
+        # 简化项目名用于 Profile 命名
+        project_short=$(echo "$project" | cut -d'-' -f1)
+        
         for user in $users; do
-            profile_name="profile-${team}-${user}"
+            profile_name="profile-${team}-${project_short}-${user}"
             
             # 检查是否存在
             if ! aws sagemaker describe-user-profile \
@@ -127,4 +137,3 @@ echo ""
 echo "Deleted: $deleted profiles"
 echo ""
 echo "Note: EFS home directories will be deleted with the profiles."
-

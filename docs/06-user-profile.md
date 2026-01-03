@@ -47,26 +47,26 @@ User Profile 是 SageMaker Domain 中代表单个用户的配置实体：
 
 | User Profile       | IAM User      | 团队 | 项目      | Execution Role                        |
 | ------------------ | ------------- | ---- | --------- | ------------------------------------- |
-| profile-rc-alice   | sm-rc-alice   | 风控 | project-a | SageMaker-RC-ProjectA-ExecutionRole   |
-| profile-rc-bob     | sm-rc-bob     | 风控 | project-a | SageMaker-RC-ProjectA-ExecutionRole   |
-| profile-rc-carol   | sm-rc-carol   | 风控 | project-a | SageMaker-RC-ProjectA-ExecutionRole   |
-| profile-rc-david   | sm-rc-david   | 风控 | project-b | SageMaker-RC-ProjectB-ExecutionRole   |
-| profile-rc-emma    | sm-rc-emma    | 风控 | project-b | SageMaker-RC-ProjectB-ExecutionRole   |
-| profile-algo-frank | sm-algo-frank | 算法 | project-x | SageMaker-Algo-ProjectX-ExecutionRole |
-| profile-algo-grace | sm-algo-grace | 算法 | project-x | SageMaker-Algo-ProjectX-ExecutionRole |
-| profile-algo-henry | sm-algo-henry | 算法 | project-x | SageMaker-Algo-ProjectX-ExecutionRole |
-| profile-algo-ivy   | sm-algo-ivy   | 算法 | project-y | SageMaker-Algo-ProjectY-ExecutionRole |
-| profile-algo-jack  | sm-algo-jack  | 算法 | project-y | SageMaker-Algo-ProjectY-ExecutionRole |
+| profile-rc-proja-alice   | sm-rc-alice   | 风控 | project-a | SageMaker-RC-ProjectA-ExecutionRole   |
+| profile-rc-proja-bob     | sm-rc-bob     | 风控 | project-a | SageMaker-RC-ProjectA-ExecutionRole   |
+| profile-rc-proja-carol   | sm-rc-carol   | 风控 | project-a | SageMaker-RC-ProjectA-ExecutionRole   |
+| profile-rc-projb-david   | sm-rc-david   | 风控 | project-b | SageMaker-RC-ProjectB-ExecutionRole   |
+| profile-rc-projb-emma    | sm-rc-emma    | 风控 | project-b | SageMaker-RC-ProjectB-ExecutionRole   |
+| profile-algo-projx-frank | sm-algo-frank | 算法 | project-x | SageMaker-Algo-ProjectX-ExecutionRole |
+| profile-algo-projx-grace | sm-algo-grace | 算法 | project-x | SageMaker-Algo-ProjectX-ExecutionRole |
+| profile-algo-projx-henry | sm-algo-henry | 算法 | project-x | SageMaker-Algo-ProjectX-ExecutionRole |
+| profile-algo-projy-ivy   | sm-algo-ivy   | 算法 | project-y | SageMaker-Algo-ProjectY-ExecutionRole |
+| profile-algo-projy-jack  | sm-algo-jack  | 算法 | project-y | SageMaker-Algo-ProjectY-ExecutionRole |
 
 ### 2.2 命名规范
 
 ```
-User Profile: profile-{team}-{name}
+User Profile: profile-{team}-{project}-{user}
 IAM User:     sm-{team}-{name}
 
 示例:
-- profile-rc-alice  ↔  sm-rc-alice
-- profile-algo-frank  ↔  sm-algo-frank
+- profile-rc-proja-alice  ↔  sm-rc-alice
+- profile-algo-projx-frank  ↔  sm-algo-frank
 ```
 
 ---
@@ -77,7 +77,7 @@ IAM User:     sm-{team}-{name}
 
 | 配置项          | 说明         | 示例                                |
 | --------------- | ------------ | ----------------------------------- |
-| UserProfileName | Profile 名称 | profile-rc-alice                    |
+| UserProfileName | Profile 名称 | profile-rc-proja-alice                    |
 | DomainId        | 所属 Domain  | d-xxxxxxxxx                         |
 | ExecutionRole   | 执行角色     | SageMaker-RC-ProjectA-ExecutionRole |
 
@@ -104,7 +104,7 @@ IAM User:     sm-{team}-{name}
 
 在 IAM 认证模式下，建议将“用户 ↔ Profile”的关系做成**可验证的权限约束**（而不是仅依赖命名约定）：
 
-- **命名约定**：`profile-rc-alice` ↔ `sm-rc-alice`
+- **命名约定**：`profile-rc-proja-alice` ↔ `sm-rc-alice`
 - **资源标记**：给 User Profile 打上 `Owner=sm-rc-alice`、`Team`、`Project` 等标签
 - **访问强制**：通过 IAM Policy 限制：
   - 只允许用户对“自己的 User Profile”执行 `DescribeUserProfile`、`CreatePresignedDomainUrl`
@@ -118,9 +118,9 @@ IAM User 只能访问与自己绑定的 User Profile：
 
 ```
 sm-rc-alice 登录后:
-✅ 可以访问: profile-rc-alice
-❌ 不能访问: profile-rc-bob
-❌ 不能访问: profile-algo-frank
+✅ 可以访问: profile-rc-proja-alice
+❌ 不能访问: profile-rc-proja-bob
+❌ 不能访问: profile-algo-projx-frank
 ```
 
 ### 4.4 可验证方案（验收用例）
@@ -162,14 +162,14 @@ IAM User 需要以下权限访问自己的 User Profile：
 
 ```
 项目 A (风控):
-├── profile-rc-alice  → SageMaker-RC-ProjectA-ExecutionRole
-├── profile-rc-bob    → SageMaker-RC-ProjectA-ExecutionRole
-└── profile-rc-carol  → SageMaker-RC-ProjectA-ExecutionRole
+├── profile-rc-proja-alice  → SageMaker-RC-ProjectA-ExecutionRole
+├── profile-rc-proja-bob    → SageMaker-RC-ProjectA-ExecutionRole
+└── profile-rc-proja-carol  → SageMaker-RC-ProjectA-ExecutionRole
 
 项目 X (算法):
-├── profile-algo-frank → SageMaker-Algo-ProjectX-ExecutionRole
-├── profile-algo-grace → SageMaker-Algo-ProjectX-ExecutionRole
-└── profile-algo-henry → SageMaker-Algo-ProjectX-ExecutionRole
+├── profile-algo-projx-frank → SageMaker-Algo-ProjectX-ExecutionRole
+├── profile-algo-projx-grace → SageMaker-Algo-ProjectX-ExecutionRole
+└── profile-algo-projx-henry → SageMaker-Algo-ProjectX-ExecutionRole
 ```
 
 ### 5.2 权限效果
@@ -263,7 +263,7 @@ EFS 结构:
 
 ```
 UserProfile 配置:
-- UserProfileName: profile-{team}-{name}
+- UserProfileName: profile-{team}-{project}-{user}
 - DomainId: d-xxxxxxxxx
 - Tags:
     - Key: Team, Value: {team}
@@ -278,9 +278,9 @@ UserProfile 配置:
 
 | #   | UserProfileName    | IAM User      | Execution Role | Tags                                 |
 | --- | ------------------ | ------------- | -------------- | ------------------------------------ |
-| 1   | profile-rc-alice   | sm-rc-alice   | RC-ProjectA    | Team:risk-control, Project:project-a |
-| 2   | profile-rc-bob     | sm-rc-bob     | RC-ProjectA    | Team:risk-control, Project:project-a |
-| 3   | profile-algo-frank | sm-algo-frank | Algo-ProjectX  | Team:algorithm, Project:project-x    |
+| 1   | profile-rc-proja-alice   | sm-rc-alice   | RC-ProjectA    | Team:risk-control, Project:project-a |
+| 2   | profile-rc-proja-bob     | sm-rc-bob     | RC-ProjectA    | Team:risk-control, Project:project-a |
+| 3   | profile-algo-projx-frank | sm-algo-frank | Algo-ProjectX  | Team:algorithm, Project:project-x    |
 
 ---
 
@@ -321,7 +321,7 @@ UserProfile 配置:
 # 创建 User Profile
 aws sagemaker create-user-profile \
   --domain-id d-xxxxxxxxx \
-  --user-profile-name profile-rc-alice \
+  --user-profile-name profile-rc-proja-alice \
   --user-settings '{
     "ExecutionRole": "arn:aws:iam::{account-id}:role/SageMaker-RC-ProjectA-ExecutionRole",
     "SecurityGroups": ["sg-sagemaker-studio"]
@@ -342,7 +342,7 @@ aws sagemaker list-user-profiles --domain-id d-xxxxxxxxx
 # 查看单个 Profile 详情
 aws sagemaker describe-user-profile \
   --domain-id d-xxxxxxxxx \
-  --user-profile-name profile-rc-alice
+  --user-profile-name profile-rc-proja-alice
 ```
 
 ### 10.3 更新 User Profile
@@ -351,7 +351,7 @@ aws sagemaker describe-user-profile \
 # 更新 Execution Role（用户换项目时）
 aws sagemaker update-user-profile \
   --domain-id d-xxxxxxxxx \
-  --user-profile-name profile-rc-alice \
+  --user-profile-name profile-rc-proja-alice \
   --user-settings '{
     "ExecutionRole": "arn:aws:iam::{account-id}:role/SageMaker-RC-ProjectB-ExecutionRole"
   }'
@@ -363,19 +363,19 @@ aws sagemaker update-user-profile \
 # 先删除用户的所有 Apps
 aws sagemaker list-apps \
   --domain-id d-xxxxxxxxx \
-  --user-profile-name profile-rc-alice
+  --user-profile-name profile-rc-proja-alice
 
 # 删除每个 App（如有）
 aws sagemaker delete-app \
   --domain-id d-xxxxxxxxx \
-  --user-profile-name profile-rc-alice \
+  --user-profile-name profile-rc-proja-alice \
   --app-type JupyterLab \
   --app-name default
 
 # 等待 App 删除完成后，删除 Profile
 aws sagemaker delete-user-profile \
   --domain-id d-xxxxxxxxx \
-  --user-profile-name profile-rc-alice
+  --user-profile-name profile-rc-proja-alice
 ```
 
 ---
@@ -389,7 +389,7 @@ aws sagemaker delete-user-profile \
 ```bash
 aws sagemaker update-user-profile \
   --domain-id d-xxxxxxxxx \
-  --user-profile-name profile-rc-alice \
+  --user-profile-name profile-rc-proja-alice \
   --user-settings '{
     "JupyterLabAppSettings": {
       "DefaultResourceSpec": {
@@ -407,16 +407,16 @@ aws sagemaker update-user-profile \
 
 ```csv
 profile_name,iam_user,team,project,execution_role
-profile-rc-alice,sm-rc-alice,risk-control,project-a,SageMaker-RC-ProjectA-ExecutionRole
-profile-rc-bob,sm-rc-bob,risk-control,project-a,SageMaker-RC-ProjectA-ExecutionRole
-profile-rc-carol,sm-rc-carol,risk-control,project-a,SageMaker-RC-ProjectA-ExecutionRole
-profile-rc-david,sm-rc-david,risk-control,project-b,SageMaker-RC-ProjectB-ExecutionRole
-profile-rc-emma,sm-rc-emma,risk-control,project-b,SageMaker-RC-ProjectB-ExecutionRole
-profile-algo-frank,sm-algo-frank,algorithm,project-x,SageMaker-Algo-ProjectX-ExecutionRole
-profile-algo-grace,sm-algo-grace,algorithm,project-x,SageMaker-Algo-ProjectX-ExecutionRole
-profile-algo-henry,sm-algo-henry,algorithm,project-x,SageMaker-Algo-ProjectX-ExecutionRole
-profile-algo-ivy,sm-algo-ivy,algorithm,project-y,SageMaker-Algo-ProjectY-ExecutionRole
-profile-algo-jack,sm-algo-jack,algorithm,project-y,SageMaker-Algo-ProjectY-ExecutionRole
+profile-rc-proja-alice,sm-rc-alice,risk-control,project-a,SageMaker-RC-ProjectA-ExecutionRole
+profile-rc-proja-bob,sm-rc-bob,risk-control,project-a,SageMaker-RC-ProjectA-ExecutionRole
+profile-rc-proja-carol,sm-rc-carol,risk-control,project-a,SageMaker-RC-ProjectA-ExecutionRole
+profile-rc-projb-david,sm-rc-david,risk-control,project-b,SageMaker-RC-ProjectB-ExecutionRole
+profile-rc-projb-emma,sm-rc-emma,risk-control,project-b,SageMaker-RC-ProjectB-ExecutionRole
+profile-algo-projx-frank,sm-algo-frank,algorithm,project-x,SageMaker-Algo-ProjectX-ExecutionRole
+profile-algo-projx-grace,sm-algo-grace,algorithm,project-x,SageMaker-Algo-ProjectX-ExecutionRole
+profile-algo-projx-henry,sm-algo-henry,algorithm,project-x,SageMaker-Algo-ProjectX-ExecutionRole
+profile-algo-projy-ivy,sm-algo-ivy,algorithm,project-y,SageMaker-Algo-ProjectY-ExecutionRole
+profile-algo-projy-jack,sm-algo-jack,algorithm,project-y,SageMaker-Algo-ProjectY-ExecutionRole
 ```
 
 ### 12.2 批量创建脚本 `create-user-profiles.sh`
