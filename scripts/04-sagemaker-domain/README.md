@@ -25,23 +25,29 @@ vi .env.local
 
 ## 创建的资源
 
-| 资源             | 名称                    | 说明                 |
-| ---------------- | ----------------------- | -------------------- |
-| SageMaker Domain | `{company}-ml-platform` | VPCOnly + IAM 认证   |
-| Lifecycle Config | `auto-shutdown-60min`   | 空闲 60 分钟自动关机 |
+| 资源             | 名称                    | 说明                          |
+| ---------------- | ----------------------- | ----------------------------- |
+| SageMaker Domain | `{company}-ml-platform` | VPCOnly + IAM 认证 + 自动关机 |
+
+## Idle Shutdown（自动关机）
+
+使用 **SageMaker 内置 Idle Shutdown** 功能（非自定义 Lifecycle Config）：
+
+- 更稳定可靠（AWS 官方维护）
+- 无需自定义脚本（避免环境兼容性问题）
+- 默认 60 分钟无活动自动关闭
 
 ## 脚本说明
 
-| 脚本                            | 功能                            |
-| ------------------------------- | ------------------------------- |
-| `setup-all.sh`                  | 主控脚本，按顺序执行所有配置    |
-| `check.sh`                      | **前置检查和诊断**              |
-| `01-create-domain.sh`           | 创建 SageMaker Domain           |
-| `02-create-lifecycle-config.sh` | 创建自动关机脚本                |
-| `03-attach-lifecycle.sh`        | 绑定 Lifecycle Config 到 Domain |
-| `fix-execution-roles.sh`        | **修复 Execution Role ARN**     |
-| `verify.sh`                     | 验证配置                        |
-| `cleanup.sh`                    | 清理所有资源（危险！）          |
+| 脚本                      | 功能                           |
+| ------------------------- | ------------------------------ |
+| `setup-all.sh`            | 主控脚本，创建 Domain          |
+| `check.sh`                | **前置检查和诊断**             |
+| `01-create-domain.sh`     | 创建 SageMaker Domain          |
+| `fix-execution-roles.sh`  | **修复 Execution Role ARN**    |
+| `fix-lifecycle-config.sh` | **修复 Lifecycle Config 问题** |
+| `verify.sh`               | 验证配置                       |
+| `cleanup.sh`              | 清理所有资源（危险！）         |
 
 ## 问题诊断
 
@@ -76,12 +82,12 @@ vi .env.local
 
 ## 配置参数
 
-| 参数                    | 默认值                  | 说明             |
-| ----------------------- | ----------------------- | ---------------- |
-| `DOMAIN_NAME`           | `{company}-ml-platform` | Domain 名称      |
-| `IDLE_TIMEOUT_MINUTES`  | `60`                    | 空闲超时（分钟） |
-| `DEFAULT_INSTANCE_TYPE` | `ml.t3.medium`          | 默认实例类型     |
-| `DEFAULT_EBS_SIZE_GB`   | `100`                   | 默认 EBS 大小    |
+| 参数                    | 默认值                  | 说明                       |
+| ----------------------- | ----------------------- | -------------------------- |
+| `DOMAIN_NAME`           | `{company}-ml-platform` | Domain 名称                |
+| `IDLE_TIMEOUT_MINUTES`  | `60`                    | 空闲超时（分钟，内置功能） |
+| `DEFAULT_INSTANCE_TYPE` | `ml.t3.medium`          | 默认实例类型               |
+| `DEFAULT_EBS_SIZE_GB`   | `100`                   | 默认 EBS 大小              |
 
 ## 输出文件
 
@@ -89,8 +95,7 @@ vi .env.local
 
 ```
 output/
-├── domain-info.env        # Domain ID, EFS ID 等
-└── lifecycle-config.env   # Lifecycle Config ARN
+└── domain-info.env        # Domain ID, EFS ID 等
 ```
 
 ## 验证命令
@@ -102,13 +107,59 @@ aws sagemaker list-domains
 # 查看 Domain 详情
 aws sagemaker describe-domain --domain-id d-xxxxxxxxx
 
-# 列出 Lifecycle Configs
-aws sagemaker list-studio-lifecycle-configs
+# 检查 Idle Shutdown 配置
+aws sagemaker describe-domain --domain-id d-xxxxxxxxx \
+    --query 'DefaultUserSettings.JupyterLabAppSettings.AppLifecycleManagement.IdleSettings'
+```
+
+## 修复 Lifecycle Config 问题
+
+如果启动 JupyterLab 时报错：
+
+```
+ConfigurationError: LifecycleConfig execution failed with non zero exit code 1
+```
+
+### 问题原因
+
+旧版本使用自定义 Lifecycle Config 实现自动关机，但可能因环境差异导致脚本执行失败。
+
+### 修复方法
+
+```bash
+# 运行修复脚本（会显示变更计划并确认）
+./fix-lifecycle-config.sh
+```
+
+脚本会：
+
+1. 移除自定义 Lifecycle Config
+2. 启用内置 Idle Shutdown（更稳定）
+3. 重启 JupyterLab 即可
+
+### 手动修复
+
+```bash
+aws sagemaker update-domain \
+    --domain-id "d-xxxxxxxxx" \
+    --default-user-settings '{
+        "JupyterLabAppSettings": {
+            "DefaultResourceSpec": {},
+            "LifecycleConfigArns": [],
+            "AppLifecycleManagement": {
+                "IdleSettings": {
+                    "LifecycleManagement": "ENABLED",
+                    "IdleTimeoutInMinutes": 60
+                }
+            }
+        }
+    }' \
+    --region ap-northeast-1
 ```
 
 ## 修复 Execution Role ARN
 
-如果 Domain 或 User Profiles 绑定了带 path 的旧 Role ARN，会导致启动 JupyterLab 时报错：
+如果启动 JupyterLab 时报错：
 
 ```
 PermissionError: SageMaker was unable to assume the role
@@ -127,22 +178,11 @@ PermissionError: SageMaker was unable to assume the role
 ### 修复方法
 
 ```bash
-# 1. 运行修复脚本（会显示变更计划并确认）
+# 运行修复脚本（会显示变更计划并确认）
 ./fix-execution-roles.sh
-
-# 2. 重启 JupyterLab
 ```
 
-脚本执行流程：
-
-1. 扫描 Domain 和 User Profiles 的当前配置
-2. 显示变更对比表（当前值 vs 修复后的值）
-3. 提示确认是否执行
-4. 执行修复并验证结果
-
 ### 手动修复
-
-也可以通过 AWS CLI 手动修复：
 
 ```bash
 # 获取正确的 Role ARN
@@ -153,13 +193,6 @@ aws sagemaker update-domain \
     --domain-id "d-xxxxxxxxx" \
     --default-user-settings "{\"ExecutionRole\": \"${CORRECT_ROLE}\"}" \
     --default-space-settings "{\"ExecutionRole\": \"${CORRECT_ROLE}\"}" \
-    --region ap-northeast-1
-
-# 更新 User Profile（如有）
-aws sagemaker update-user-profile \
-    --domain-id "d-xxxxxxxxx" \
-    --user-profile-name "profile-xxx" \
-    --user-settings "{\"ExecutionRole\": \"${CORRECT_ROLE}\"}" \
     --region ap-northeast-1
 ```
 

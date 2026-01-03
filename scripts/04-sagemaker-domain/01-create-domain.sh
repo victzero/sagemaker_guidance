@@ -73,6 +73,12 @@ main() {
     "JupyterLabAppSettings": {
         "DefaultResourceSpec": {
             "InstanceType": "${DEFAULT_INSTANCE_TYPE}"
+        },
+        "AppLifecycleManagement": {
+            "IdleSettings": {
+                "LifecycleManagement": "ENABLED",
+                "IdleTimeoutInMinutes": ${IDLE_TIMEOUT_MINUTES}
+            }
         }
     }
 }

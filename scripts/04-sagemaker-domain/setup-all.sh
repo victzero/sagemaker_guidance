@@ -33,7 +33,6 @@ check_aws_cli
 export TAG_PREFIX="${TAG_PREFIX:-${COMPANY}-sagemaker}"
 export DOMAIN_NAME="${DOMAIN_NAME:-${COMPANY}-ml-platform}"
 export IDLE_TIMEOUT_MINUTES="${IDLE_TIMEOUT_MINUTES:-60}"
-export LIFECYCLE_CONFIG_NAME="${LIFECYCLE_CONFIG_NAME:-auto-shutdown-${IDLE_TIMEOUT_MINUTES}min}"
 export DEFAULT_INSTANCE_TYPE="${DEFAULT_INSTANCE_TYPE:-ml.t3.medium}"
 export DEFAULT_EBS_SIZE_GB="${DEFAULT_EBS_SIZE_GB:-100}"
 
@@ -78,24 +77,16 @@ echo "  Auth Mode:         IAM"
 echo "  Network Mode:      VpcOnly"
 echo "  Default Instance:  $DEFAULT_INSTANCE_TYPE"
 echo "  Default EBS Size:  ${DEFAULT_EBS_SIZE_GB} GB"
-echo ""
-
-# ========== Lifecycle Config ==========
-echo -e "${BLUE}【Lifecycle Configuration】${NC}"
-echo "  Config Name:       $LIFECYCLE_CONFIG_NAME"
-echo "  Idle Timeout:      ${IDLE_TIMEOUT_MINUTES} minutes"
-echo "  App Type:          JupyterLab"
-echo "  Effect:            Auto-shutdown idle instances"
+echo "  Idle Shutdown:     ${IDLE_TIMEOUT_MINUTES} minutes (built-in)"
 echo ""
 
 # ========== Summary ==========
 echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-echo -e "${CYAN}Summary: 1 Domain, 1 Lifecycle Config${NC}"
+echo -e "${CYAN}Summary: 1 Domain (with built-in idle shutdown)${NC}"
 echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 echo ""
 echo -e "${YELLOW}Filter resources later with:${NC}"
 echo "  aws sagemaker list-domains --query \"Domains[?DomainName=='${DOMAIN_NAME}']\""
-echo "  aws sagemaker list-studio-lifecycle-configs --query \"StudioLifecycleConfigs[?StudioLifecycleConfigName=='${LIFECYCLE_CONFIG_NAME}']\""
 echo ""
 
 # 运行前置检查
@@ -145,9 +136,7 @@ run_step() {
 }
 
 # 执行所有步骤
-run_step 1 "01-create-domain.sh" "Create SageMaker Domain"
-run_step 2 "02-create-lifecycle-config.sh" "Create Lifecycle Configuration"
-run_step 3 "03-attach-lifecycle.sh" "Attach Lifecycle Config to Domain"
+run_step 1 "01-create-domain.sh" "Create SageMaker Domain (with built-in idle shutdown)"
 
 # 计算耗时
 END_TIME=$(date +%s)
@@ -165,14 +154,10 @@ echo ""
 echo "  Domain:"
 echo "    - Name: $DOMAIN_NAME"
 echo "    - Mode: VpcOnly + IAM Auth"
-echo ""
-echo "  Lifecycle Config:"
-echo "    - Name: $LIFECYCLE_CONFIG_NAME"
-echo "    - Idle Timeout: ${IDLE_TIMEOUT_MINUTES} minutes"
+echo "    - Idle Shutdown: ${IDLE_TIMEOUT_MINUTES} minutes (built-in)"
 echo ""
 echo "Resource info saved to:"
 echo "  - ${SCRIPT_DIR}/output/domain-info.env"
-echo "  - ${SCRIPT_DIR}/output/lifecycle-config.env"
 echo ""
 echo "Verify resources with:"
 echo "  ./verify.sh"

@@ -144,7 +144,6 @@ init() {
     # 设置 Domain 特有配置
     export DOMAIN_NAME="${DOMAIN_NAME:-${COMPANY}-ml-platform}"
     export IDLE_TIMEOUT_MINUTES="${IDLE_TIMEOUT_MINUTES:-60}"
-    export LIFECYCLE_CONFIG_NAME="${LIFECYCLE_CONFIG_NAME:-auto-shutdown-${IDLE_TIMEOUT_MINUTES}min}"
     export DEFAULT_INSTANCE_TYPE="${DEFAULT_INSTANCE_TYPE:-ml.t3.medium}"
     export DEFAULT_EBS_SIZE_GB="${DEFAULT_EBS_SIZE_GB:-100}"
     
