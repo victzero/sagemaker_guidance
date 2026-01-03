@@ -1,9 +1,11 @@
 #!/bin/bash
 # =============================================================================
-# verify.sh - 验证 User Profiles 配置
+# verify.sh - 验证 User Profiles 和 Private Spaces 配置
 # =============================================================================
 #
-# 命名规范: profile-{team}-{project}-{user}
+# 命名规范:
+#   User Profile: profile-{team}-{project}-{user}
+#   Private Space: space-{team}-{project}-{user}
 #
 # =============================================================================
 
@@ -16,15 +18,18 @@ init
 
 echo ""
 echo "=============================================="
-echo " User Profiles Verification"
+echo " User Profiles & Private Spaces Verification"
 echo "=============================================="
 echo ""
 echo "Domain ID: $DOMAIN_ID"
-echo "Naming format: profile-{team}-{project}-{user}"
+echo "Naming format:"
+echo "  Profile: profile-{team}-{project}-{user}"
+echo "  Space:   space-{team}-{project}-{user}"
 echo ""
 
 errors=0
-verified=0
+profile_verified=0
+space_verified=0
 
 # -----------------------------------------------------------------------------
 # 辅助函数
@@ -40,7 +45,6 @@ verify_section() {
 verify_section "User Profiles"
 
 expected_count=0
-actual_count=0
 
 for team in $TEAMS; do
     team_fullname=$(get_team_fullname "$team")
@@ -55,7 +59,7 @@ for team in $TEAMS; do
         expected_role="SageMaker-${team_formatted}-${project_formatted}-ExecutionRole"
         users=$(get_users_for_project "$team" "$project")
         
-        # 简化项目名用于 Profile 命名
+        # 简化项目名用于命名
         project_short=$(echo "$project" | cut -d'-' -f1)
         
         echo "  Project [$project]:"
@@ -77,8 +81,7 @@ for team in $TEAMS; do
                 if [[ "$status" == "InService" ]]; then
                     if [[ "$actual_role" == "$expected_role" ]]; then
                         echo -e "    ${GREEN}✓${NC} $profile_name"
-                        echo -e "      Role: $actual_role"
-                        ((actual_count++)) || true
+                        ((profile_verified++)) || true
                     else
                         echo -e "    ${YELLOW}!${NC} $profile_name - Role mismatch"
                         echo "        Expected: $expected_role"
@@ -91,6 +94,65 @@ for team in $TEAMS; do
                 fi
             else
                 echo -e "    ${RED}✗${NC} $profile_name - NOT FOUND"
+                ((errors++)) || true
+            fi
+        done
+    done
+done
+
+# -----------------------------------------------------------------------------
+# 验证 Private Spaces
+# -----------------------------------------------------------------------------
+verify_section "Private Spaces"
+
+space_expected=0
+
+for team in $TEAMS; do
+    team_fullname=$(get_team_fullname "$team")
+    projects=$(get_projects_for_team "$team")
+    
+    echo ""
+    echo "Team [$team - $team_fullname]:"
+    
+    for project in $projects; do
+        users=$(get_users_for_project "$team" "$project")
+        project_short=$(echo "$project" | cut -d'-' -f1)
+        
+        echo "  Project [$project]:"
+        
+        for user in $users; do
+            space_name="space-${team}-${project_short}-${user}"
+            profile_name="profile-${team}-${project_short}-${user}"
+            ((space_expected++)) || true
+            
+            # 检查 Space 是否存在
+            space_info=$(aws sagemaker describe-space \
+                --domain-id "$DOMAIN_ID" \
+                --space-name "$space_name" \
+                --region "$AWS_REGION" 2>/dev/null || echo "")
+            
+            if [[ -n "$space_info" ]]; then
+                status=$(echo "$space_info" | jq -r '.Status')
+                owner=$(echo "$space_info" | jq -r '.OwnershipSettings.OwnerUserProfileName // "N/A"')
+                sharing_type=$(echo "$space_info" | jq -r '.SpaceSharingSettings.SharingType // "N/A"')
+                
+                if [[ "$status" == "InService" ]]; then
+                    if [[ "$owner" == "$profile_name" && "$sharing_type" == "Private" ]]; then
+                        echo -e "    ${GREEN}✓${NC} $space_name (Owner: $owner)"
+                        ((space_verified++)) || true
+                    else
+                        echo -e "    ${YELLOW}!${NC} $space_name - Config mismatch"
+                        echo "        Expected Owner: $profile_name"
+                        echo "        Actual Owner:   $owner"
+                        echo "        Sharing Type:   $sharing_type"
+                        ((errors++)) || true
+                    fi
+                else
+                    echo -e "    ${YELLOW}!${NC} $space_name - Status: $status"
+                    ((errors++)) || true
+                fi
+            else
+                echo -e "    ${RED}✗${NC} $space_name - NOT FOUND"
                 ((errors++)) || true
             fi
         done
@@ -136,24 +198,31 @@ fi
 verify_section "Summary"
 
 echo ""
-echo "Expected Profiles: $expected_count"
-echo "Verified Profiles: $actual_count"
-echo "Errors:           $errors"
+echo "User Profiles:"
+echo "  Expected: $expected_count"
+echo "  Verified: $profile_verified"
+echo ""
+echo "Private Spaces:"
+echo "  Expected: $space_expected"
+echo "  Verified: $space_verified"
+echo ""
+echo "Errors: $errors"
 
 # -----------------------------------------------------------------------------
 # 总结
 # -----------------------------------------------------------------------------
 echo ""
 echo "=============================================="
-if [[ $errors -eq 0 && $expected_count -eq $actual_count ]]; then
-    echo -e "${GREEN}Verification PASSED${NC} - All User Profiles configured correctly"
+if [[ $errors -eq 0 && $expected_count -eq $profile_verified && $space_expected -eq $space_verified ]]; then
+    echo -e "${GREEN}Verification PASSED${NC} - All resources configured correctly"
 else
     echo -e "${RED}Verification FAILED${NC} - $errors error(s) found"
 fi
 echo "=============================================="
 echo ""
-echo "List all profiles with:"
+echo "List all resources with:"
 echo "  aws sagemaker list-user-profiles --domain-id $DOMAIN_ID"
+echo "  aws sagemaker list-spaces --domain-id $DOMAIN_ID"
 echo ""
 
 exit $errors

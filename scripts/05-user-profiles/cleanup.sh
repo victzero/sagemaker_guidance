@@ -1,9 +1,11 @@
 #!/bin/bash
 # =============================================================================
-# cleanup.sh - 清理 User Profiles (危险操作!)
+# cleanup.sh - 清理 User Profiles 和 Private Spaces (危险操作!)
 # =============================================================================
 #
-# 命名规范: profile-{team}-{project}-{user}
+# 命名规范:
+#   User Profile: profile-{team}-{project}-{user}
+#   Private Space: space-{team}-{project}-{user}
 #
 # =============================================================================
 
@@ -21,35 +23,38 @@ fi
 
 echo ""
 echo -e "${RED}=============================================="
-echo " WARNING: User Profiles Cleanup"
+echo " WARNING: User Profiles & Private Spaces Cleanup"
 echo "==============================================${NC}"
 echo ""
-echo "This will DELETE the following User Profiles:"
-echo "  - All profiles created by this script"
+echo "This will DELETE the following resources:"
+echo "  - All User Profiles created by this script"
+echo "  - All Private Spaces created by this script"
 echo "  - User home directories (EFS data)"
 echo ""
 echo "Domain ID: $DOMAIN_ID"
 echo ""
 
-# 列出将要删除的 Profiles
+# 列出将要删除的资源
 profile_count=0
 for team in $TEAMS; do
     projects=$(get_projects_for_team "$team")
     for project in $projects; do
         users=$(get_users_for_project "$team" "$project")
-        # 简化项目名用于 Profile 命名
+        # 简化项目名用于命名
         project_short=$(echo "$project" | cut -d'-' -f1)
         
         for user in $users; do
             profile_name="profile-${team}-${project_short}-${user}"
-            echo "  - $profile_name"
+            space_name="space-${team}-${project_short}-${user}"
+            echo "  - Profile: $profile_name"
+            echo "    Space:   $space_name"
             ((profile_count++)) || true
         done
     done
 done
 
 echo ""
-echo "Total: $profile_count profiles"
+echo "Total: $profile_count profiles + $profile_count spaces"
 echo ""
 
 if [[ "$FORCE" != "true" ]]; then
@@ -63,16 +68,84 @@ if [[ "$FORCE" != "true" ]]; then
 fi
 
 # -----------------------------------------------------------------------------
-# 删除 User Profiles
+# 删除 Private Spaces (必须先于 User Profiles)
 # -----------------------------------------------------------------------------
-log_info "Deleting User Profiles..."
+log_info "Deleting Private Spaces..."
 
-deleted=0
+space_deleted=0
 for team in $TEAMS; do
     projects=$(get_projects_for_team "$team")
     for project in $projects; do
         users=$(get_users_for_project "$team" "$project")
-        # 简化项目名用于 Profile 命名
+        project_short=$(echo "$project" | cut -d'-' -f1)
+        
+        for user in $users; do
+            space_name="space-${team}-${project_short}-${user}"
+            
+            # 检查是否存在
+            if ! aws sagemaker describe-space \
+                --domain-id "$DOMAIN_ID" \
+                --space-name "$space_name" \
+                --region "$AWS_REGION" &> /dev/null; then
+                log_info "Space not found, skipping: $space_name"
+                continue
+            fi
+            
+            # 先删除所有 Apps
+            log_info "Deleting Apps for Space: $space_name"
+            apps=$(aws sagemaker list-apps \
+                --domain-id "$DOMAIN_ID" \
+                --space-name "$space_name" \
+                --query 'Apps[?Status!=`Deleted`].[AppType,AppName]' \
+                --output text \
+                --region "$AWS_REGION" 2>/dev/null || echo "")
+            
+            while IFS=$'\t' read -r app_type app_name; do
+                [[ -z "$app_name" ]] && continue
+                log_info "  Deleting App: $app_type/$app_name"
+                aws sagemaker delete-app \
+                    --domain-id "$DOMAIN_ID" \
+                    --space-name "$space_name" \
+                    --app-type "$app_type" \
+                    --app-name "$app_name" \
+                    --region "$AWS_REGION" 2>/dev/null || true
+            done <<< "$apps"
+            
+            # 等待 Apps 删除
+            if [[ -n "$apps" ]]; then
+                log_info "  Waiting for Apps to be deleted..."
+                sleep 15
+            fi
+            
+            # 删除 Space
+            log_info "Deleting Space: $space_name"
+            aws sagemaker delete-space \
+                --domain-id "$DOMAIN_ID" \
+                --space-name "$space_name" \
+                --region "$AWS_REGION" 2>/dev/null || log_warn "Could not delete $space_name"
+            
+            ((space_deleted++)) || true
+            sleep 2
+        done
+    done
+done
+
+# 等待 Spaces 完全删除
+if [[ $space_deleted -gt 0 ]]; then
+    log_info "Waiting for Spaces to be fully deleted..."
+    sleep 10
+fi
+
+# -----------------------------------------------------------------------------
+# 删除 User Profiles
+# -----------------------------------------------------------------------------
+log_info "Deleting User Profiles..."
+
+profile_deleted=0
+for team in $TEAMS; do
+    projects=$(get_projects_for_team "$team")
+    for project in $projects; do
+        users=$(get_users_for_project "$team" "$project")
         project_short=$(echo "$project" | cut -d'-' -f1)
         
         for user in $users; do
@@ -88,7 +161,7 @@ for team in $TEAMS; do
             fi
             
             # 先删除所有 Apps
-            log_info "Deleting Apps for: $profile_name"
+            log_info "Deleting Apps for Profile: $profile_name"
             apps=$(aws sagemaker list-apps \
                 --domain-id "$DOMAIN_ID" \
                 --user-profile-name "$profile_name" \
@@ -119,7 +192,7 @@ for team in $TEAMS; do
                 --user-profile-name "$profile_name" \
                 --region "$AWS_REGION" 2>/dev/null || log_warn "Could not delete $profile_name"
             
-            ((deleted++)) || true
+            ((profile_deleted++)) || true
             sleep 1
         done
     done
@@ -130,10 +203,13 @@ done
 # -----------------------------------------------------------------------------
 log_info "Cleaning up output files..."
 rm -f "${SCRIPT_DIR}/${OUTPUT_DIR}/user-profiles.csv" 2>/dev/null || true
+rm -f "${SCRIPT_DIR}/${OUTPUT_DIR}/private-spaces.csv" 2>/dev/null || true
 
 echo ""
 log_success "Cleanup complete!"
 echo ""
-echo "Deleted: $deleted profiles"
+echo "Deleted:"
+echo "  - Spaces:   $space_deleted"
+echo "  - Profiles: $profile_deleted"
 echo ""
 echo "Note: EFS home directories will be deleted with the profiles."
