@@ -54,20 +54,13 @@ create_private_space() {
     log_info "Creating Private Space: $space_name"
     log_info "  Owner Profile: $profile_name"
     
-    # Space 设置（继承 Domain 的 idle shutdown 配置）
+    # Space 设置（Idle Shutdown 自动继承 Domain 配置）
     local space_settings=$(cat <<EOF
 {
     "AppType": "JupyterLab",
     "SpaceStorageSettings": {
         "EbsStorageSettings": {
             "EbsVolumeSizeInGb": ${SPACE_EBS_SIZE_GB}
-        }
-    },
-    "JupyterLabAppSettings": {
-        "AppLifecycleManagement": {
-            "IdleSettings": {
-                "LifecycleManagement": "ENABLED"
-            }
         }
     }
 }
