@@ -766,6 +766,42 @@ ENABLE_CANVAS=false ./04-create-roles.sh
 
 禁用后，Execution Role 不会附加 Canvas 相关的 4 个策略，减少权限范围。
 
+### Q: JupyterLab 启动报错 "unable to assume role"，怎么办？
+
+A: 这通常是因为 SageMaker Domain 绑定的 Role ARN 是旧格式（带 IAM_PATH），而实际 Role 使用新格式（不带 path）。
+
+**错误示例：**
+
+```
+PermissionError: SageMaker was unable to assume the role 
+'arn:aws:iam::xxx:role/acme-sagemaker/SageMaker-Domain-DefaultExecutionRole'
+```
+
+**问题原因：**
+
+```
+Domain 绑定: arn:aws:iam::xxx:role/acme-sagemaker/SageMaker-...-ExecutionRole  ❌
+实际 Role:   arn:aws:iam::xxx:role/SageMaker-...-ExecutionRole                 ✅
+```
+
+**修复方法：**
+
+```bash
+# 方法 1：使用修复脚本（推荐）
+cd ../04-sagemaker-domain
+./fix-execution-roles.sh  # 会显示变更计划并确认后执行
+
+# 方法 2：手动修复
+CORRECT_ROLE=$(aws iam get-role --role-name SageMaker-Domain-DefaultExecutionRole --query 'Role.Arn' --output text)
+aws sagemaker update-domain \
+    --domain-id "d-xxxxxxxxx" \
+    --default-user-settings "{\"ExecutionRole\": \"${CORRECT_ROLE}\"}" \
+    --default-space-settings "{\"ExecutionRole\": \"${CORRECT_ROLE}\"}" \
+    --region ap-northeast-1
+```
+
+修复后重启 JupyterLab 即可。
+
 ## 相关文档
 
 - [02-iam-design.md](../../docs/02-iam-design.md) - IAM 设计文档
