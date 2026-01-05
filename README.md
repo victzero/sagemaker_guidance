@@ -33,14 +33,17 @@ open http://localhost:3000
 docs/
 ├── README.md                      # 文档首页
 ├── 01-architecture-overview.md    # 整体架构设计
-├── 02-iam-design.md              # IAM 权限体系
+├── 02-iam-design.md              # IAM 权限体系（4 角色设计）
 ├── 03-vpc-network.md             # VPC 网络配置
 ├── 04-s3-data-management.md      # S3 数据管理
-├── 05-sagemaker-domain.md        # SageMaker Domain
-├── 06-user-profile.md            # User Profile 设计
-├── 07-shared-space.md            # Shared Space 设计
+├── 05-sagemaker-domain.md        # SageMaker Domain（内置 Idle Shutdown）
+├── 06-user-profile.md            # User Profile + Private Space 设计
 ├── 08-implementation-guide.md    # 实施步骤指南
-└── 09-appendix.md                # 附录与参考
+├── 09-appendix.md                # 附录与参考
+├── 10-sagemaker-processing.md    # Processing Jobs
+├── 11-data-wrangler.md           # Data Wrangler
+├── 12-sagemaker-training.md      # Training Jobs
+└── 13-realtime-inference.md      # Real-Time Inference
 ```
 
 ## 🚀 部署到 GitHub Pages

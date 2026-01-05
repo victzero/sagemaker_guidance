@@ -10,17 +10,16 @@
 
 ### Phase 1: 基础平台（✅ 已完成）
 
-| 序号 | 文档                                         | 说明                             | 状态    |
-| ---- | -------------------------------------------- | -------------------------------- | ------- |
-| 01   | [架构概览](./01-architecture-overview.md)    | 整体架构、团队组织、复杂度评估   | ✅ 完成 |
-| 02   | [IAM 权限设计](./02-iam-design.md)           | Groups/Users/Roles、Policy JSON  | ✅ 完成 |
-| 03   | [VPC 网络配置](./03-vpc-network.md)          | 子网、安全组、VPC Endpoints      | ✅ 完成 |
-| 04   | [S3 数据管理](./04-s3-data-management.md)    | Bucket Policy、生命周期规则 JSON | ✅ 完成 |
-| 05   | [SageMaker Domain](./05-sagemaker-domain.md) | CLI 创建、Lifecycle Config 脚本  | ✅ 完成 |
-| 06   | [User Profile 设计](./06-user-profile.md)    | CLI 创建、批量脚本               | ✅ 完成 |
-| 07   | [Shared Space 设计](./07-shared-space.md)    | CLI 创建、存储监控、协作实践     | ✅ 完成 |
-| 08   | [实施步骤指南](./08-implementation-guide.md) | 创建顺序 Checklist               | ✅ 完成 |
-| 09   | [附录与参考](./09-appendix.md)               | 术语表、FAQ、参考链接            | ✅ 完成 |
+| 序号 | 文档                                         | 说明                                 | 状态    |
+| ---- | -------------------------------------------- | ------------------------------------ | ------- |
+| 01   | [架构概览](./01-architecture-overview.md)    | 整体架构、团队组织、复杂度评估       | ✅ 完成 |
+| 02   | [IAM 权限设计](./02-iam-design.md)           | 4 角色设计、Policy JSON、MFA 强制    | ✅ 完成 |
+| 03   | [VPC 网络配置](./03-vpc-network.md)          | 子网、安全组、VPC Endpoints          | ✅ 完成 |
+| 04   | [S3 数据管理](./04-s3-data-management.md)    | Bucket Policy、生命周期规则 JSON     | ✅ 完成 |
+| 05   | [SageMaker Domain](./05-sagemaker-domain.md) | CLI 创建、内置 Idle Shutdown         | ✅ 完成 |
+| 06   | [User Profile 设计](./06-user-profile.md)    | Profile + Private Space、批量脚本   | ✅ 完成 |
+| 08   | [实施步骤指南](./08-implementation-guide.md) | 创建顺序 Checklist                   | ✅ 完成 |
+| 09   | [附录与参考](./09-appendix.md)               | 术语表、FAQ、参考链接                | ✅ 完成 |
 
 ### Phase 2: ML 服务扩展（✅ POC 就绪）
 
@@ -106,15 +105,15 @@ Phase 3 - 高级功能 ⏳ 待规划
 │         ▼                                     ▼                 │
 │  ┌─────────────────────────────────────────────────────────┐   │
 │  │                 SageMaker Domain                         │   │
-│  │  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐      │   │
-│  │  │User Profile │  │User Profile │  │User Profile │ ...  │   │
-│  │  │  (用户A)    │  │  (用户B)    │  │  (用户C)    │      │   │
-│  │  └─────────────┘  └─────────────┘  └─────────────┘      │   │
-│  │                                                          │   │
-│  │  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐      │   │
-│  │  │Shared Space │  │Shared Space │  │Shared Space │ ...  │   │
-│  │  │ (项目A)     │  │ (项目B)     │  │ (项目X)     │      │   │
-│  │  └─────────────┘  └─────────────┘  └─────────────┘      │   │
+│  │  ┌───────────────────────────────────────────────┐      │   │
+│  │  │ User Profile + Private Space (per user/project)│      │   │
+│  │  ├───────────────────────────────────────────────┤      │   │
+│  │  │ profile-rc-fraud-alice + space-rc-fraud-alice │      │   │
+│  │  │ profile-rc-fraud-bob   + space-rc-fraud-bob   │      │   │
+│  │  │ profile-rc-aml-alice   + space-rc-aml-alice   │      │   │
+│  │  │ profile-algo-rec-david + space-algo-rec-david │      │   │
+│  │  │ ...                                            │      │   │
+│  │  └───────────────────────────────────────────────┘      │   │
 │  └─────────────────────────────────────────────────────────┘   │
 │         │                                                       │
 │         ▼                                                       │
@@ -155,6 +154,7 @@ Phase 3 - 高级功能 ⏳ 待规划
 | v1.0 | 2024-12-24 | Phase 1 完成：基础平台设计，含 CLI、Policy JSON、脚本 |
 | v2.0 | 2024-12-24 | Phase 2 框架：新增 Processing/Training/Inference 文档 |
 | v2.1 | 2024-12-30 | Phase 2 POC 就绪：完善实操指南，IAM 权限已支持 ML Jobs |
+| v2.2 | 2025-01-05 | 文档与实现对齐：4 角色设计、Private Space、内置 Idle Shutdown、移除 07-shared-space |
 
 ---
 
