@@ -542,8 +542,7 @@ create_training_role() {
     log_info "Training Role $role_name permissions:"
     echo "  ✓ $policy_name (S3, ECR, CloudWatch, VPC)"
     echo "  ✓ $ops_policy_name (Training ops, Model Registry, Experiment)"
-    echo "  ✗ No Processing permissions"
-    echo "  ✗ No Inference permissions"
+    echo "  → Scope: Training Jobs only"
 }
 
 # -----------------------------------------------------------------------------
@@ -643,8 +642,7 @@ create_processing_role() {
     log_info "Processing Role $role_name permissions:"
     echo "  ✓ $policy_name (S3, ECR, CloudWatch, VPC)"
     echo "  ✓ $ops_policy_name (Processing ops, Feature Store, Glue/Athena)"
-    echo "  ✗ No Training permissions"
-    echo "  ✗ No Inference permissions"
+    echo "  → Scope: Processing Jobs only"
 }
 
 # -----------------------------------------------------------------------------
@@ -744,8 +742,7 @@ create_inference_role() {
     log_info "Inference Role $role_name permissions (minimal):"
     echo "  ✓ $policy_name (S3, ECR, CloudWatch, VPC)"
     echo "  ✓ $ops_policy_name (Inference ops, Model Registry read-only)"
-    echo "  ✗ No Training/Processing permissions"
-    echo "  ✗ No S3 full write access"
+    echo "  → Scope: Inference Endpoints only"
 }
 
 # -----------------------------------------------------------------------------
@@ -908,7 +905,7 @@ main() {
         echo "│  ✓ ECR pull-only (training images)                                      │"
         echo "│  ✓ Model Registry write                                                 │"
         echo "│  ✓ Experiment tracking                                                  │"
-        echo "│  ✗ No Processing/Inference permissions                                  │"
+        echo "│  → Scope: Training Jobs only                                            │"
         echo "└─────────────────────────────────────────────────────────────────────────┘"
     fi
     
@@ -922,7 +919,7 @@ main() {
         echo "│  ✓ ECR pull-only (processing images)                                    │"
         echo "│  ✓ Feature Store access                                                 │"
         echo "│  ✓ Glue/Athena catalog access                                           │"
-        echo "│  ✗ No Training/Inference permissions                                    │"
+        echo "│  → Scope: Processing Jobs only                                          │"
         echo "└─────────────────────────────────────────────────────────────────────────┘"
     fi
     
@@ -935,7 +932,7 @@ main() {
         echo "│  ✓ S3 inference output (inference/output/*, batch-transform/*)          │"
         echo "│  ✓ ECR pull-only (inference images)                                     │"
         echo "│  ✓ Model Registry read-only                                             │"
-        echo "│  ✗ No Training/Processing permissions                                   │"
+        echo "│  → Scope: Inference Endpoints only                                      │"
         echo "└─────────────────────────────────────────────────────────────────────────┘"
     fi
     
