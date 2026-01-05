@@ -46,7 +46,14 @@ scripts/
     │   ├── base-access.json.tpl
     │   ├── team-access.json.tpl
     │   ├── project-access.json.tpl
-    │   ├── execution-role.json.tpl
+    │   ├── execution-role.json.tpl      # ExecutionRole 基础 (S3/ECR/VPC)
+    │   ├── execution-role-jobs.json.tpl # ExecutionRole 作业 (PassRole/Jobs)
+    │   ├── training-role.json.tpl       # TrainingRole 基础 (S3/ECR/VPC)
+    │   ├── training-role-ops.json.tpl   # TrainingRole 操作 (Training ops)
+    │   ├── processing-role.json.tpl     # ProcessingRole 基础 (S3/ECR/VPC)
+    │   ├── processing-role-ops.json.tpl # ProcessingRole 操作 (Glue/Athena)
+    │   ├── inference-role.json.tpl      # InferenceRole 基础 (S3/ECR/VPC)
+    │   ├── inference-role-ops.json.tpl  # InferenceRole 操作 (Inference ops)
     │   ├── user-boundary.json.tpl
     │   ├── readonly.json.tpl
     │   ├── self-service.json.tpl
@@ -677,7 +684,17 @@ setup-all.sh
 
 - `SageMaker-{Team}-Team-Access` - 团队访问策略
 - `SageMaker-{Team}-{Project}-Access` - 项目访问策略
-- `SageMaker-{Team}-{Project}-ExecutionPolicy` - 执行角色策略（项目 S3 隔离）
+
+**角色策略 (每个角色拆分为基础+操作两个策略，避免超过 6KB 限制):**
+
+- `SageMaker-{Team}-{Project}-ExecutionPolicy` - ExecutionRole 基础 (S3/ECR/VPC)
+- `SageMaker-{Team}-{Project}-ExecutionJobPolicy` - ExecutionRole 作业 (PassRole/Jobs)
+- `SageMaker-{Team}-{Project}-TrainingPolicy` - TrainingRole 基础 (S3/ECR/VPC)
+- `SageMaker-{Team}-{Project}-TrainingOpsPolicy` - TrainingRole 操作 (Training/Registry)
+- `SageMaker-{Team}-{Project}-ProcessingPolicy` - ProcessingRole 基础 (S3/ECR/VPC)
+- `SageMaker-{Team}-{Project}-ProcessingOpsPolicy` - ProcessingRole 操作 (Glue/Athena)
+- `SageMaker-{Team}-{Project}-InferencePolicy` - InferenceRole 基础 (S3/ECR/VPC)
+- `SageMaker-{Team}-{Project}-InferenceOpsPolicy` - InferenceRole 操作 (Inference)
 
 **安全策略说明：**
 
@@ -782,15 +799,37 @@ ENABLE_INFERENCE_ROLE=false ./04-create-roles.sh
 | 模板文件                          | 说明                    | 变量                           |
 | --------------------------------- | ----------------------- | ------------------------------ |
 | `trust-policy-sagemaker.json`     | Trust Policy            | 无（静态）                     |
-| `base-access.json.tpl`            | 基础访问                | `AWS_REGION`, `AWS_ACCOUNT_ID` |
-| `team-access.json.tpl`            | 团队访问                | + `COMPANY`, `TEAM`            |
-| `project-access.json.tpl`         | 项目访问                | + `PROJECT`                    |
-| `execution-role.json.tpl`         | Execution Role 项目权限 | + `PROJECT`                    |
-| `user-boundary.json.tpl`          | 权限边界                | `AWS_ACCOUNT_ID`, `COMPANY`    |
-| `readonly.json.tpl`               | 只读访问                | 无                             |
-| `self-service.json.tpl`           | 自助服务                | `AWS_ACCOUNT_ID`, `IAM_PATH`   |
+| `base-access.json.tpl`            | 基础访问                   | `AWS_REGION`, `AWS_ACCOUNT_ID` |
+| `team-access.json.tpl`            | 团队访问                   | + `COMPANY`, `TEAM`            |
+| `project-access.json.tpl`         | 项目访问                   | + `PROJECT`                    |
+| `execution-role.json.tpl`         | ExecutionRole 基础         | + `PROJECT`                    |
+| `execution-role-jobs.json.tpl`    | ExecutionRole 作业         | + `TEAM_FULLNAME`, `PROJECT_FULLNAME` |
+| `training-role.json.tpl`          | TrainingRole 基础          | + `PROJECT`                    |
+| `training-role-ops.json.tpl`      | TrainingRole 操作          | + `TEAM_FULLNAME`, `PROJECT_FULLNAME` |
+| `processing-role.json.tpl`        | ProcessingRole 基础        | + `PROJECT`                    |
+| `processing-role-ops.json.tpl`    | ProcessingRole 操作        | + `TEAM_FULLNAME`, `PROJECT_FULLNAME` |
+| `inference-role.json.tpl`         | InferenceRole 基础         | + `PROJECT`                    |
+| `inference-role-ops.json.tpl`     | InferenceRole 操作         | + `TEAM_FULLNAME`, `PROJECT_FULLNAME` |
+| `user-boundary.json.tpl`          | 权限边界                   | `AWS_ACCOUNT_ID`, `COMPANY`    |
+| `readonly.json.tpl`               | 只读访问                   | 无                             |
+| `self-service.json.tpl`           | 自助服务                   | `AWS_ACCOUNT_ID`, `IAM_PATH`   |
 | `studio-app-permissions.json.tpl` | Studio 用户隔离         | `AWS_REGION`, `AWS_ACCOUNT_ID` |
 | `mlflow-app-access.json.tpl`      | MLflow 实验追踪         | `AWS_REGION`, `AWS_ACCOUNT_ID` |
+
+### 策略拆分设计
+
+每个 Role 的策略拆分为 **基础** + **操作** 两个策略，以避免超过 AWS IAM 的 **6144 字节**限制：
+
+| Role | 基础策略 (S3/ECR/VPC) | 操作策略 (Jobs/Ops) |
+|------|----------------------|---------------------|
+| ExecutionRole | `ExecutionPolicy` | `ExecutionJobPolicy` |
+| TrainingRole | `TrainingPolicy` | `TrainingOpsPolicy` |
+| ProcessingRole | `ProcessingPolicy` | `ProcessingOpsPolicy` |
+| InferenceRole | `InferencePolicy` | `InferenceOpsPolicy` |
+
+**拆分原则:**
+- **基础策略**: S3 访问、ECR 拉取、CloudWatch Logs、VPC 网络接口
+- **操作策略**: 作业相关操作、PassRole、实验追踪、Model Registry 等
 
 详见 `policies/README.md`。
 
@@ -809,10 +848,10 @@ Resource Summary:
   +-----------------+----------+----------+
   | Resource        | Expected | Actual   |
   +-----------------+----------+----------+
-  | Policies        |       11 |       11 |
+  | Policies        |       XX |       XX |  (varies by project count)
   | Groups          |        7 |        7 |
   | Users           |        6 |        6 |
-  | Roles           |        3 |        3 |
+  | Roles           |       12 |       12 |  (4 roles × 3 projects)
   +-----------------+----------+----------+
 
 --- IAM Policies ---
@@ -913,9 +952,18 @@ vi .env
 
 新项目将创建：
 
-- Policy: `SageMaker-RiskControl-NewProject-Access` + `ExecutionPolicy`
+- Policies:
+  - `SageMaker-RiskControl-NewProject-Access`
+  - `SageMaker-RiskControl-NewProject-ExecutionPolicy` + `ExecutionJobPolicy`
+  - `SageMaker-RiskControl-NewProject-TrainingPolicy` + `TrainingOpsPolicy`
+  - `SageMaker-RiskControl-NewProject-ProcessingPolicy` + `ProcessingOpsPolicy`
+  - `SageMaker-RiskControl-NewProject-InferencePolicy` + `InferenceOpsPolicy`
 - Group: `sagemaker-rc-new-project`
-- Role: `SageMaker-RiskControl-NewProject-ExecutionRole`
+- Roles:
+  - `SageMaker-RiskControl-NewProject-ExecutionRole`
+  - `SageMaker-RiskControl-NewProject-TrainingRole`
+  - `SageMaker-RiskControl-NewProject-ProcessingRole`
+  - `SageMaker-RiskControl-NewProject-InferenceRole`
 - Users: `sm-rc-grace`, `sm-rc-henry`
 
 ### Q: 如何查看创建了哪些资源？
