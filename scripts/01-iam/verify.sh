@@ -78,20 +78,27 @@ count_actual_resources() {
         --query 'length(Users)' --output text 2>/dev/null || echo "0")
     
     # Roles 不使用 path，通过名称前缀筛选
-    ACTUAL_ROLES=$(aws iam list-roles \
+    ACTUAL_EXEC_ROLES=$(aws iam list-roles \
         --query 'length(Roles[?starts_with(RoleName, `SageMaker-`) && contains(RoleName, `ExecutionRole`)])' \
         --output text 2>/dev/null || echo "0")
     
+    ACTUAL_INFERENCE_ROLES=$(aws iam list-roles \
+        --query 'length(Roles[?starts_with(RoleName, `SageMaker-`) && contains(RoleName, `InferenceRole`)])' \
+        --output text 2>/dev/null || echo "0")
+    
+    ACTUAL_ROLES=$((ACTUAL_EXEC_ROLES + ACTUAL_INFERENCE_ROLES))
+    
     echo ""
     echo "Resource Summary:"
-    echo "  +-----------------+----------+----------+"
-    echo "  | Resource        | Expected | Actual   |"
-    echo "  +-----------------+----------+----------+"
-    printf "  | %-15s | %8d | %8d |\n" "Policies" "$EXPECTED_POLICIES" "$ACTUAL_POLICIES"
-    printf "  | %-15s | %8d | %8d |\n" "Groups" "$EXPECTED_GROUPS" "$ACTUAL_GROUPS"
-    printf "  | %-15s | %8d | %8d |\n" "Users" "$EXPECTED_USERS" "$ACTUAL_USERS"
-    printf "  | %-15s | %8d | %8d |\n" "Roles" "$EXPECTED_ROLES" "$ACTUAL_ROLES"
-    echo "  +-----------------+----------+----------+"
+    echo "  +-------------------+----------+----------+"
+    echo "  | Resource          | Expected | Actual   |"
+    echo "  +-------------------+----------+----------+"
+    printf "  | %-17s | %8d | %8d |\n" "Policies" "$EXPECTED_POLICIES" "$ACTUAL_POLICIES"
+    printf "  | %-17s | %8d | %8d |\n" "Groups" "$EXPECTED_GROUPS" "$ACTUAL_GROUPS"
+    printf "  | %-17s | %8d | %8d |\n" "Users" "$EXPECTED_USERS" "$ACTUAL_USERS"
+    printf "  | %-17s | %8d | %8d |\n" "Execution Roles" "$EXPECTED_ROLES" "$ACTUAL_EXEC_ROLES"
+    printf "  | %-17s | %8d | %8d |\n" "Inference Roles" "$EXPECTED_ROLES" "$ACTUAL_INFERENCE_ROLES"
+    echo "  +-------------------+----------+----------+"
 }
 
 # -----------------------------------------------------------------------------
@@ -116,9 +123,15 @@ list_actual_resources() {
         --query 'Users[].UserName' --output text 2>/dev/null | tr '\t' '\n' | sed 's/^/  - /' || echo "  (none)"
     
     echo ""
-    echo "Roles (SageMaker-*-ExecutionRole):"
+    echo "Execution Roles (SageMaker-*-ExecutionRole):"
     aws iam list-roles \
         --query 'Roles[?starts_with(RoleName, `SageMaker-`) && contains(RoleName, `ExecutionRole`)].RoleName' \
+        --output text 2>/dev/null | tr '\t' '\n' | sed 's/^/  - /' || echo "  (none)"
+    
+    echo ""
+    echo "Inference Roles (SageMaker-*-InferenceRole):"
+    aws iam list-roles \
+        --query 'Roles[?starts_with(RoleName, `SageMaker-`) && contains(RoleName, `InferenceRole`)].RoleName' \
         --output text 2>/dev/null | tr '\t' '\n' | sed 's/^/  - /' || echo "  (none)"
 }
 
@@ -265,6 +278,44 @@ main() {
             fi
         done
     done
+    
+    # 4.3 验证 Inference Roles（如果存在）
+    verify_section "Inference Roles (Production Deployment)"
+    
+    local inference_role_count=0
+    for team in $TEAMS; do
+        local team_fullname=$(get_team_fullname "$team")
+        local team_capitalized=$(format_name "$team_fullname")
+        
+        local projects=$(get_projects_for_team "$team")
+        for project in $projects; do
+            local project_formatted=$(format_name "$project")
+            local inf_role_name="SageMaker-${team_capitalized}-${project_formatted}-InferenceRole"
+            
+            # 检查 Inference Role 是否存在
+            if aws iam get-role --role-name "$inf_role_name" &> /dev/null; then
+                ((inference_role_count++)) || true
+                
+                # 检查 Trust Policy
+                local inf_trust=$(aws iam get-role --role-name "$inf_role_name" \
+                    --query "Role.AssumeRolePolicyDocument.Statement[?Principal.Service=='sagemaker.amazonaws.com']" \
+                    --output text 2>/dev/null || echo "")
+                
+                if [[ -n "$inf_trust" ]]; then
+                    echo -e "  ${GREEN}✓${NC} $inf_role_name (trust: sagemaker.amazonaws.com)"
+                else
+                    echo -e "  ${RED}✗${NC} $inf_role_name trust policy issue"
+                    ((errors++)) || true
+                fi
+            fi
+        done
+    done
+    
+    if [[ $inference_role_count -eq 0 ]]; then
+        echo -e "  ${YELLOW}⚠${NC} No Inference Roles found (ENABLE_INFERENCE_ROLE=false or not yet created)"
+    else
+        echo -e "  Total: $inference_role_count Inference Roles"
+    fi
     
     # 5. 验证用户组成员关系
     verify_section "User-Group Memberships"

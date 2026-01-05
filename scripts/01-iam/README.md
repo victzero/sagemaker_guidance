@@ -433,6 +433,72 @@ ENABLE_CANVAS=false ./04-create-roles.sh
 | Model Registry 集成 | 与 SageMaker Model Registry 无缝对接 |
 | Artifact 存储       | S3 存储实验 artifacts                |
 
+### Inference Role（默认开启）
+
+**职责分离设计**：每个项目除了 ExecutionRole（开发/训练），还创建专用的 InferenceRole（生产部署）。
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                    Role 职责分离设计                                        │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│   ExecutionRole (开发/训练)              InferenceRole (生产部署)           │
+│   ━━━━━━━━━━━━━━━━━━━━━━━━━              ━━━━━━━━━━━━━━━━━━━━━━             │
+│   ✓ AmazonSageMakerFullAccess           ✗ No SageMaker Full Access         │
+│   ✓ S3 完整读写                          ✓ S3 模型只读 + 推理输出            │
+│   ✓ ECR 完整读写                         ✓ ECR 只读（拉取镜像）              │
+│   ✓ Training Jobs                        ✗ No Training                      │
+│   ✓ Processing Jobs                      ✗ No Processing                    │
+│   ✓ Model Registry 读写                  ✓ Model Registry 只读              │
+│   ✓ Inference                            ✓ Inference Only                   │
+│                                                                             │
+│   用于:                                  用于:                              │
+│   • Studio Notebook                      • 生产 Endpoint 部署               │
+│   • 模型开发和实验                       • Batch Transform                  │
+│   • Training/Processing Jobs             • 推理服务                         │
+│   • 模型注册和审批                       • CI/CD Pipeline 部署              │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+**Inference Role 权限范围**：
+
+| 权限类型 | 范围 | 说明 |
+| -------- | ---- | ---- |
+| S3 读取 | `models/*`, `inference/*` | 模型文件只读 |
+| S3 写入 | `inference/output/*`, `batch-transform/*` | 仅推理输出 |
+| ECR | 只读 | 拉取推理容器镜像 |
+| Model Registry | 只读 | 读取已批准模型 |
+| CloudWatch Logs | 写入 | 推理日志 |
+| Inference 操作 | 完整 | Endpoint, Transform |
+| VPC ENI | 允许 | VPCOnly 模式部署 |
+
+**配置控制**：
+
+```bash
+# 禁用 Inference Role（不推荐）
+ENABLE_INFERENCE_ROLE=false ./04-create-roles.sh
+```
+
+**使用场景**：
+
+```python
+# 开发阶段：使用 ExecutionRole
+from sagemaker.estimator import Estimator
+estimator = Estimator(
+    role="arn:aws:iam::xxx:role/SageMaker-Team-Project-ExecutionRole",
+    ...
+)
+
+# 生产部署：使用 InferenceRole（最小权限）
+from sagemaker import Model
+model = Model(
+    role="arn:aws:iam::xxx:role/SageMaker-Team-Project-InferenceRole",  # ← 推理专用
+    ...
+)
+predictor = model.deploy(...)
+```
+
 ```bash
 # 禁用 MLflow（减少权限范围）
 ENABLE_MLFLOW=false ./04-create-roles.sh
@@ -583,12 +649,21 @@ setup-all.sh
 
 ### 04-create-roles.sh
 
-创建 SageMaker Execution Roles：
+创建 SageMaker Execution Roles（职责分离设计）：
 
-- Domain 默认执行角色（AmazonSageMakerFullAccess）
-- 每个项目一个执行角色
+**创建的角色类型：**
+
+| 角色类型 | 命名格式 | 用途 |
+| -------- | -------- | ---- |
+| Domain Default | `SageMaker-Domain-DefaultExecutionRole` | Domain 默认角色 |
+| ExecutionRole | `SageMaker-{Team}-{Project}-ExecutionRole` | 开发/训练（完整权限） |
+| InferenceRole | `SageMaker-{Team}-{Project}-InferenceRole` | 生产部署（最小权限） |
+
+**特性：**
 - 信任 sagemaker.amazonaws.com (仅 `sts:AssumeRole`)
-- 先附加 AmazonSageMakerFullAccess，再附加项目策略
+- ExecutionRole: AmazonSageMakerFullAccess + 项目策略
+- InferenceRole: 最小权限（S3 只读 + 推理操作）
+- 通过 `ENABLE_INFERENCE_ROLE=false` 可禁用 Inference Role
 
 ### 05-bind-policies.sh
 

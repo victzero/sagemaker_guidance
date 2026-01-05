@@ -4,18 +4,19 @@
 
 ## 文件说明
 
-| 文件                              | 说明                    | 变量                                                         |
-| --------------------------------- | ----------------------- | ------------------------------------------------------------ |
-| `trust-policy-sagemaker.json`     | Execution Role 信任策略 | 无（静态）                                                   |
-| `base-access.json.tpl`            | 用户基础访问策略        | `AWS_REGION`, `AWS_ACCOUNT_ID`                               |
-| `team-access.json.tpl`            | 团队访问策略            | `AWS_REGION`, `AWS_ACCOUNT_ID`, `COMPANY`, `TEAM`            |
-| `project-access.json.tpl`         | 项目访问策略            | `AWS_REGION`, `AWS_ACCOUNT_ID`, `COMPANY`, `TEAM`, `PROJECT` |
-| `execution-role.json.tpl`         | Execution Role 权限策略 | `AWS_REGION`, `AWS_ACCOUNT_ID`, `COMPANY`, `TEAM`, `PROJECT` |
-| `user-boundary.json.tpl`          | 用户权限边界            | `AWS_ACCOUNT_ID`, `COMPANY`                                  |
-| `readonly.json.tpl`               | 只读访问策略            | `AWS_REGION`, `AWS_ACCOUNT_ID`, `COMPANY`                    |
-| `self-service.json.tpl`           | 用户自助服务策略        | `AWS_ACCOUNT_ID`, `IAM_PATH`                                 |
-| `studio-app-permissions.json.tpl` | Studio App 用户隔离     | `AWS_REGION`, `AWS_ACCOUNT_ID`                               |
-| `mlflow-app-access.json.tpl`      | MLflow 实验追踪         | `AWS_REGION`, `AWS_ACCOUNT_ID`                               |
+| 文件                              | 说明                        | 变量                                                         |
+| --------------------------------- | --------------------------- | ------------------------------------------------------------ |
+| `trust-policy-sagemaker.json`     | Execution Role 信任策略     | 无（静态）                                                   |
+| `base-access.json.tpl`            | 用户基础访问策略            | `AWS_REGION`, `AWS_ACCOUNT_ID`                               |
+| `team-access.json.tpl`            | 团队访问策略                | `AWS_REGION`, `AWS_ACCOUNT_ID`, `COMPANY`, `TEAM`            |
+| `project-access.json.tpl`         | 项目访问策略                | `AWS_REGION`, `AWS_ACCOUNT_ID`, `COMPANY`, `TEAM`, `PROJECT` |
+| `execution-role.json.tpl`         | Execution Role 权限（开发） | `AWS_REGION`, `AWS_ACCOUNT_ID`, `COMPANY`, `TEAM`, `PROJECT` |
+| `inference-role.json.tpl`         | Inference Role 权限（生产） | `AWS_REGION`, `AWS_ACCOUNT_ID`, `COMPANY`, `TEAM`, `PROJECT`, `TEAM_FULLNAME`, `PROJECT_FULLNAME` |
+| `user-boundary.json.tpl`          | 用户权限边界                | `AWS_ACCOUNT_ID`, `COMPANY`                                  |
+| `readonly.json.tpl`               | 只读访问策略                | `AWS_REGION`, `AWS_ACCOUNT_ID`, `COMPANY`                    |
+| `self-service.json.tpl`           | 用户自助服务策略            | `AWS_ACCOUNT_ID`, `IAM_PATH`                                 |
+| `studio-app-permissions.json.tpl` | Studio App 用户隔离         | `AWS_REGION`, `AWS_ACCOUNT_ID`                               |
+| `mlflow-app-access.json.tpl`      | MLflow 实验追踪             | `AWS_REGION`, `AWS_ACCOUNT_ID`                               |
 
 ## Trust Policy 说明
 
@@ -71,6 +72,39 @@ User Profile 绑定的 Execution Role 包含以下权限（按附加顺序）：
    - CloudWatch Logs
    - ECR 镜像仓库
    - Amazon Q / Data Science Assistant
+
+## Inference Role（推理专用角色）
+
+`inference-role.json.tpl` 用于生产模型部署，遵循 **最小权限原则**：
+
+| 权限类型 | ExecutionRole | InferenceRole |
+| -------- | :-----------: | :-----------: |
+| AmazonSageMakerFullAccess | ✅ | ❌ |
+| S3 完整读写 | ✅ | ❌ |
+| S3 模型只读 (`models/*`) | ✅ | ✅ |
+| S3 推理输出 (`inference/output/*`) | ✅ | ✅ |
+| ECR 完整权限 | ✅ | ❌ |
+| ECR 只读（拉取） | ✅ | ✅ |
+| Training/Processing | ✅ | ❌ |
+| Inference 操作 | ✅ | ✅ |
+| Model Registry 读写 | ✅ | ❌ |
+| Model Registry 只读 | ✅ | ✅ |
+
+**使用场景**：
+
+```python
+# 开发阶段：使用 ExecutionRole
+estimator = Estimator(
+    role="arn:aws:iam::xxx:role/SageMaker-Team-Project-ExecutionRole",
+    ...
+)
+
+# 生产部署：使用 InferenceRole（最小权限）
+model = Model(
+    role="arn:aws:iam::xxx:role/SageMaker-Team-Project-InferenceRole",
+    ...
+)
+```
 
 ## 变量替换
 

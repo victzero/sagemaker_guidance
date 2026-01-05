@@ -232,11 +232,22 @@ main() {
     
     # 3. 删除角色（不使用 path，通过名称前缀筛选）
     log_info "Step 3: Deleting roles..."
-    local roles=$(aws iam list-roles \
+    
+    # 删除 Execution Roles
+    local exec_roles=$(aws iam list-roles \
         --query 'Roles[?starts_with(RoleName, `SageMaker-`) && contains(RoleName, `ExecutionRole`)].RoleName' \
         --output text 2>/dev/null || echo "")
     
-    for role in $roles; do
+    for role in $exec_roles; do
+        delete_role "$role"
+    done
+    
+    # 删除 Inference Roles
+    local inference_roles=$(aws iam list-roles \
+        --query 'Roles[?starts_with(RoleName, `SageMaker-`) && contains(RoleName, `InferenceRole`)].RoleName' \
+        --output text 2>/dev/null || echo "")
+    
+    for role in $inference_roles; do
         delete_role "$role"
     done
     
