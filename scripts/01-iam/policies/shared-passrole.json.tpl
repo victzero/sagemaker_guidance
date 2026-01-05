@@ -2,6 +2,20 @@
   "Version": "2012-10-17",
   "Statement": [
     {
+      "Sid": "DenyPassRoleToOtherProjects",
+      "Effect": "Deny",
+      "Action": "iam:PassRole",
+      "Resource": "arn:aws:iam::${AWS_ACCOUNT_ID}:role/SageMaker-*",
+      "Condition": {
+        "ArnNotLike": {
+          "aws:ResourceArn": [
+            "arn:aws:iam::${AWS_ACCOUNT_ID}:role/SageMaker-${TEAM_FULLNAME}-${PROJECT_FULLNAME}-*",
+            "arn:aws:iam::${AWS_ACCOUNT_ID}:role/SageMaker-Domain-*"
+          ]
+        }
+      }
+    },
+    {
       "Sid": "AllowPassRoleToProjectRoles",
       "Effect": "Allow",
       "Action": "iam:PassRole",
@@ -28,4 +42,3 @@
     }
   ]
 }
-
