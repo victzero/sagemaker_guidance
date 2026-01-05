@@ -271,7 +271,9 @@ echo ""
 | 02-vpc            | 【Security Groups】【VPC Endpoints - Required】【VPC Endpoints - Optional】【Endpoint Configuration】                    |
 | 03-s3             | 【Buckets】【Bucket Policies】【Lifecycle Rules】【Directory Structures】【Bucket Configurations】【Lifecycle Settings】 |
 | 04-sagemaker-domain | 【SageMaker Domain】【Lifecycle Configuration】                                                                        |
-| 05-user-profiles  | 【User Profiles】（按团队/项目分组）                                                                                     |
+| 05-user-profiles  | 【User Profiles】【Private Spaces】（按团队/项目分组）                                                                   |
+| 06-ecr            | 【Shared Repositories】【Project Repositories】                                                                          |
+| 07-model-registry | 【Model Package Groups】                                                                                                 |
 
 #### 5.1.4 Summary 格式
 
@@ -337,13 +339,15 @@ echo "  aws ec2 describe-vpc-endpoints --filters \"Name=tag:ManagedBy,Values=...
 
 位于各模块目录，只包含该模块特有的变量：
 
-| 模块              | 特有变量                                               |
-| ----------------- | ------------------------------------------------------ |
-| 01-iam            | IAM_PATH                                               |
-| 02-vpc            | VPC_ID, VPC_CIDR, PRIVATE_SUBNET_*_ID                  |
-| 03-s3             | ENCRYPTION_TYPE, ENABLE_VERSIONING, Lifecycle 等       |
-| 04-sagemaker-domain | DOMAIN_NAME, IDLE_TIMEOUT_MINUTES, DEFAULT_INSTANCE_TYPE |
-| 05-user-profiles  | （使用共享配置中的用户信息）                           |
+| 模块              | 特有变量                                                     |
+| ----------------- | ------------------------------------------------------------ |
+| 01-iam            | IAM_PATH                                                     |
+| 02-vpc            | VPC_ID, VPC_CIDR, PRIVATE_SUBNET_*_ID                        |
+| 03-s3             | ENCRYPTION_TYPE, ENABLE_VERSIONING, Lifecycle 等             |
+| 04-sagemaker-domain | DOMAIN_NAME, IDLE_TIMEOUT_MINUTES, DEFAULT_INSTANCE_TYPE   |
+| 05-user-profiles  | （使用共享配置中的用户信息）                                 |
+| 06-ecr            | ENABLE_ECR, ECR_SHARED_REPOS, ECR_PROJECT_REPOS, ECR_IMAGE_RETENTION |
+| 07-model-registry | ENABLE_MODEL_REGISTRY                                        |
 
 ### 6.3 文件格式要求
 

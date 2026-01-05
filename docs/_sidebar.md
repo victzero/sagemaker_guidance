@@ -4,22 +4,24 @@
 
   - [📖 文档概览](README.md)
 
-- **架构设计 (Phase 1)**
+- **架构设计 (基础设施)**
 
   - [01 - 架构概览](01-architecture-overview.md)
   - [02 - IAM 权限设计](02-iam-design.md)
   - [03 - VPC 网络配置](03-vpc-network.md)
   - [04 - S3 数据管理](04-s3-data-management.md)
 
-- **SageMaker 配置 (Phase 1)**
+- **SageMaker 配置**
 
   - [05 - SageMaker Domain](05-sagemaker-domain.md)
   - [06 - User Profile 设计](06-user-profile.md)
 
-- **工作负载资源 (Phase 2)**
+- **工作负载资源**
 
   - [14 - 工作负载资源设计](14-workload-resources.md)
   - [15 - 工作负载实施计划](15-workload-implementation.md)
+  - [06-ecr - ECR 容器镜像](../scripts/06-ecr/README.md)
+  - [07-model-registry - 模型注册](../scripts/07-model-registry/README.md)
 
 - **ML 服务快速入门**
 

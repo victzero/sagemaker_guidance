@@ -96,6 +96,7 @@ Company (acme)
 | IAM Group (项目) | `sagemaker-{team}-{project}`               | `sagemaker-rc-fraud-detection`                       |
 | **User Profile** | `profile-{team}-{project}-{user}`          | `profile-rc-fraud-alice`                             |
 | Execution Role   | `SageMaker-{Team}-{Project}-ExecutionRole` | `SageMaker-RiskControl-FraudDetection-ExecutionRole` |
+| **Inference Role** | `SageMaker-{Team}-{Project}-InferenceRole` | `SageMaker-RiskControl-FraudDetection-InferenceRole` |
 | S3 Bucket        | `{company}-sm-{team}-{project}`            | `acme-sm-rc-fraud-detection`                         |
 
 > **Note**: 一个用户可以有多个 User Profile（每个参与的项目一个），

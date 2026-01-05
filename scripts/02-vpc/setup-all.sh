@@ -3,22 +3,10 @@
 # setup-all.sh - VPC 网络配置主控脚本
 # =============================================================================
 # 使用方法: 
-#   ./setup-all.sh              # Phase 1 only (SG + Endpoints)
-#   ./setup-all.sh --phase2     # Phase 1 + Phase 2A (Workload SGs)
+#   ./setup-all.sh              # 创建所有 VPC 资源（安全组 + VPC Endpoints + 工作负载安全组）
 # =============================================================================
 
 set -e
-
-# 解析参数
-INCLUDE_PHASE2=false
-for arg in "$@"; do
-    case $arg in
-        --phase2|--phase-2|--workload)
-            INCLUDE_PHASE2=true
-            shift
-            ;;
-    esac
-done
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
@@ -95,8 +83,8 @@ if [[ -n "$PRIVATE_SUBNET_3_ID" ]]; then
 fi
 echo ""
 
-# ========== Security Groups ==========
-echo -e "${BLUE}【Security Groups】${NC}"
+# ========== Security Groups (Core) ==========
+echo -e "${BLUE}【Security Groups - Core】${NC}"
 sg_count=0
 
 echo "  SageMaker Studio security group:"
@@ -114,37 +102,32 @@ echo "      Ingress rules:"
 echo "        • Allow HTTPS (443) from VPC CIDR"
 ((sg_count++)) || true
 
-echo "  Total: $sg_count security groups"
+echo "  Total: $sg_count core security groups"
 echo ""
 
-# ========== Workload Security Groups (Phase 2A) ==========
-if [[ "$INCLUDE_PHASE2" == "true" ]]; then
-    echo -e "${BLUE}【Workload Security Groups - Phase 2A】${NC}"
-    workload_sg_count=0
-    
-    echo "  Training Jobs security group:"
-    echo "    - ${TAG_PREFIX}-training"
-    echo "      Ingress: Self (distributed training), HTTPS from VPC"
-    ((workload_sg_count++)) || true
-    
-    echo "  Processing Jobs security group:"
-    echo "    - ${TAG_PREFIX}-processing"
-    echo "      Ingress: Self (Spark cluster), HTTPS from VPC"
-    ((workload_sg_count++)) || true
-    
-    echo "  Inference Endpoints security group:"
-    echo "    - ${TAG_PREFIX}-inference"
-    echo "      Ingress: HTTPS + 8080 from VPC"
-    ((workload_sg_count++)) || true
-    
-    echo "  Total: $workload_sg_count workload security groups"
-    echo ""
-    
-    sg_count=$((sg_count + workload_sg_count))
-else
-    echo -e "${YELLOW}Note: Use --phase2 to also create workload security groups (Training/Processing/Inference)${NC}"
-    echo ""
-fi
+# ========== Workload Security Groups ==========
+echo -e "${BLUE}【Security Groups - Workload】${NC}"
+workload_sg_count=0
+
+echo "  Training Jobs security group:"
+echo "    - ${TAG_PREFIX}-training"
+echo "      Ingress: Self (distributed training), HTTPS from VPC"
+((workload_sg_count++)) || true
+
+echo "  Processing Jobs security group:"
+echo "    - ${TAG_PREFIX}-processing"
+echo "      Ingress: Self (Spark cluster), HTTPS from VPC"
+((workload_sg_count++)) || true
+
+echo "  Inference Endpoints security group:"
+echo "    - ${TAG_PREFIX}-inference"
+echo "      Ingress: HTTPS + 8080 from VPC"
+((workload_sg_count++)) || true
+
+echo "  Total: $workload_sg_count workload security groups"
+echo ""
+
+sg_count=$((sg_count + workload_sg_count))
 
 # ========== VPC Endpoints (Required) ==========
 echo -e "${BLUE}【VPC Endpoints - Required】${NC}"
@@ -291,13 +274,9 @@ run_step() {
 }
 
 # 执行所有步骤
-run_step 1 "01-create-security-groups.sh" "Create Security Groups"
+run_step 1 "01-create-security-groups.sh" "Create Core Security Groups"
 run_step 2 "02-create-vpc-endpoints.sh" "Create VPC Endpoints"
-
-# Phase 2A: Workload Security Groups (可选)
-if [[ "$INCLUDE_PHASE2" == "true" ]]; then
-    run_step 3 "03-create-workload-sgs.sh" "Create Workload Security Groups (Phase 2A)"
-fi
+run_step 3 "03-create-workload-sgs.sh" "Create Workload Security Groups"
 
 # 计算耗时
 END_TIME=$(date +%s)
@@ -312,16 +291,14 @@ echo "Duration: ${DURATION} seconds"
 echo ""
 echo -e "${GREEN}Created Resources:${NC}"
 echo ""
-echo "  Security Groups (Phase 1):"
+echo "  Core Security Groups:"
 echo "    - ${TAG_PREFIX}-studio"
 echo "    - ${TAG_PREFIX}-vpc-endpoints"
-if [[ "$INCLUDE_PHASE2" == "true" ]]; then
-    echo ""
-    echo "  Workload Security Groups (Phase 2A):"
-    echo "    - ${TAG_PREFIX}-training"
-    echo "    - ${TAG_PREFIX}-processing"
-    echo "    - ${TAG_PREFIX}-inference"
-fi
+echo ""
+echo "  Workload Security Groups:"
+echo "    - ${TAG_PREFIX}-training"
+echo "    - ${TAG_PREFIX}-processing"
+echo "    - ${TAG_PREFIX}-inference"
 echo ""
 echo "  VPC Endpoints:"
 echo "    - sagemaker.api, sagemaker.runtime, sagemaker.studio"

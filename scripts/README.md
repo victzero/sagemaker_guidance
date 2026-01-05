@@ -22,10 +22,10 @@ scripts/
 ├── 04-sagemaker-domain/ # SageMaker Domain (对应 docs/05-sagemaker-domain.md)
 ├── 05-user-profiles/    # User Profiles + Private Spaces (对应 docs/06-user-profile.md)
 │
-│   ─────── Phase 2: 工作负载资源 (待实现) ───────
-├── 07-ecr/              # ECR 仓库 (可选，自定义镜像需要)
-├── 08-model-registry/   # Model Registry (模型版本管理)
-├── 09-monitoring/       # 日志与监控配置
+│   ─────── Phase 2: 工作负载资源 ───────
+├── 06-ecr/              # ECR 仓库 (可选，自定义镜像需要) ✅
+├── 07-model-registry/   # Model Registry (模型版本管理) ✅
+├── 08-monitoring/       # 日志与监控配置 (待实现)
 │
 ├── common.sh            # 共享函数库
 ├── .env.shared.example  # 共享配置模板
@@ -45,7 +45,7 @@ Phase 1: 基础设施 (必需)
 01-iam  →  02-vpc  →  03-s3  →  04-sagemaker-domain  →  05-user-profiles
 
 Phase 2: 工作负载资源 (按需)
-02-vpc/03-workload-sgs  →  07-ecr (可选)  →  08-model-registry
+02-vpc/03-workload-sgs  →  06-ecr (可选)  →  07-model-registry
 ```
 
 ```
@@ -88,13 +88,13 @@ Phase 2: 工作负载资源 (按需)
 │                                                                     │
 │  Phase 2B: 容器镜像 (可选)     Phase 2C: 模型治理                   │
 │  ┌─────────────────────────┐  ┌─────────────────────────┐          │
-│  │       07-ecr            │  │   08-model-registry     │          │
+│  │       06-ecr       ✅   │  │   07-model-registry ✅  │          │
 │  │  (自定义镜像需要)       │  │   (模型版本管理)        │          │
 │  └─────────────────────────┘  └─────────────────────────┘          │
 │                                                                     │
 │  Phase 2D: 日志与监控 (可选)                                        │
 │  ┌─────────────────────────┐                                        │
-│  │     09-monitoring       │  ← CloudWatch Logs/Alarms              │
+│  │     08-monitoring       │  ← CloudWatch Logs/Alarms (待实现)     │
 │  └─────────────────────────┘                                        │
 │                                                                     │
 │  ✅ 完成后可运行 Processing/Training Jobs                           │

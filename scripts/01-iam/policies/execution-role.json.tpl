@@ -129,6 +129,24 @@
         "ec2:DescribeSecurityGroups"
       ],
       "Resource": "*"
+    },
+    {
+      "Sid": "AllowModelRegistry",
+      "Effect": "Allow",
+      "Action": [
+        "sagemaker:CreateModelPackage",
+        "sagemaker:CreateModelPackageGroup",
+        "sagemaker:DescribeModelPackage",
+        "sagemaker:DescribeModelPackageGroup",
+        "sagemaker:ListModelPackages",
+        "sagemaker:ListModelPackageGroups",
+        "sagemaker:UpdateModelPackage",
+        "sagemaker:DeleteModelPackage"
+      ],
+      "Resource": [
+        "arn:aws:sagemaker:${AWS_REGION}:${AWS_ACCOUNT_ID}:model-package-group/${TEAM}-${PROJECT}",
+        "arn:aws:sagemaker:${AWS_REGION}:${AWS_ACCOUNT_ID}:model-package/${TEAM}-${PROJECT}/*"
+      ]
     }
   ]
 }

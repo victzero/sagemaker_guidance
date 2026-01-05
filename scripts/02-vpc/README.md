@@ -19,19 +19,10 @@ cp .env.local.example .env.local
 vi .env.local  # 填入 VPC ID、Subnet IDs、Route Table 等
 
 # 3. 执行创建 (显示预览后确认)
-./setup-all.sh           # Phase 1: 基础 SG + Endpoints
-./setup-all.sh --phase2  # Phase 1 + Phase 2A: 工作负载 SG
+./setup-all.sh   # 创建所有资源：安全组 + VPC Endpoints + 工作负载安全组
 
 # 4. 验证配置
 ./verify.sh
-```
-
-### 单独运行 Phase 2A (工作负载安全组)
-
-如果 Phase 1 已完成，可以单独运行：
-
-```bash
-./03-create-workload-sgs.sh
 ```
 
 ## 目录结构
@@ -41,10 +32,10 @@ scripts/02-vpc/
 ├── .env.local.example            # VPC 模块环境变量模板
 ├── .env.local                    # VPC 模块实际配置 (不提交到 Git)
 ├── 00-init.sh                    # 初始化和工具函数
-├── 01-create-security-groups.sh  # Phase 1: 创建基础安全组
-├── 02-create-vpc-endpoints.sh    # Phase 1: 创建 VPC Endpoints
-├── 03-create-workload-sgs.sh     # Phase 2A: 创建工作负载安全组
-├── setup-all.sh                  # 主控脚本 (支持 --phase2)
+├── 01-create-security-groups.sh  # 创建核心安全组
+├── 02-create-vpc-endpoints.sh    # 创建 VPC Endpoints
+├── 03-create-workload-sgs.sh     # 创建工作负载安全组
+├── setup-all.sh                  # 主控脚本 (一次性创建所有资源)
 ├── verify.sh                     # 验证配置
 ├── cleanup.sh                    # 清理资源
 ├── output/                       # 生成的配置文件
@@ -55,14 +46,14 @@ scripts/02-vpc/
 
 ## 创建的资源
 
-### 安全组 - Phase 1 (必需)
+### 核心安全组
 
 | 安全组名称                   | 用途                   |
 | ---------------------------- | ---------------------- |
 | `{TAG_PREFIX}-studio`        | SageMaker Studio 实例  |
 | `{TAG_PREFIX}-vpc-endpoints` | VPC Endpoints          |
 
-### 安全组 - Phase 2A (工作负载)
+### 工作负载安全组
 
 | 安全组名称                   | 用途                              |
 | ---------------------------- | --------------------------------- |
@@ -165,7 +156,7 @@ Canvas 需要 Bedrock 端点的功能：
 
 ## 安全组规则
 
-### Phase 1: {TAG_PREFIX}-studio
+### {TAG_PREFIX}-studio (核心)
 
 **入站规则:**
 
@@ -177,13 +168,13 @@ Canvas 需要 Bedrock 端点的功能：
 - All Traffic to self
 - HTTPS (443) to 0.0.0.0/0 (默认)
 
-### Phase 1: {TAG_PREFIX}-vpc-endpoints
+### {TAG_PREFIX}-vpc-endpoints (核心)
 
 **入站规则:**
 
 - HTTPS (443) from VPC CIDR
 
-### Phase 2A: {TAG_PREFIX}-training
+### {TAG_PREFIX}-training (工作负载)
 
 **入站规则:**
 
@@ -195,7 +186,7 @@ Canvas 需要 Bedrock 端点的功能：
 - All Traffic to self
 - HTTPS (443) to 0.0.0.0/0 (默认)
 
-### Phase 2A: {TAG_PREFIX}-processing
+### {TAG_PREFIX}-processing (工作负载)
 
 **入站规则:**
 
@@ -207,7 +198,7 @@ Canvas 需要 Bedrock 端点的功能：
 - All Traffic to self
 - HTTPS (443) to 0.0.0.0/0 (默认)
 
-### Phase 2A: {TAG_PREFIX}-inference
+### {TAG_PREFIX}-inference (工作负载)
 
 **入站规则:**
 
@@ -234,6 +225,9 @@ Canvas 需要 Bedrock 端点的功能：
 --- Security Groups ---
   ✓ acme-sagemaker-studio: sg-0abc123
   ✓ acme-sagemaker-vpc-endpoints: sg-0def456
+  ✓ acme-sagemaker-training: sg-0ghi789
+  ✓ acme-sagemaker-processing: sg-0jkl012
+  ✓ acme-sagemaker-inference: sg-0mno345
 
 --- VPC Endpoints ---
 Required Endpoints:

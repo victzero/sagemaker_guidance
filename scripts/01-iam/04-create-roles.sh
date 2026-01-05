@@ -4,15 +4,16 @@
 # =============================================================================
 # 使用方法: ./04-create-roles.sh
 #
-# Execution Role 设计:
-#   1. Trust Policy: 允许 sagemaker.amazonaws.com 调用 sts:AssumeRole
-#   2. 必须附加 AmazonSageMakerFullAccess（AWS 托管策略）
-#   3. 可选附加 Canvas 相关策略（ENABLE_CANVAS=true，默认开启）
-#   4. 再附加项目自定义策略（S3、ECR、CloudWatch 等）
+# Execution Role 设计 (职责分离):
+#   1. ExecutionRole - 开发/训练角色 (AmazonSageMakerFullAccess + 项目策略)
+#   2. InferenceRole - 推理专用角色 (最小权限，只读模型 + 推理操作)
+#
+# Trust Policy: 允许 sagemaker.amazonaws.com 调用 sts:AssumeRole
 #
 # 环境变量:
 #   ENABLE_CANVAS=true  启用 Canvas 低代码 ML 功能（默认）
-#   ENABLE_CANVAS=false 禁用 Canvas 功能
+#   ENABLE_MLFLOW=true  启用 MLflow 实验追踪（默认）
+#   ENABLE_INFERENCE_ROLE=true 启用推理专用角色（默认）
 #
 # 参考: https://docs.aws.amazon.com/sagemaker/latest/dg/sagemaker-roles.html
 # =============================================================================
@@ -33,6 +34,9 @@ ENABLE_CANVAS="${ENABLE_CANVAS:-true}"
 # MLflow 功能配置（默认开启）
 ENABLE_MLFLOW="${ENABLE_MLFLOW:-true}"
 
+# Inference Role 功能配置（默认开启）
+ENABLE_INFERENCE_ROLE="${ENABLE_INFERENCE_ROLE:-true}"
+
 # Canvas 相关托管策略
 # 注意: 大部分策略在根路径，DirectDeployAccess 在 service-role/ 路径下
 CANVAS_MANAGED_POLICIES=(
@@ -48,6 +52,9 @@ CANVAS_SERVICE_ROLE_POLICIES=(
 # 自定义策略名称
 STUDIO_APP_POLICY_NAME="SageMaker-StudioAppPermissions"
 MLFLOW_APP_POLICY_NAME="SageMaker-MLflowAppAccess"
+
+# 模板文件
+INFERENCE_ROLE_TEMPLATE="${POLICY_TEMPLATES_DIR}/inference-role.json.tpl"
 
 # -----------------------------------------------------------------------------
 # Trust Policy
@@ -413,6 +420,135 @@ create_execution_role() {
 }
 
 # -----------------------------------------------------------------------------
+# 创建 Inference 专用 Role（最小权限原则）
+#
+# Inference Role 权限:
+#   - S3 只读（模型文件）+ 推理输出
+#   - ECR 只读（拉取镜像）
+#   - Model Registry 只读
+#   - 推理操作（Endpoint, Transform, etc.）
+#   - 不包含 Training/Processing 权限
+# -----------------------------------------------------------------------------
+create_inference_role() {
+    local team=$1
+    local project=$2
+    
+    if [[ "$ENABLE_INFERENCE_ROLE" != "true" ]]; then
+        log_info "Inference role skipped (ENABLE_INFERENCE_ROLE=$ENABLE_INFERENCE_ROLE)"
+        return 0
+    fi
+    
+    # 格式化名称
+    local team_fullname=$(get_team_fullname "$team")
+    local team_capitalized=$(format_name "$team_fullname")
+    local project_formatted=$(format_name "$project")
+    
+    local role_name="SageMaker-${team_capitalized}-${project_formatted}-InferenceRole"
+    local policy_name="SageMaker-${team_capitalized}-${project_formatted}-InferencePolicy"
+    
+    log_info "Creating inference role: $role_name"
+    
+    # 获取 trust policy 文件
+    local trust_policy_file=$(get_trust_policy_file)
+    
+    # 检查 Role 是否已存在
+    if aws iam get-role --role-name "$role_name" &> /dev/null; then
+        log_warn "Role $role_name already exists, updating trust policy..."
+        aws iam update-assume-role-policy \
+            --role-name "$role_name" \
+            --policy-document "file://${trust_policy_file}"
+        log_success "Trust policy updated for $role_name"
+    else
+        aws iam create-role \
+            --role-name "$role_name" \
+            --assume-role-policy-document "file://${trust_policy_file}" \
+            --description "SageMaker Inference Role for ${team}/${project} (minimal permissions)" \
+            --tags \
+                "Key=Team,Value=${team}" \
+                "Key=Project,Value=${project}" \
+                "Key=Purpose,Value=Inference" \
+                "Key=ManagedBy,Value=sagemaker-iam-script" \
+                "Key=Company,Value=${COMPANY}"
+        
+        log_success "Role $role_name created"
+    fi
+    
+    # ========================================
+    # 创建 Inference 专用策略
+    # ========================================
+    log_info "Creating inference policy: $policy_name"
+    
+    # 检查策略是否已存在
+    local policy_arn="arn:aws:iam::${AWS_ACCOUNT_ID}:policy${IAM_PATH}${policy_name}"
+    
+    if aws iam get-policy --policy-arn "$policy_arn" &> /dev/null; then
+        log_warn "Policy $policy_name already exists"
+    else
+        # 从模板生成策略
+        if [[ ! -f "$INFERENCE_ROLE_TEMPLATE" ]]; then
+            log_error "Inference role template not found: $INFERENCE_ROLE_TEMPLATE"
+            return 1
+        fi
+        
+        # 替换模板变量
+        local policy_doc=$(cat "$INFERENCE_ROLE_TEMPLATE" | \
+            sed "s/\${COMPANY}/${COMPANY}/g" | \
+            sed "s/\${TEAM}/${team}/g" | \
+            sed "s/\${PROJECT}/${project}/g" | \
+            sed "s/\${TEAM_FULLNAME}/${team_capitalized}/g" | \
+            sed "s/\${PROJECT_FULLNAME}/${project_formatted}/g" | \
+            sed "s/\${AWS_ACCOUNT_ID}/${AWS_ACCOUNT_ID}/g" | \
+            sed "s/\${AWS_REGION}/${AWS_REGION}/g")
+        
+        # 创建策略
+        aws iam create-policy \
+            --policy-name "$policy_name" \
+            --path "$IAM_PATH" \
+            --description "Inference-specific policy for ${team}/${project}" \
+            --policy-document "$policy_doc" \
+            --tags \
+                "Key=Team,Value=${team}" \
+                "Key=Project,Value=${project}" \
+                "Key=Purpose,Value=Inference" \
+                "Key=ManagedBy,Value=sagemaker-iam-script"
+        
+        log_success "Policy $policy_name created"
+    fi
+    
+    # ========================================
+    # 附加策略到角色
+    # ========================================
+    log_info "Attaching inference policy to role..."
+    
+    local attached=$(aws iam list-attached-role-policies \
+        --role-name "$role_name" \
+        --query "AttachedPolicies[?PolicyName=='${policy_name}'].PolicyName" \
+        --output text 2>/dev/null || echo "")
+    
+    if [[ -n "$attached" ]]; then
+        log_warn "Policy $policy_name already attached to $role_name"
+    else
+        aws iam attach-role-policy \
+            --role-name "$role_name" \
+            --policy-arn "$policy_arn"
+        
+        log_success "Policy $policy_name attached to $role_name"
+    fi
+    
+    # 显示权限总结
+    echo ""
+    log_info "Inference Role $role_name permissions (minimal):"
+    echo "  ✓ S3 model read-only (models/*, inference/*)"
+    echo "  ✓ S3 inference output (inference/output/*, batch-transform/*)"
+    echo "  ✓ ECR pull-only (inference images)"
+    echo "  ✓ Model Registry read-only"
+    echo "  ✓ Inference operations (Endpoint, Transform)"
+    echo "  ✓ VPC network interface"
+    echo "  ✗ No Training/Processing permissions"
+    echo "  ✗ No S3 full write access"
+}
+
+# -----------------------------------------------------------------------------
 # 主函数
 # -----------------------------------------------------------------------------
 main() {
@@ -426,6 +562,7 @@ main() {
     echo "Configuration:"
     echo "  Canvas (low-code ML):  $([ "$ENABLE_CANVAS" == "true" ] && echo "ENABLED (default)" || echo "DISABLED")"
     echo "  MLflow (tracking):     $([ "$ENABLE_MLFLOW" == "true" ] && echo "ENABLED (default)" || echo "DISABLED")"
+    echo "  Inference Role:        $([ "$ENABLE_INFERENCE_ROLE" == "true" ] && echo "ENABLED (default)" || echo "DISABLED")"
     echo "  Studio App Isolation:  ENABLED (always)"
     echo ""
     
@@ -467,13 +604,18 @@ main() {
     echo "----------------------------------------------"
     echo ""
     
-    # 2. 为每个项目创建 Execution Role
+    # 2. 为每个项目创建 Execution Role + Inference Role
     for team in $TEAMS; do
-        log_info "Creating execution roles for team: $team"
+        log_info "Creating roles for team: $team"
         
         local projects=$(get_projects_for_team "$team")
         for project in $projects; do
+            # 创建开发/训练用 Execution Role
             create_execution_role "$team" "$project"
+            echo ""
+            
+            # 创建推理专用 Inference Role
+            create_inference_role "$team" "$project"
             echo ""
         done
     done
@@ -483,27 +625,50 @@ main() {
     echo ""
     
     # 显示创建的 Roles (通过名称前缀筛选，不使用 path)
-    echo "Created Execution Roles:"
+    echo "Created Execution Roles (Development/Training):"
     aws iam list-roles \
         --query 'Roles[?starts_with(RoleName, `SageMaker-`) && contains(RoleName, `ExecutionRole`)].{Name:RoleName,Arn:Arn}' \
         --output table
     
+    if [[ "$ENABLE_INFERENCE_ROLE" == "true" ]]; then
+        echo ""
+        echo "Created Inference Roles (Production Deployment):"
+        aws iam list-roles \
+            --query 'Roles[?starts_with(RoleName, `SageMaker-`) && contains(RoleName, `InferenceRole`)].{Name:RoleName,Arn:Arn}' \
+            --output table
+    fi
+    
     echo ""
     echo "Permission Summary:"
-    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-    echo "All Execution Roles include:"
-    echo "  1. AmazonSageMakerFullAccess (AWS managed)"
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo ""
+    echo "ExecutionRole (Development/Training):"
+    echo "  ✓ AmazonSageMakerFullAccess (AWS managed)"
     if [[ "$ENABLE_CANVAS" == "true" ]]; then
-        echo "  2. Canvas policies (AWS managed - low-code ML)"
+        echo "  ✓ Canvas policies (AWS managed - low-code ML)"
     fi
-    echo "  3. Studio App Permissions (custom - user isolation)"
+    echo "  ✓ Studio App Permissions (custom - user isolation)"
     if [[ "$ENABLE_MLFLOW" == "true" ]]; then
-        echo "  4. MLflow App Access (custom - experiment tracking)"
+        echo "  ✓ MLflow App Access (custom - experiment tracking)"
+    fi
+    echo "  ✓ Project-specific policy (S3 read/write, ECR, CloudWatch, Model Registry)"
+    echo ""
+    if [[ "$ENABLE_INFERENCE_ROLE" == "true" ]]; then
+        echo "InferenceRole (Production Deployment) - Minimal Permissions:"
+        echo "  ✓ S3 model read-only (models/*, inference/*)"
+        echo "  ✓ S3 inference output (inference/output/*, batch-transform/*)"
+        echo "  ✓ ECR pull-only (inference images)"
+        echo "  ✓ Model Registry read-only"
+        echo "  ✓ Inference operations only (Endpoint, Transform)"
+        echo "  ✗ No Training/Processing permissions"
+        echo "  ✗ No full S3 write access"
     fi
     echo ""
-    echo "Project Execution Roles additionally include:"
-    echo "  - Project-specific policy (S3, ECR, CloudWatch)"
-    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo ""
+    echo "Usage:"
+    echo "  - Use ExecutionRole for: Studio, Notebooks, Training, Processing"
+    echo "  - Use InferenceRole for: Model deployment, Endpoints, Batch Transform"
 }
 
 main

@@ -2,7 +2,7 @@
 # =============================================================================
 # 03-create-workload-sgs.sh - 创建工作负载安全组
 # =============================================================================
-# Phase 2A: 为 Processing/Training/Inference 创建专用安全组
+# 为 Processing/Training/Inference 创建专用安全组
 #
 # 创建的安全组:
 # - {TAG_PREFIX}-training      Training Jobs (分布式训练)
@@ -44,7 +44,7 @@ create_security_group() {
         --group-name "$sg_name" \
         --description "$description" \
         --vpc-id "$VPC_ID" \
-        --tag-specifications "ResourceType=security-group,Tags=[{Key=Name,Value=${sg_name}},{Key=ManagedBy,Value=${TAG_PREFIX}},{Key=Phase,Value=2A}]" \
+        --tag-specifications "ResourceType=security-group,Tags=[{Key=Name,Value=${sg_name}},{Key=ManagedBy,Value=${TAG_PREFIX}},{Key=Type,Value=workload}]" \
         --query 'GroupId' \
         --output text \
         --region "$AWS_REGION")
@@ -118,7 +118,7 @@ add_egress_rule() {
 main() {
     echo ""
     echo "=============================================="
-    echo " Creating Workload Security Groups (Phase 2A)"
+    echo " Creating Workload Security Groups"
     echo "=============================================="
     echo ""
     echo "VPC ID: $VPC_ID"
@@ -211,7 +211,7 @@ main() {
         
         cat >> "${SCRIPT_DIR}/${OUTPUT_DIR}/security-groups.env" << EOF
 
-# Workload Security Groups (Phase 2A) - Added $(date)
+# Workload Security Groups - Added $(date)
 SG_TRAINING=${SG_TRAINING}
 SG_PROCESSING=${SG_PROCESSING}
 SG_INFERENCE=${SG_INFERENCE}
@@ -221,10 +221,10 @@ EOF
         cat > "${SCRIPT_DIR}/${OUTPUT_DIR}/security-groups.env" << EOF
 # Security Group IDs - Generated $(date)
 
-# Phase 1 Security Groups
+# Core Security Groups
 # (Run 01-create-security-groups.sh to populate)
 
-# Workload Security Groups (Phase 2A)
+# Workload Security Groups
 SG_TRAINING=${SG_TRAINING}
 SG_PROCESSING=${SG_PROCESSING}
 SG_INFERENCE=${SG_INFERENCE}
