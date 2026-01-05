@@ -186,6 +186,7 @@ main() {
             local project_formatted=$(format_name "$project")
             verify_resource policy "${policy_prefix}SageMaker-${team_capitalized}-${project_formatted}-Access" || ((errors++))
             verify_resource policy "${policy_prefix}SageMaker-${team_capitalized}-${project_formatted}-ExecutionPolicy" || ((errors++))
+            verify_resource policy "${policy_prefix}SageMaker-${team_capitalized}-${project_formatted}-ExecutionJobPolicy" || ((errors++))
         done
     done
     

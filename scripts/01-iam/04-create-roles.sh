@@ -325,6 +325,7 @@ create_execution_role() {
     
     local role_name="SageMaker-${team_capitalized}-${project_formatted}-ExecutionRole"
     local policy_name="SageMaker-${team_capitalized}-${project_formatted}-ExecutionPolicy"
+    local job_policy_name="SageMaker-${team_capitalized}-${project_formatted}-ExecutionJobPolicy"
     
     log_info "Creating execution role: $role_name"
     
@@ -395,9 +396,9 @@ create_execution_role() {
     # ========================================
     # 第五步: 附加项目自定义策略 (S3、ECR、CloudWatch 等)
     # ========================================
-    log_info "Step 5: Attaching project-specific policy to role..."
+    log_info "Step 5: Attaching project-specific policies to role..."
     
-    # 检查策略是否已附加
+    # 附加基础策略 (S3、ECR、CloudWatch、VPC)
     local attached=$(aws iam list-attached-role-policies \
         --role-name "$role_name" \
         --query "AttachedPolicies[?PolicyName=='${policy_name}'].PolicyName" \
@@ -413,6 +414,22 @@ create_execution_role() {
         log_success "Policy $policy_name attached to $role_name"
     fi
     
+    # 附加作业提交策略 (PassRole、Training/Processing/Inference)
+    local job_attached=$(aws iam list-attached-role-policies \
+        --role-name "$role_name" \
+        --query "AttachedPolicies[?PolicyName=='${job_policy_name}'].PolicyName" \
+        --output text 2>/dev/null || echo "")
+    
+    if [[ -n "$job_attached" ]]; then
+        log_warn "Policy $job_policy_name already attached to $role_name"
+    else
+        aws iam attach-role-policy \
+            --role-name "$role_name" \
+            --policy-arn "arn:aws:iam::${AWS_ACCOUNT_ID}:policy${IAM_PATH}${job_policy_name}"
+        
+        log_success "Policy $job_policy_name attached to $role_name"
+    fi
+    
     # 显示权限总结
     echo ""
     log_info "Role $role_name permissions:"
@@ -424,7 +441,8 @@ create_execution_role() {
     if [[ "$ENABLE_MLFLOW" == "true" ]]; then
         echo "  ✓ MLflow App Access (experiment tracking)"
     fi
-    echo "  ✓ $policy_name (custom - S3, ECR, CloudWatch)"
+    echo "  ✓ $policy_name (custom - S3, ECR, CloudWatch, VPC)"
+    echo "  ✓ $job_policy_name (custom - PassRole, Jobs, Model Registry)"
 }
 
 # -----------------------------------------------------------------------------

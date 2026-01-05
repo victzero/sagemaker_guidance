@@ -10,7 +10,8 @@
 | `base-access.json.tpl`            | 用户基础访问策略               | `AWS_REGION`, `AWS_ACCOUNT_ID`                                                                    |
 | `team-access.json.tpl`            | 团队访问策略                   | `AWS_REGION`, `AWS_ACCOUNT_ID`, `COMPANY`, `TEAM`                                                 |
 | `project-access.json.tpl`         | 项目访问策略                   | `AWS_REGION`, `AWS_ACCOUNT_ID`, `COMPANY`, `TEAM`, `PROJECT`                                      |
-| `execution-role.json.tpl`         | ExecutionRole（开发/Notebook） | `AWS_REGION`, `AWS_ACCOUNT_ID`, `COMPANY`, `TEAM`, `PROJECT`, `TEAM_FULLNAME`, `PROJECT_FULLNAME` |
+| `execution-role.json.tpl`         | ExecutionRole 基础（S3/ECR/VPC）| `AWS_REGION`, `AWS_ACCOUNT_ID`, `COMPANY`, `TEAM`, `PROJECT`                                      |
+| `execution-role-jobs.json.tpl`    | ExecutionRole 作业（PassRole/Jobs）| `AWS_REGION`, `AWS_ACCOUNT_ID`, `TEAM`, `PROJECT`, `TEAM_FULLNAME`, `PROJECT_FULLNAME`         |
 | `training-role.json.tpl`          | TrainingRole（训练专用）       | `AWS_REGION`, `AWS_ACCOUNT_ID`, `COMPANY`, `TEAM`, `PROJECT`, `TEAM_FULLNAME`, `PROJECT_FULLNAME` |
 | `processing-role.json.tpl`        | ProcessingRole（处理专用）     | `AWS_REGION`, `AWS_ACCOUNT_ID`, `COMPANY`, `TEAM`, `PROJECT`, `TEAM_FULLNAME`, `PROJECT_FULLNAME` |
 | `inference-role.json.tpl`         | InferenceRole（推理专用）      | `AWS_REGION`, `AWS_ACCOUNT_ID`, `COMPANY`, `TEAM`, `PROJECT`, `TEAM_FULLNAME`, `PROJECT_FULLNAME` |
@@ -69,9 +70,9 @@ User Profile 绑定的 Execution Role 包含以下权限（按附加顺序）：
    - MLflow 实验追踪
    - Model Registry 集成
 
-5. **项目自定义策略** (`execution-role.json.tpl`)
-   - S3 项目桶访问
-   - CloudWatch Logs
+5. **项目自定义策略** (`execution-role.json.tpl` + `execution-role-jobs.json.tpl`)
+   - S3 项目桶访问、ECR、CloudWatch Logs、VPC（基础策略）
+   - PassRole、作业提交、实验追踪、Model Registry（作业策略）
    - ECR 镜像仓库
    - Amazon Q / Data Science Assistant
 

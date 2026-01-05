@@ -86,6 +86,13 @@ generate_execution_role_policy() {
         "TEAM=${team}" "PROJECT=${project}"
 }
 
+generate_execution_role_jobs_policy() {
+    local team=$1
+    local project=$2
+    render_template "${POLICY_TEMPLATES_DIR}/execution-role-jobs.json.tpl" \
+        "TEAM=${team}" "PROJECT=${project}"
+}
+
 generate_user_boundary_policy() {
     render_template "${POLICY_TEMPLATES_DIR}/user-boundary.json.tpl"
 }
@@ -241,10 +248,15 @@ main() {
                 "$(generate_project_access_policy "$team" "$project")" \
                 "Project access policy for ${team}/${project}"
             
-            # 创建 Execution Role 策略
+            # 创建 Execution Role 基础策略
             create_policy "SageMaker-${team_capitalized}-${project_formatted}-ExecutionPolicy" \
                 "$(generate_execution_role_policy "$team" "$project")" \
-                "Execution role policy for ${team}/${project}"
+                "Execution role base policy for ${team}/${project}"
+            
+            # 创建 Execution Role 作业提交策略
+            create_policy "SageMaker-${team_capitalized}-${project_formatted}-ExecutionJobPolicy" \
+                "$(generate_execution_role_jobs_policy "$team" "$project")" \
+                "Execution role jobs policy for ${team}/${project}"
         done
     done
     
