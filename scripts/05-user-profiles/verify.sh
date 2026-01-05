@@ -174,11 +174,17 @@ sample_profile=$(aws sagemaker list-user-profiles \
 if [[ -n "$sample_profile" && "$sample_profile" != "None" ]]; then
     tags=$(aws sagemaker list-tags \
         --resource-arn "arn:aws:sagemaker:${AWS_REGION}:${AWS_ACCOUNT_ID}:user-profile/${DOMAIN_ID}/${sample_profile}" \
-        --region "$AWS_REGION" 2>/dev/null || echo "{}")
+        --region "$AWS_REGION" 2>/dev/null || echo '{"Tags":[]}')
     
-    team_tag=$(echo "$tags" | jq -r '.Tags[] | select(.Key=="Team") | .Value // "N/A"')
-    project_tag=$(echo "$tags" | jq -r '.Tags[] | select(.Key=="Project") | .Value // "N/A"')
-    owner_tag=$(echo "$tags" | jq -r '.Tags[] | select(.Key=="Owner") | .Value // "N/A"')
+    # Handle null or empty Tags array
+    team_tag=$(echo "$tags" | jq -r '(.Tags // [])[] | select(.Key=="Team") | .Value' 2>/dev/null || echo "N/A")
+    project_tag=$(echo "$tags" | jq -r '(.Tags // [])[] | select(.Key=="Project") | .Value' 2>/dev/null || echo "N/A")
+    owner_tag=$(echo "$tags" | jq -r '(.Tags // [])[] | select(.Key=="Owner") | .Value' 2>/dev/null || echo "N/A")
+    
+    # Set default if empty
+    [[ -z "$team_tag" ]] && team_tag="N/A"
+    [[ -z "$project_tag" ]] && project_tag="N/A"
+    [[ -z "$owner_tag" ]] && owner_tag="N/A"
     
     echo "Sample Profile: $sample_profile"
     echo "  Team:    $team_tag"
@@ -190,6 +196,8 @@ if [[ -n "$sample_profile" && "$sample_profile" != "None" ]]; then
     else
         echo -e "  ${YELLOW}!${NC} Some tags may be missing"
     fi
+else
+    echo "No profiles found to check tags"
 fi
 
 # -----------------------------------------------------------------------------
