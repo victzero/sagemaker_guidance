@@ -82,11 +82,19 @@ count_actual_resources() {
         --query 'length(Roles[?starts_with(RoleName, `SageMaker-`) && contains(RoleName, `ExecutionRole`)])' \
         --output text 2>/dev/null || echo "0")
     
+    ACTUAL_TRAINING_ROLES=$(aws iam list-roles \
+        --query 'length(Roles[?starts_with(RoleName, `SageMaker-`) && contains(RoleName, `TrainingRole`)])' \
+        --output text 2>/dev/null || echo "0")
+    
+    ACTUAL_PROCESSING_ROLES=$(aws iam list-roles \
+        --query 'length(Roles[?starts_with(RoleName, `SageMaker-`) && contains(RoleName, `ProcessingRole`)])' \
+        --output text 2>/dev/null || echo "0")
+    
     ACTUAL_INFERENCE_ROLES=$(aws iam list-roles \
         --query 'length(Roles[?starts_with(RoleName, `SageMaker-`) && contains(RoleName, `InferenceRole`)])' \
         --output text 2>/dev/null || echo "0")
     
-    ACTUAL_ROLES=$((ACTUAL_EXEC_ROLES + ACTUAL_INFERENCE_ROLES))
+    ACTUAL_ROLES=$((ACTUAL_EXEC_ROLES + ACTUAL_TRAINING_ROLES + ACTUAL_PROCESSING_ROLES + ACTUAL_INFERENCE_ROLES))
     
     echo ""
     echo "Resource Summary:"
@@ -97,6 +105,8 @@ count_actual_resources() {
     printf "  | %-17s | %8d | %8d |\n" "Groups" "$EXPECTED_GROUPS" "$ACTUAL_GROUPS"
     printf "  | %-17s | %8d | %8d |\n" "Users" "$EXPECTED_USERS" "$ACTUAL_USERS"
     printf "  | %-17s | %8d | %8d |\n" "Execution Roles" "$EXPECTED_ROLES" "$ACTUAL_EXEC_ROLES"
+    printf "  | %-17s | %8d | %8d |\n" "Training Roles" "$EXPECTED_ROLES" "$ACTUAL_TRAINING_ROLES"
+    printf "  | %-17s | %8d | %8d |\n" "Processing Roles" "$EXPECTED_ROLES" "$ACTUAL_PROCESSING_ROLES"
     printf "  | %-17s | %8d | %8d |\n" "Inference Roles" "$EXPECTED_ROLES" "$ACTUAL_INFERENCE_ROLES"
     echo "  +-------------------+----------+----------+"
 }
@@ -126,6 +136,18 @@ list_actual_resources() {
     echo "Execution Roles (SageMaker-*-ExecutionRole):"
     aws iam list-roles \
         --query 'Roles[?starts_with(RoleName, `SageMaker-`) && contains(RoleName, `ExecutionRole`)].RoleName' \
+        --output text 2>/dev/null | tr '\t' '\n' | sed 's/^/  - /' || echo "  (none)"
+    
+    echo ""
+    echo "Training Roles (SageMaker-*-TrainingRole):"
+    aws iam list-roles \
+        --query 'Roles[?starts_with(RoleName, `SageMaker-`) && contains(RoleName, `TrainingRole`)].RoleName' \
+        --output text 2>/dev/null | tr '\t' '\n' | sed 's/^/  - /' || echo "  (none)"
+    
+    echo ""
+    echo "Processing Roles (SageMaker-*-ProcessingRole):"
+    aws iam list-roles \
+        --query 'Roles[?starts_with(RoleName, `SageMaker-`) && contains(RoleName, `ProcessingRole`)].RoleName' \
         --output text 2>/dev/null | tr '\t' '\n' | sed 's/^/  - /' || echo "  (none)"
     
     echo ""
@@ -279,7 +301,79 @@ main() {
         done
     done
     
-    # 4.3 验证 Inference Roles（如果存在）
+    # 4.3 验证 Training Roles（如果存在）
+    verify_section "Training Roles (Training Jobs)"
+    
+    local training_role_count=0
+    for team in $TEAMS; do
+        local team_fullname=$(get_team_fullname "$team")
+        local team_capitalized=$(format_name "$team_fullname")
+        
+        local projects=$(get_projects_for_team "$team")
+        for project in $projects; do
+            local project_formatted=$(format_name "$project")
+            local train_role_name="SageMaker-${team_capitalized}-${project_formatted}-TrainingRole"
+            
+            if aws iam get-role --role-name "$train_role_name" &> /dev/null; then
+                ((training_role_count++)) || true
+                
+                local train_trust=$(aws iam get-role --role-name "$train_role_name" \
+                    --query "Role.AssumeRolePolicyDocument.Statement[?Principal.Service=='sagemaker.amazonaws.com']" \
+                    --output text 2>/dev/null || echo "")
+                
+                if [[ -n "$train_trust" ]]; then
+                    echo -e "  ${GREEN}✓${NC} $train_role_name (trust: sagemaker.amazonaws.com)"
+                else
+                    echo -e "  ${RED}✗${NC} $train_role_name trust policy issue"
+                    ((errors++)) || true
+                fi
+            fi
+        done
+    done
+    
+    if [[ $training_role_count -eq 0 ]]; then
+        echo -e "  ${YELLOW}⚠${NC} No Training Roles found (ENABLE_TRAINING_ROLE=false or not yet created)"
+    else
+        echo -e "  Total: $training_role_count Training Roles"
+    fi
+    
+    # 4.4 验证 Processing Roles（如果存在）
+    verify_section "Processing Roles (Processing Jobs)"
+    
+    local processing_role_count=0
+    for team in $TEAMS; do
+        local team_fullname=$(get_team_fullname "$team")
+        local team_capitalized=$(format_name "$team_fullname")
+        
+        local projects=$(get_projects_for_team "$team")
+        for project in $projects; do
+            local project_formatted=$(format_name "$project")
+            local proc_role_name="SageMaker-${team_capitalized}-${project_formatted}-ProcessingRole"
+            
+            if aws iam get-role --role-name "$proc_role_name" &> /dev/null; then
+                ((processing_role_count++)) || true
+                
+                local proc_trust=$(aws iam get-role --role-name "$proc_role_name" \
+                    --query "Role.AssumeRolePolicyDocument.Statement[?Principal.Service=='sagemaker.amazonaws.com']" \
+                    --output text 2>/dev/null || echo "")
+                
+                if [[ -n "$proc_trust" ]]; then
+                    echo -e "  ${GREEN}✓${NC} $proc_role_name (trust: sagemaker.amazonaws.com)"
+                else
+                    echo -e "  ${RED}✗${NC} $proc_role_name trust policy issue"
+                    ((errors++)) || true
+                fi
+            fi
+        done
+    done
+    
+    if [[ $processing_role_count -eq 0 ]]; then
+        echo -e "  ${YELLOW}⚠${NC} No Processing Roles found (ENABLE_PROCESSING_ROLE=false or not yet created)"
+    else
+        echo -e "  Total: $processing_role_count Processing Roles"
+    fi
+    
+    # 4.5 验证 Inference Roles（如果存在）
     verify_section "Inference Roles (Production Deployment)"
     
     local inference_role_count=0

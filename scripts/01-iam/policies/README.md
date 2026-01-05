@@ -4,19 +4,21 @@
 
 ## 文件说明
 
-| 文件                              | 说明                        | 变量                                                         |
-| --------------------------------- | --------------------------- | ------------------------------------------------------------ |
-| `trust-policy-sagemaker.json`     | Execution Role 信任策略     | 无（静态）                                                   |
-| `base-access.json.tpl`            | 用户基础访问策略            | `AWS_REGION`, `AWS_ACCOUNT_ID`                               |
-| `team-access.json.tpl`            | 团队访问策略                | `AWS_REGION`, `AWS_ACCOUNT_ID`, `COMPANY`, `TEAM`            |
-| `project-access.json.tpl`         | 项目访问策略                | `AWS_REGION`, `AWS_ACCOUNT_ID`, `COMPANY`, `TEAM`, `PROJECT` |
-| `execution-role.json.tpl`         | Execution Role 权限（开发） | `AWS_REGION`, `AWS_ACCOUNT_ID`, `COMPANY`, `TEAM`, `PROJECT` |
-| `inference-role.json.tpl`         | Inference Role 权限（生产） | `AWS_REGION`, `AWS_ACCOUNT_ID`, `COMPANY`, `TEAM`, `PROJECT`, `TEAM_FULLNAME`, `PROJECT_FULLNAME` |
-| `user-boundary.json.tpl`          | 用户权限边界                | `AWS_ACCOUNT_ID`, `COMPANY`                                  |
-| `readonly.json.tpl`               | 只读访问策略                | `AWS_REGION`, `AWS_ACCOUNT_ID`, `COMPANY`                    |
-| `self-service.json.tpl`           | 用户自助服务策略            | `AWS_ACCOUNT_ID`, `IAM_PATH`                                 |
-| `studio-app-permissions.json.tpl` | Studio App 用户隔离         | `AWS_REGION`, `AWS_ACCOUNT_ID`                               |
-| `mlflow-app-access.json.tpl`      | MLflow 实验追踪             | `AWS_REGION`, `AWS_ACCOUNT_ID`                               |
+| 文件                              | 说明                           | 变量                                                         |
+| --------------------------------- | ------------------------------ | ------------------------------------------------------------ |
+| `trust-policy-sagemaker.json`     | Execution Role 信任策略        | 无（静态）                                                   |
+| `base-access.json.tpl`            | 用户基础访问策略               | `AWS_REGION`, `AWS_ACCOUNT_ID`                               |
+| `team-access.json.tpl`            | 团队访问策略                   | `AWS_REGION`, `AWS_ACCOUNT_ID`, `COMPANY`, `TEAM`            |
+| `project-access.json.tpl`         | 项目访问策略                   | `AWS_REGION`, `AWS_ACCOUNT_ID`, `COMPANY`, `TEAM`, `PROJECT` |
+| `execution-role.json.tpl`         | ExecutionRole（开发/Notebook） | `AWS_REGION`, `AWS_ACCOUNT_ID`, `COMPANY`, `TEAM`, `PROJECT`, `TEAM_FULLNAME`, `PROJECT_FULLNAME` |
+| `training-role.json.tpl`          | TrainingRole（训练专用）       | `AWS_REGION`, `AWS_ACCOUNT_ID`, `COMPANY`, `TEAM`, `PROJECT`, `TEAM_FULLNAME`, `PROJECT_FULLNAME` |
+| `processing-role.json.tpl`        | ProcessingRole（处理专用）     | `AWS_REGION`, `AWS_ACCOUNT_ID`, `COMPANY`, `TEAM`, `PROJECT`, `TEAM_FULLNAME`, `PROJECT_FULLNAME` |
+| `inference-role.json.tpl`         | InferenceRole（推理专用）      | `AWS_REGION`, `AWS_ACCOUNT_ID`, `COMPANY`, `TEAM`, `PROJECT`, `TEAM_FULLNAME`, `PROJECT_FULLNAME` |
+| `user-boundary.json.tpl`          | 用户权限边界                   | `AWS_ACCOUNT_ID`, `COMPANY`                                  |
+| `readonly.json.tpl`               | 只读访问策略                   | `AWS_REGION`, `AWS_ACCOUNT_ID`, `COMPANY`                    |
+| `self-service.json.tpl`           | 用户自助服务策略               | `AWS_ACCOUNT_ID`, `IAM_PATH`                                 |
+| `studio-app-permissions.json.tpl` | Studio App 用户隔离            | `AWS_REGION`, `AWS_ACCOUNT_ID`                               |
+| `mlflow-app-access.json.tpl`      | MLflow 实验追踪                | `AWS_REGION`, `AWS_ACCOUNT_ID`                               |
 
 ## Trust Policy 说明
 
@@ -73,37 +75,107 @@ User Profile 绑定的 Execution Role 包含以下权限（按附加顺序）：
    - ECR 镜像仓库
    - Amazon Q / Data Science Assistant
 
-## Inference Role（推理专用角色）
+## 4 角色分离设计（生产级）
+
+### 角色权限对比矩阵
+
+| 权限类型 | ExecutionRole | TrainingRole | ProcessingRole | InferenceRole |
+| -------- | :-----------: | :----------: | :------------: | :-----------: |
+| AmazonSageMakerFullAccess | ✅ | ❌ | ❌ | ❌ |
+| S3 完整读写 | ✅ | ❌ | ❌ | ❌ |
+| S3 训练数据读取 | ✅ | ✅ | ❌ | ❌ |
+| S3 模型输出写入 | ✅ | ✅ | ❌ | ❌ |
+| S3 原始数据读取 | ✅ | ❌ | ✅ | ❌ |
+| S3 处理输出写入 | ✅ | ❌ | ✅ | ❌ |
+| S3 模型只读 | ✅ | ❌ | ❌ | ✅ |
+| S3 推理输出 | ✅ | ❌ | ❌ | ✅ |
+| ECR 读写 | ✅ | ❌ | ❌ | ❌ |
+| ECR 只读 | ✅ | ✅ | ✅ | ✅ |
+| Training/HPO 操作 | ✅ | ✅ | ❌ | ❌ |
+| Processing 操作 | ✅ | ❌ | ✅ | ❌ |
+| Inference 操作 | ✅ | ❌ | ❌ | ✅ |
+| Model Registry 写入 | ✅ | ✅ | ❌ | ❌ |
+| Model Registry 只读 | ✅ | ✅ | ❌ | ✅ |
+| Feature Store | ✅ | ❌ | ✅ | ❌ |
+| Glue/Athena | ❌ | ❌ | ✅ | ❌ |
+| Pass Role 到其他角色 | ✅ | ❌ | ❌ | ❌ |
+
+### Training Role（训练专用）
+
+`training-role.json.tpl` 用于模型训练，权限包括：
+
+- S3 训练数据读取 (`data/*`, `datasets/*`, `processed/*`)
+- S3 模型输出写入 (`models/*`, `training-output/*`, `checkpoints/*`)
+- ECR 只读（拉取训练镜像）
+- Model Registry 写入（注册模型）
+- 实验追踪（Experiments API）
+- Training/HPO 操作
+
+### Processing Role（处理专用）
+
+`processing-role.json.tpl` 用于数据处理，权限包括：
+
+- S3 原始数据读取 (`data/*`, `raw/*`, `datasets/*`)
+- S3 处理输出写入 (`processed/*`, `features/*`)
+- ECR 只读（拉取处理镜像）
+- Processing/Data Wrangler 操作
+- Feature Store 访问
+- Glue/Athena 数据目录访问
+
+### Inference Role（推理专用）
 
 `inference-role.json.tpl` 用于生产模型部署，遵循 **最小权限原则**：
 
-| 权限类型 | ExecutionRole | InferenceRole |
-| -------- | :-----------: | :-----------: |
-| AmazonSageMakerFullAccess | ✅ | ❌ |
-| S3 完整读写 | ✅ | ❌ |
-| S3 模型只读 (`models/*`) | ✅ | ✅ |
-| S3 推理输出 (`inference/output/*`) | ✅ | ✅ |
-| ECR 完整权限 | ✅ | ❌ |
-| ECR 只读（拉取） | ✅ | ✅ |
-| Training/Processing | ✅ | ❌ |
-| Inference 操作 | ✅ | ✅ |
-| Model Registry 读写 | ✅ | ❌ |
-| Model Registry 只读 | ✅ | ✅ |
+- S3 模型只读 (`models/*`, `inference/*`)
+- S3 推理输出 (`inference/output/*`, `batch-transform/*`)
+- ECR 只读（拉取推理镜像）
+- Model Registry 只读
+- Inference 操作（Endpoint, Transform）
 
-**使用场景**：
+### 使用场景
 
 ```python
-# 开发阶段：使用 ExecutionRole
-estimator = Estimator(
-    role="arn:aws:iam::xxx:role/SageMaker-Team-Project-ExecutionRole",
-    ...
-)
+# ============================================
+# Notebook 开发：使用 ExecutionRole
+# ============================================
+# User Profile 绑定，自动使用
+# 可以：探索数据、提交作业、查看日志
 
-# 生产部署：使用 InferenceRole（最小权限）
-model = Model(
-    role="arn:aws:iam::xxx:role/SageMaker-Team-Project-InferenceRole",
-    ...
+# ============================================
+# 训练作业：使用 TrainingRole
+# ============================================
+from sagemaker.estimator import Estimator
+
+estimator = Estimator(
+    role="arn:aws:iam::xxx:role/SageMaker-Team-Project-TrainingRole",  # ← 训练专用
+    image_uri="...",
+    instance_type="ml.m5.xlarge",
 )
+estimator.fit(...)
+
+# ============================================
+# 处理作业：使用 ProcessingRole
+# ============================================
+from sagemaker.processing import ScriptProcessor
+
+processor = ScriptProcessor(
+    role="arn:aws:iam::xxx:role/SageMaker-Team-Project-ProcessingRole",  # ← 处理专用
+    image_uri="...",
+    instance_type="ml.m5.xlarge",
+)
+processor.run(...)
+
+# ============================================
+# 生产部署：使用 InferenceRole
+# ============================================
+from sagemaker import Model
+
+model = Model(
+    role="arn:aws:iam::xxx:role/SageMaker-Team-Project-InferenceRole",  # ← 推理专用
+    image_uri="...",
+    model_data="s3://bucket/models/model.tar.gz",
+)
+predictor = model.deploy(...)
 ```
 
 ## 变量替换

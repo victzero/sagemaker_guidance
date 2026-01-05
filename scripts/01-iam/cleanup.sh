@@ -234,6 +234,7 @@ main() {
     log_info "Step 3: Deleting roles..."
     
     # 删除 Execution Roles
+    log_info "  Deleting Execution Roles..."
     local exec_roles=$(aws iam list-roles \
         --query 'Roles[?starts_with(RoleName, `SageMaker-`) && contains(RoleName, `ExecutionRole`)].RoleName' \
         --output text 2>/dev/null || echo "")
@@ -242,7 +243,28 @@ main() {
         delete_role "$role"
     done
     
+    # 删除 Training Roles
+    log_info "  Deleting Training Roles..."
+    local training_roles=$(aws iam list-roles \
+        --query 'Roles[?starts_with(RoleName, `SageMaker-`) && contains(RoleName, `TrainingRole`)].RoleName' \
+        --output text 2>/dev/null || echo "")
+    
+    for role in $training_roles; do
+        delete_role "$role"
+    done
+    
+    # 删除 Processing Roles
+    log_info "  Deleting Processing Roles..."
+    local processing_roles=$(aws iam list-roles \
+        --query 'Roles[?starts_with(RoleName, `SageMaker-`) && contains(RoleName, `ProcessingRole`)].RoleName' \
+        --output text 2>/dev/null || echo "")
+    
+    for role in $processing_roles; do
+        delete_role "$role"
+    done
+    
     # 删除 Inference Roles
+    log_info "  Deleting Inference Roles..."
     local inference_roles=$(aws iam list-roles \
         --query 'Roles[?starts_with(RoleName, `SageMaker-`) && contains(RoleName, `InferenceRole`)].RoleName' \
         --output text 2>/dev/null || echo "")
