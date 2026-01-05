@@ -12,9 +12,12 @@
 | `project-access.json.tpl`         | 项目访问策略                   | `AWS_REGION`, `AWS_ACCOUNT_ID`, `COMPANY`, `TEAM`, `PROJECT`                                      |
 | `execution-role.json.tpl`         | ExecutionRole 基础（S3/ECR/VPC）| `AWS_REGION`, `AWS_ACCOUNT_ID`, `COMPANY`, `TEAM`, `PROJECT`                                      |
 | `execution-role-jobs.json.tpl`    | ExecutionRole 作业（PassRole/Jobs）| `AWS_REGION`, `AWS_ACCOUNT_ID`, `TEAM`, `PROJECT`, `TEAM_FULLNAME`, `PROJECT_FULLNAME`         |
-| `training-role.json.tpl`          | TrainingRole（训练专用）       | `AWS_REGION`, `AWS_ACCOUNT_ID`, `COMPANY`, `TEAM`, `PROJECT`, `TEAM_FULLNAME`, `PROJECT_FULLNAME` |
-| `processing-role.json.tpl`        | ProcessingRole（处理专用）     | `AWS_REGION`, `AWS_ACCOUNT_ID`, `COMPANY`, `TEAM`, `PROJECT`, `TEAM_FULLNAME`, `PROJECT_FULLNAME` |
-| `inference-role.json.tpl`         | InferenceRole（推理专用）      | `AWS_REGION`, `AWS_ACCOUNT_ID`, `COMPANY`, `TEAM`, `PROJECT`, `TEAM_FULLNAME`, `PROJECT_FULLNAME` |
+| `training-role.json.tpl`          | TrainingRole 基础（S3/ECR/VPC）| `AWS_REGION`, `AWS_ACCOUNT_ID`, `COMPANY`, `TEAM`, `PROJECT`                                      |
+| `training-role-ops.json.tpl`      | TrainingRole 操作（Training ops）| `AWS_REGION`, `AWS_ACCOUNT_ID`, `TEAM`, `PROJECT`, `TEAM_FULLNAME`, `PROJECT_FULLNAME`         |
+| `processing-role.json.tpl`        | ProcessingRole 基础（S3/ECR/VPC）| `AWS_REGION`, `AWS_ACCOUNT_ID`, `COMPANY`, `TEAM`, `PROJECT`                                     |
+| `processing-role-ops.json.tpl`    | ProcessingRole 操作（Processing ops）| `AWS_REGION`, `AWS_ACCOUNT_ID`, `TEAM`, `PROJECT`, `TEAM_FULLNAME`, `PROJECT_FULLNAME`       |
+| `inference-role.json.tpl`         | InferenceRole 基础（S3/ECR/VPC）| `AWS_REGION`, `AWS_ACCOUNT_ID`, `COMPANY`, `TEAM`, `PROJECT`                                     |
+| `inference-role-ops.json.tpl`     | InferenceRole 操作（Inference ops）| `AWS_REGION`, `AWS_ACCOUNT_ID`, `TEAM`, `PROJECT`, `TEAM_FULLNAME`, `PROJECT_FULLNAME`        |
 | `user-boundary.json.tpl`          | 用户权限边界                   | `AWS_ACCOUNT_ID`, `COMPANY`                                                                       |
 | `readonly.json.tpl`               | 只读访问策略                   | `AWS_REGION`, `AWS_ACCOUNT_ID`, `COMPANY`                                                         |
 | `self-service.json.tpl`           | 用户自助服务策略               | `AWS_ACCOUNT_ID`, `IAM_PATH`                                                                      |

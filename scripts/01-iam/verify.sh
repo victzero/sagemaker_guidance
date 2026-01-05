@@ -185,8 +185,18 @@ main() {
         for project in $projects; do
             local project_formatted=$(format_name "$project")
             verify_resource policy "${policy_prefix}SageMaker-${team_capitalized}-${project_formatted}-Access" || ((errors++))
+            # Execution Role policies (split)
             verify_resource policy "${policy_prefix}SageMaker-${team_capitalized}-${project_formatted}-ExecutionPolicy" || ((errors++))
             verify_resource policy "${policy_prefix}SageMaker-${team_capitalized}-${project_formatted}-ExecutionJobPolicy" || ((errors++))
+            # Training Role policies (split)
+            verify_resource policy "${policy_prefix}SageMaker-${team_capitalized}-${project_formatted}-TrainingPolicy" || ((errors++))
+            verify_resource policy "${policy_prefix}SageMaker-${team_capitalized}-${project_formatted}-TrainingOpsPolicy" || ((errors++))
+            # Processing Role policies (split)
+            verify_resource policy "${policy_prefix}SageMaker-${team_capitalized}-${project_formatted}-ProcessingPolicy" || ((errors++))
+            verify_resource policy "${policy_prefix}SageMaker-${team_capitalized}-${project_formatted}-ProcessingOpsPolicy" || ((errors++))
+            # Inference Role policies (split)
+            verify_resource policy "${policy_prefix}SageMaker-${team_capitalized}-${project_formatted}-InferencePolicy" || ((errors++))
+            verify_resource policy "${policy_prefix}SageMaker-${team_capitalized}-${project_formatted}-InferenceOpsPolicy" || ((errors++))
         done
     done
     

@@ -471,6 +471,7 @@ create_training_role() {
     
     local role_name="SageMaker-${team_capitalized}-${project_formatted}-TrainingRole"
     local policy_name="SageMaker-${team_capitalized}-${project_formatted}-TrainingPolicy"
+    local ops_policy_name="SageMaker-${team_capitalized}-${project_formatted}-TrainingOpsPolicy"
     
     log_info "Creating training role: $role_name"
     
@@ -500,47 +501,12 @@ create_training_role() {
     fi
     
     # ========================================
-    # 创建 Training 专用策略
+    # 附加 Training 策略（已拆分为基础+操作）
     # ========================================
-    log_info "Creating training policy: $policy_name"
+    log_info "Attaching training policies to role..."
     
+    # 附加基础策略 (S3、ECR、CloudWatch、VPC)
     local policy_arn="arn:aws:iam::${AWS_ACCOUNT_ID}:policy${IAM_PATH}${policy_name}"
-    
-    if aws iam get-policy --policy-arn "$policy_arn" &> /dev/null; then
-        log_warn "Policy $policy_name already exists"
-    else
-        if [[ ! -f "$TRAINING_ROLE_TEMPLATE" ]]; then
-            log_error "Training role template not found: $TRAINING_ROLE_TEMPLATE"
-            return 1
-        fi
-        
-        # 替换模板变量
-        local policy_doc=$(cat "$TRAINING_ROLE_TEMPLATE" | \
-            sed "s/\${COMPANY}/${COMPANY}/g" | \
-            sed "s/\${TEAM}/${team}/g" | \
-            sed "s/\${PROJECT}/${project}/g" | \
-            sed "s/\${TEAM_FULLNAME}/${team_capitalized}/g" | \
-            sed "s/\${PROJECT_FULLNAME}/${project_formatted}/g" | \
-            sed "s/\${AWS_ACCOUNT_ID}/${AWS_ACCOUNT_ID}/g" | \
-            sed "s/\${AWS_REGION}/${AWS_REGION}/g")
-        
-        aws iam create-policy \
-            --policy-name "$policy_name" \
-            --path "$IAM_PATH" \
-            --description "Training-specific policy for ${team}/${project}" \
-            --policy-document "$policy_doc" \
-            --tags \
-                "Key=Team,Value=${team}" \
-                "Key=Project,Value=${project}" \
-                "Key=Purpose,Value=Training" \
-                "Key=ManagedBy,Value=sagemaker-iam-script"
-        
-        log_success "Policy $policy_name created"
-    fi
-    
-    # 附加策略到角色
-    log_info "Attaching training policy to role..."
-    
     local attached=$(aws iam list-attached-role-policies \
         --role-name "$role_name" \
         --query "AttachedPolicies[?PolicyName=='${policy_name}'].PolicyName" \
@@ -552,20 +518,30 @@ create_training_role() {
         aws iam attach-role-policy \
             --role-name "$role_name" \
             --policy-arn "$policy_arn"
-        
         log_success "Policy $policy_name attached to $role_name"
+    fi
+    
+    # 附加操作策略 (Training ops, Model Registry, Experiment)
+    local ops_policy_arn="arn:aws:iam::${AWS_ACCOUNT_ID}:policy${IAM_PATH}${ops_policy_name}"
+    local ops_attached=$(aws iam list-attached-role-policies \
+        --role-name "$role_name" \
+        --query "AttachedPolicies[?PolicyName=='${ops_policy_name}'].PolicyName" \
+        --output text 2>/dev/null || echo "")
+    
+    if [[ -n "$ops_attached" ]]; then
+        log_warn "Policy $ops_policy_name already attached to $role_name"
+    else
+        aws iam attach-role-policy \
+            --role-name "$role_name" \
+            --policy-arn "$ops_policy_arn"
+        log_success "Policy $ops_policy_name attached to $role_name"
     fi
     
     # 显示权限总结
     echo ""
     log_info "Training Role $role_name permissions:"
-    echo "  ✓ S3 training data read (data/*, datasets/*, processed/*)"
-    echo "  ✓ S3 model output write (models/*, training-output/*, checkpoints/*)"
-    echo "  ✓ ECR pull-only (training images)"
-    echo "  ✓ Model Registry write"
-    echo "  ✓ Experiment tracking"
-    echo "  ✓ Training/HPO operations"
-    echo "  ✓ VPC network interface"
+    echo "  ✓ $policy_name (S3, ECR, CloudWatch, VPC)"
+    echo "  ✓ $ops_policy_name (Training ops, Model Registry, Experiment)"
     echo "  ✗ No Processing permissions"
     echo "  ✗ No Inference permissions"
 }
@@ -596,6 +572,7 @@ create_processing_role() {
     
     local role_name="SageMaker-${team_capitalized}-${project_formatted}-ProcessingRole"
     local policy_name="SageMaker-${team_capitalized}-${project_formatted}-ProcessingPolicy"
+    local ops_policy_name="SageMaker-${team_capitalized}-${project_formatted}-ProcessingOpsPolicy"
     
     log_info "Creating processing role: $role_name"
     
@@ -625,47 +602,12 @@ create_processing_role() {
     fi
     
     # ========================================
-    # 创建 Processing 专用策略
+    # 附加 Processing 策略（已拆分为基础+操作）
     # ========================================
-    log_info "Creating processing policy: $policy_name"
+    log_info "Attaching processing policies to role..."
     
+    # 附加基础策略 (S3、ECR、CloudWatch、VPC)
     local policy_arn="arn:aws:iam::${AWS_ACCOUNT_ID}:policy${IAM_PATH}${policy_name}"
-    
-    if aws iam get-policy --policy-arn "$policy_arn" &> /dev/null; then
-        log_warn "Policy $policy_name already exists"
-    else
-        if [[ ! -f "$PROCESSING_ROLE_TEMPLATE" ]]; then
-            log_error "Processing role template not found: $PROCESSING_ROLE_TEMPLATE"
-            return 1
-        fi
-        
-        # 替换模板变量
-        local policy_doc=$(cat "$PROCESSING_ROLE_TEMPLATE" | \
-            sed "s/\${COMPANY}/${COMPANY}/g" | \
-            sed "s/\${TEAM}/${team}/g" | \
-            sed "s/\${PROJECT}/${project}/g" | \
-            sed "s/\${TEAM_FULLNAME}/${team_capitalized}/g" | \
-            sed "s/\${PROJECT_FULLNAME}/${project_formatted}/g" | \
-            sed "s/\${AWS_ACCOUNT_ID}/${AWS_ACCOUNT_ID}/g" | \
-            sed "s/\${AWS_REGION}/${AWS_REGION}/g")
-        
-        aws iam create-policy \
-            --policy-name "$policy_name" \
-            --path "$IAM_PATH" \
-            --description "Processing-specific policy for ${team}/${project}" \
-            --policy-document "$policy_doc" \
-            --tags \
-                "Key=Team,Value=${team}" \
-                "Key=Project,Value=${project}" \
-                "Key=Purpose,Value=Processing" \
-                "Key=ManagedBy,Value=sagemaker-iam-script"
-        
-        log_success "Policy $policy_name created"
-    fi
-    
-    # 附加策略到角色
-    log_info "Attaching processing policy to role..."
-    
     local attached=$(aws iam list-attached-role-policies \
         --role-name "$role_name" \
         --query "AttachedPolicies[?PolicyName=='${policy_name}'].PolicyName" \
@@ -677,20 +619,30 @@ create_processing_role() {
         aws iam attach-role-policy \
             --role-name "$role_name" \
             --policy-arn "$policy_arn"
-        
         log_success "Policy $policy_name attached to $role_name"
+    fi
+    
+    # 附加操作策略 (Processing ops, Feature Store, Glue/Athena)
+    local ops_policy_arn="arn:aws:iam::${AWS_ACCOUNT_ID}:policy${IAM_PATH}${ops_policy_name}"
+    local ops_attached=$(aws iam list-attached-role-policies \
+        --role-name "$role_name" \
+        --query "AttachedPolicies[?PolicyName=='${ops_policy_name}'].PolicyName" \
+        --output text 2>/dev/null || echo "")
+    
+    if [[ -n "$ops_attached" ]]; then
+        log_warn "Policy $ops_policy_name already attached to $role_name"
+    else
+        aws iam attach-role-policy \
+            --role-name "$role_name" \
+            --policy-arn "$ops_policy_arn"
+        log_success "Policy $ops_policy_name attached to $role_name"
     fi
     
     # 显示权限总结
     echo ""
     log_info "Processing Role $role_name permissions:"
-    echo "  ✓ S3 raw data read (data/*, raw/*, datasets/*)"
-    echo "  ✓ S3 processed output write (processed/*, features/*)"
-    echo "  ✓ ECR pull-only (processing images)"
-    echo "  ✓ Processing/Data Wrangler operations"
-    echo "  ✓ Feature Store access"
-    echo "  ✓ Glue/Athena catalog access"
-    echo "  ✓ VPC network interface"
+    echo "  ✓ $policy_name (S3, ECR, CloudWatch, VPC)"
+    echo "  ✓ $ops_policy_name (Processing ops, Feature Store, Glue/Athena)"
     echo "  ✗ No Training permissions"
     echo "  ✗ No Inference permissions"
 }
@@ -721,6 +673,7 @@ create_inference_role() {
     
     local role_name="SageMaker-${team_capitalized}-${project_formatted}-InferenceRole"
     local policy_name="SageMaker-${team_capitalized}-${project_formatted}-InferencePolicy"
+    local ops_policy_name="SageMaker-${team_capitalized}-${project_formatted}-InferenceOpsPolicy"
     
     log_info "Creating inference role: $role_name"
     
@@ -750,52 +703,12 @@ create_inference_role() {
     fi
     
     # ========================================
-    # 创建 Inference 专用策略
+    # 附加 Inference 策略（已拆分为基础+操作）
     # ========================================
-    log_info "Creating inference policy: $policy_name"
+    log_info "Attaching inference policies to role..."
     
-    # 检查策略是否已存在
+    # 附加基础策略 (S3、ECR、CloudWatch、VPC)
     local policy_arn="arn:aws:iam::${AWS_ACCOUNT_ID}:policy${IAM_PATH}${policy_name}"
-    
-    if aws iam get-policy --policy-arn "$policy_arn" &> /dev/null; then
-        log_warn "Policy $policy_name already exists"
-    else
-        # 从模板生成策略
-        if [[ ! -f "$INFERENCE_ROLE_TEMPLATE" ]]; then
-            log_error "Inference role template not found: $INFERENCE_ROLE_TEMPLATE"
-            return 1
-        fi
-        
-        # 替换模板变量
-        local policy_doc=$(cat "$INFERENCE_ROLE_TEMPLATE" | \
-            sed "s/\${COMPANY}/${COMPANY}/g" | \
-            sed "s/\${TEAM}/${team}/g" | \
-            sed "s/\${PROJECT}/${project}/g" | \
-            sed "s/\${TEAM_FULLNAME}/${team_capitalized}/g" | \
-            sed "s/\${PROJECT_FULLNAME}/${project_formatted}/g" | \
-            sed "s/\${AWS_ACCOUNT_ID}/${AWS_ACCOUNT_ID}/g" | \
-            sed "s/\${AWS_REGION}/${AWS_REGION}/g")
-        
-        # 创建策略
-        aws iam create-policy \
-            --policy-name "$policy_name" \
-            --path "$IAM_PATH" \
-            --description "Inference-specific policy for ${team}/${project}" \
-            --policy-document "$policy_doc" \
-            --tags \
-                "Key=Team,Value=${team}" \
-                "Key=Project,Value=${project}" \
-                "Key=Purpose,Value=Inference" \
-                "Key=ManagedBy,Value=sagemaker-iam-script"
-        
-        log_success "Policy $policy_name created"
-    fi
-    
-    # ========================================
-    # 附加策略到角色
-    # ========================================
-    log_info "Attaching inference policy to role..."
-    
     local attached=$(aws iam list-attached-role-policies \
         --role-name "$role_name" \
         --query "AttachedPolicies[?PolicyName=='${policy_name}'].PolicyName" \
@@ -807,19 +720,30 @@ create_inference_role() {
         aws iam attach-role-policy \
             --role-name "$role_name" \
             --policy-arn "$policy_arn"
-        
         log_success "Policy $policy_name attached to $role_name"
+    fi
+    
+    # 附加操作策略 (Inference ops, Model Registry read-only)
+    local ops_policy_arn="arn:aws:iam::${AWS_ACCOUNT_ID}:policy${IAM_PATH}${ops_policy_name}"
+    local ops_attached=$(aws iam list-attached-role-policies \
+        --role-name "$role_name" \
+        --query "AttachedPolicies[?PolicyName=='${ops_policy_name}'].PolicyName" \
+        --output text 2>/dev/null || echo "")
+    
+    if [[ -n "$ops_attached" ]]; then
+        log_warn "Policy $ops_policy_name already attached to $role_name"
+    else
+        aws iam attach-role-policy \
+            --role-name "$role_name" \
+            --policy-arn "$ops_policy_arn"
+        log_success "Policy $ops_policy_name attached to $role_name"
     fi
     
     # 显示权限总结
     echo ""
     log_info "Inference Role $role_name permissions (minimal):"
-    echo "  ✓ S3 model read-only (models/*, inference/*)"
-    echo "  ✓ S3 inference output (inference/output/*, batch-transform/*)"
-    echo "  ✓ ECR pull-only (inference images)"
-    echo "  ✓ Model Registry read-only"
-    echo "  ✓ Inference operations (Endpoint, Transform)"
-    echo "  ✓ VPC network interface"
+    echo "  ✓ $policy_name (S3, ECR, CloudWatch, VPC)"
+    echo "  ✓ $ops_policy_name (Inference ops, Model Registry read-only)"
     echo "  ✗ No Training/Processing permissions"
     echo "  ✗ No S3 full write access"
 }
