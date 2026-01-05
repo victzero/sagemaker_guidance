@@ -29,12 +29,16 @@
 
 ### 1.1 资源清单
 
-| 类型         | 数量   | 说明                  |
-| ------------ | ------ | --------------------- |
-| IAM Groups   | ~6-8   | 2 团队组 + 4-6 项目组 |
-| IAM Users    | ~12-18 | 每项目 2-3 人         |
-| IAM Roles    | ~4-6   | 每项目 1 个执行角色   |
-| IAM Policies | ~8-12  | 基础策略 + 项目策略   |
+| 类型         | 数量         | 说明                                   |
+| ------------ | ------------ | -------------------------------------- |
+| IAM Groups   | 2 + T + P    | 2 平台组 + T 团队组 + P 项目组         |
+| IAM Users    | ~12-18       | 每项目 2-3 人                          |
+| IAM Roles    | 1 + P×4      | 1 Domain 默认 + 每项目 4 个专用角色    |
+| IAM Policies | 7 + T + P×14 | 7 基础 + T 团队策略 + 每项目 14 个策略 |
+
+> **说明**：T = 团队数量，P = 项目数量
+>
+> **示例（2 团队 3 项目）**：Groups=7, Roles=13, Policies=51
 
 ### 1.2 设计原则
 
@@ -145,13 +149,16 @@ IAM Groups
 
 ## 4. IAM Roles 设计
 
-### 4.1 Role 类型
+### 4.1 Role 类型概览
 
-| Role 类型                      | 用途                               | 信任实体                |
-| ------------------------------ | ---------------------------------- | ----------------------- |
-| **Domain Default Role**        | Domain 默认设置必需                | sagemaker.amazonaws.com |
-| Project Execution Role         | Notebook 执行时的权限              | sagemaker.amazonaws.com |
-| Service-Linked Role            | SageMaker 服务内部使用             | 自动创建                |
+| Role 类型           | 用途                           | 信任实体                | 数量        |
+| ------------------- | ------------------------------ | ----------------------- | ----------- |
+| **Domain Default**  | Domain 默认设置必需            | sagemaker.amazonaws.com | 1           |
+| **ExecutionRole**   | Notebook/Studio 开发           | sagemaker.amazonaws.com | 每项目 1 个 |
+| **TrainingRole**    | Training Jobs, HPO             | sagemaker.amazonaws.com | 每项目 1 个 |
+| **ProcessingRole**  | Processing Jobs, Data Wrangler | sagemaker.amazonaws.com | 每项目 1 个 |
+| **InferenceRole**   | Endpoints, Batch Transform     | sagemaker.amazonaws.com | 每项目 1 个 |
+| Service-Linked Role | SageMaker 服务内部使用         | 自动创建                | -           |
 
 ### 4.2 Domain Default Execution Role（必须）
 
@@ -160,47 +167,149 @@ IAM Groups
 ```
 SageMaker-Domain-DefaultExecutionRole
 ├── Trust: sagemaker.amazonaws.com
-├── Policy: AmazonSageMakerFullAccess (AWS 托管)
+├── Policies:
+│   ├── AmazonSageMakerFullAccess (AWS 托管)
+│   ├── Canvas 策略组 (可选，默认开启)
+│   ├── SageMaker-StudioAppPermissions (用户隔离)
+│   └── SageMaker-MLflowAppAccess (实验追踪，可选)
 └── 用途: Domain 默认设置、新建 User Profile/Space 时的回退角色
 ```
 
-### 4.3 Project Execution Role 设计
+### 4.3 生产级 4 角色分离设计（推荐）
 
-**每个项目一个 Execution Role**（而非每用户一个）：
+> 🔒 **最佳实践**：每个项目创建 4 个专用角色，实现职责分离和最小权限原则。
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                       生产级 4 角色分离设计                                  │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│  1. ExecutionRole (开发/Notebook)                                           │
+│     └── User Profile 绑定，Studio/Notebook 开发                             │
+│     └── 权限：AmazonSageMakerFullAccess + 项目 S3/ECR                       │
+│     └── Pass Role: 可以传递其他 3 个角色给作业                              │
+│                                                                             │
+│  2. TrainingRole (训练专用)                                                 │
+│     └── Training Jobs, Hyperparameter Tuning                                │
+│     └── 权限：训练数据读取 + 模型输出 + Model Registry 写入                 │
+│                                                                             │
+│  3. ProcessingRole (处理专用)                                               │
+│     └── Processing Jobs, Data Wrangler                                      │
+│     └── 权限：原始数据读取 + 处理输出 + Feature Store + Glue/Athena         │
+│                                                                             │
+│  4. InferenceRole (推理专用)                                                │
+│     └── Endpoints, Batch Transform                                          │
+│     └── 权限：模型只读 + 推理输出（最小权限）                               │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+**IAM Roles 结构**：
 
 ```
 IAM Roles
-├── SageMaker-Domain-DefaultExecutionRole    # Domain 默认（必须）
-│   └── 附加: AmazonSageMakerFullAccess
+├── SageMaker-Domain-DefaultExecutionRole        # Domain 默认（必须）
 │
-├── SageMaker-RiskControl-ProjectA-ExecutionRole
-│   └── 可访问: s3://{company}-sm-rc-project-a/*
-├── SageMaker-RiskControl-ProjectB-ExecutionRole
-│   └── 可访问: s3://{company}-sm-rc-project-b/*
-├── SageMaker-Algorithm-ProjectX-ExecutionRole
-│   └── 可访问: s3://{company}-sm-algo-project-x/*
-└── SageMaker-Algorithm-ProjectY-ExecutionRole
-    └── 可访问: s3://{company}-sm-algo-project-y/*
+├── Project: RiskControl / FraudDetection
+│   ├── SageMaker-RiskControl-FraudDetection-ExecutionRole
+│   ├── SageMaker-RiskControl-FraudDetection-TrainingRole
+│   ├── SageMaker-RiskControl-FraudDetection-ProcessingRole
+│   └── SageMaker-RiskControl-FraudDetection-InferenceRole
+│
+└── Project: Algorithm / Recommendation
+    ├── SageMaker-Algorithm-Recommendation-ExecutionRole
+    ├── SageMaker-Algorithm-Recommendation-TrainingRole
+    ├── SageMaker-Algorithm-Recommendation-ProcessingRole
+    └── SageMaker-Algorithm-Recommendation-InferenceRole
 ```
 
-### 4.3 Execution Role 权限范围
+### 4.4 角色权限对比矩阵
 
-| 权限类型   | 范围          | 说明          |
-| ---------- | ------------- | ------------- |
-| S3         | 仅项目 Bucket | 读写项目数据  |
-| SageMaker  | 全部功能      | Notebook、Processing、Training、Inference |
-| CloudWatch | 项目日志组    | 日志写入      |
-| ECR        | 共享仓库      | 拉取容器镜像  |
+| 权限类型                  | ExecutionRole | TrainingRole | ProcessingRole | InferenceRole |
+| ------------------------- | :-----------: | :----------: | :------------: | :-----------: |
+| AmazonSageMakerFullAccess |      ✅       |      ❌      |       ❌       |      ❌       |
+| Canvas 策略组 (可选)      |      ✅       |      ❌      |       ❌       |      ❌       |
+| StudioAppPermissions      |      ✅       |      ❌      |       ❌       |      ❌       |
+| MLflowAppAccess (可选)    |      ✅       |      ❌      |       ❌       |      ❌       |
+| S3 完整读写               |      ✅       |      ❌      |       ❌       |      ❌       |
+| S3 训练数据/模型输出      |      ✅       |      ✅      |       ❌       |      ❌       |
+| S3 原始数据/处理输出      |      ✅       |      ❌      |       ✅       |      ❌       |
+| S3 模型只读/推理输出      |      ✅       |      ❌      |       ❌       |      ✅       |
+| ECR 项目仓库读写          |      ✅       |      ❌      |       ❌       |      ❌       |
+| ECR 只读                  |      ✅       |      ✅      |       ✅       |      ✅       |
+| Training/HPO 操作         |      ✅       |      ✅      |       ❌       |      ❌       |
+| Processing 操作           |      ✅       |      ❌      |       ✅       |      ❌       |
+| Inference 操作            |      ✅       |      ❌      |       ❌       |      ✅       |
+| Model Registry 写入       |      ✅       |      ✅      |       ❌       |      ❌       |
+| Model Registry 只读       |      ✅       |      ✅      |       ❌       |      ✅       |
+| Feature Store             |      ✅       |      ❌      |       ✅       |      ❌       |
+| Glue/Athena               |      ❌       |      ❌      |       ✅       |      ❌       |
+| Pass Role 到其他角色      |      ✅       |      ❌      |       ❌       |      ❌       |
 
-> ✅ **Phase 2 更新**：所有 Execution Role 已附加 `AmazonSageMakerFullAccess` 托管策略，支持：
-> - Processing Jobs（数据处理）
-> - Training Jobs（模型训练）
-> - Inference Endpoints（实时推理）
+### 4.5 使用场景
 
-### 4.4 Trust Policy（信任策略）
+```python
+# ============================================
+# Notebook 开发：使用 ExecutionRole
+# ============================================
+# User Profile 绑定，自动使用
+# 可以：探索数据、提交作业、查看日志
 
+# ============================================
+# 训练作业：使用 TrainingRole
+# ============================================
+from sagemaker.estimator import Estimator
+
+estimator = Estimator(
+    role="arn:aws:iam::xxx:role/SageMaker-Team-Project-TrainingRole",  # ← 训练专用
+    image_uri="...",
+    instance_type="ml.m5.xlarge",
+)
+estimator.fit(...)
+
+# ============================================
+# 处理作业：使用 ProcessingRole
+# ============================================
+from sagemaker.processing import ScriptProcessor
+
+processor = ScriptProcessor(
+    role="arn:aws:iam::xxx:role/SageMaker-Team-Project-ProcessingRole",  # ← 处理专用
+    image_uri="...",
+    instance_type="ml.m5.xlarge",
+)
+processor.run(...)
+
+# ============================================
+# 生产部署：使用 InferenceRole
+# ============================================
+from sagemaker import Model
+
+model = Model(
+    role="arn:aws:iam::xxx:role/SageMaker-Team-Project-InferenceRole",  # ← 推理专用
+    image_uri="...",
+    model_data="s3://bucket/models/model.tar.gz",
+)
+predictor = model.deploy(...)
 ```
-所有 Execution Role 的 Trust Policy:
+
+### 4.6 IAM Path 设计
+
+> **重要设计决策**：Execution Role 使用默认路径 (`/`)，而非 IAM_PATH（如 `/acme-sagemaker/`）。
+
+| 场景                   |   使用 IAM_PATH    |   使用默认路径    |
+| ---------------------- | :----------------: | :---------------: |
+| User Profile 绑定 Role |   ❌ 需完整 ARN    | ✅ 只需 Role 名称 |
+| SageMaker AssumeRole   |    ❌ 可能失败     |    ✅ 自动识别    |
+| 控制台查看             | ❌ 需手动指定 path |    ✅ 直接显示    |
+| 其他 AWS 服务集成      |   ❌ 需完整 ARN    |    ✅ 兼容性好    |
+
+**筛选方式**：通过名称前缀 `SageMaker-` 筛选各类角色。
+
+### 4.7 Trust Policy（信任策略）
+
+所有 Role 使用统一的 Trust Policy：
+
+```json
 {
   "Version": "2012-10-17",
   "Statement": [
@@ -215,6 +324,16 @@ IAM Roles
 }
 ```
 
+### 4.8 可选功能配置
+
+| 功能            | 环境变量                 | 默认值 | 说明                            |
+| --------------- | ------------------------ | ------ | ------------------------------- |
+| Canvas 低代码   | `ENABLE_CANVAS`          | true   | SageMaker Canvas 低代码 ML 平台 |
+| MLflow 追踪     | `ENABLE_MLFLOW`          | true   | MLflow 实验追踪                 |
+| Training Role   | `ENABLE_TRAINING_ROLE`   | true   | 训练专用角色                    |
+| Processing Role | `ENABLE_PROCESSING_ROLE` | true   | 处理专用角色                    |
+| Inference Role  | `ENABLE_INFERENCE_ROLE`  | true   | 推理专用角色                    |
+
 ---
 
 ## 5. IAM Policies 设计
@@ -224,26 +343,48 @@ IAM Roles
 ```
 IAM Policies
 │
-├── 基础层（所有开发者通用）
-│   ├── SageMaker-Studio-Base-Access
-│   └── SageMaker-Studio-CreatePresignedUrl
+├── 基础层（7 个，所有用户通用）
+│   ├── SageMaker-Studio-Base-Access        # 基础访问
+│   ├── SageMaker-ReadOnly-Access           # 只读访问
+│   ├── SageMaker-User-Boundary             # 权限边界
+│   ├── SageMaker-User-SelfService          # 自助服务（密码、MFA）
+│   ├── SageMaker-StudioAppPermissions      # Studio 用户隔离（安全必须）
+│   ├── SageMaker-MLflowAppAccess           # MLflow 实验追踪
+│   └── SageMaker-Shared-DenyAdmin          # 禁止管理操作（共享）
 │
-├── 团队层（团队级资源访问）
+├── 团队层（每团队 1 个）
 │   ├── SageMaker-RiskControl-Team-Access
 │   └── SageMaker-Algorithm-Team-Access
 │
-├── 项目层（项目级资源访问）
-│   ├── SageMaker-RiskControl-ProjectA-Access
-│   ├── SageMaker-RiskControl-ProjectB-Access
-│   ├── SageMaker-Algorithm-ProjectX-Access
-│   └── SageMaker-Algorithm-ProjectY-Access
+├── 项目层（每项目 3 个 User 策略 + 共享策略）
+│   ├── SageMaker-{Team}-{Project}-Access      # 项目访问
+│   ├── SageMaker-{Team}-{Project}-S3Access    # S3 共享策略
+│   └── SageMaker-{Team}-{Project}-PassRole    # PassRole 共享策略
 │
-└── 角色层（Execution Role 权限）
-    ├── SageMaker-RiskControl-ProjectA-ExecutionPolicy
-    └── ...
+└── 角色层（每项目 8 个，拆分设计避免 6KB 限制）
+    ├── ExecutionPolicy + ExecutionJobPolicy   # 开发角色
+    ├── TrainingPolicy + TrainingOpsPolicy     # 训练角色
+    ├── ProcessingPolicy + ProcessingOpsPolicy # 处理角色
+    └── InferencePolicy + InferenceOpsPolicy   # 推理角色
 ```
 
-### 5.2 基础策略设计
+### 5.2 策略拆分设计
+
+> ⚠️ **重要**：AWS IAM 策略有 6144 字节限制。每个 Role 的策略拆分为 **基础** + **操作** 两个策略。
+
+| Role           | 基础策略 (S3/ECR/VPC) | 操作策略 (Jobs/Ops)   |
+| -------------- | --------------------- | --------------------- |
+| ExecutionRole  | `ExecutionPolicy`     | `ExecutionJobPolicy`  |
+| TrainingRole   | `TrainingPolicy`      | `TrainingOpsPolicy`   |
+| ProcessingRole | `ProcessingPolicy`    | `ProcessingOpsPolicy` |
+| InferenceRole  | `InferencePolicy`     | `InferenceOpsPolicy`  |
+
+**拆分原则**：
+
+- **基础策略**: S3 访问、ECR 拉取、CloudWatch Logs、VPC 网络接口
+- **操作策略**: 作业相关操作、PassRole、实验追踪、Model Registry 等
+
+### 5.3 基础策略设计
 
 **SageMaker-Studio-Base-Access** - 所有用户的基础权限：
 
@@ -259,7 +400,40 @@ IAM Policies
 - 仅限指定 Domain
 ```
 
-### 5.3 团队策略设计
+**SageMaker-StudioAppPermissions** - Studio 用户隔离（安全必须）：
+
+```
+功能:
+- 用户只能操作自己的 Private Space
+- 可以在 Shared Space 创建/删除 App
+- 只能为自己的 Profile 生成预签名 URL
+- 防止用户误删他人资源
+
+实现:
+- sagemaker:OwnerUserProfileArn 条件
+- sagemaker:ResourceTag/Owner 条件
+```
+
+**SageMaker-MLflowAppAccess** - MLflow 实验追踪（可选）：
+
+```
+功能:
+- 创建/管理 MLflow App
+- 记录参数、指标、模型版本
+- 与 SageMaker Model Registry 集成
+```
+
+**SageMaker-Shared-DenyAdmin** - 禁止管理操作：
+
+```
+显式拒绝:
+- sagemaker:CreateDomain / DeleteDomain
+- sagemaker:CreateUserProfile / DeleteUserProfile
+- sagemaker:CreateSpace / DeleteSpace / UpdateSpace
+- s3:CreateBucket / DeleteBucket
+```
+
+### 5.4 团队策略设计
 
 **SageMaker-{Team}-Team-Access** - 团队级权限：
 
@@ -273,7 +447,7 @@ IAM Policies
 - Resource Tag: team = {team}
 ```
 
-### 5.4 项目策略设计
+### 5.5 项目策略设计
 
 **SageMaker-{Team}-{Project}-Access** - 项目级权限：
 
@@ -282,14 +456,78 @@ IAM Policies
 - sagemaker:CreateApp
 - sagemaker:DeleteApp
 - sagemaker:DescribeApp
-- s3:GetObject
-- s3:PutObject
-- s3:DeleteObject
 
 条件:
 - Space: space-{team}-{project}
-- S3 Bucket: {company}-sm-{team}-{project}
+- sagemaker:ResourceTag/Project = {project}
 ```
+
+**SageMaker-{Team}-{Project}-S3Access** - S3 共享策略（User 和 Role 共用）：
+
+```
+允许操作:
+- s3:GetObject / PutObject / DeleteObject / ListBucket
+
+资源范围:
+- 项目桶: {company}-sm-{team}-{project}
+- 共享桶: {company}-sm-shared-assets (只读)
+- SageMaker 默认桶: sagemaker-{region}-{account-id}
+```
+
+**SageMaker-{Team}-{Project}-PassRole** - PassRole 共享策略：
+
+```
+允许操作:
+- iam:PassRole
+
+资源范围:
+- SageMaker-{Team}-{Project}-ExecutionRole
+- SageMaker-{Team}-{Project}-TrainingRole
+- SageMaker-{Team}-{Project}-ProcessingRole
+- SageMaker-{Team}-{Project}-InferenceRole
+
+条件:
+- iam:PassedToService = sagemaker.amazonaws.com
+```
+
+### 5.6 MFA 强制要求
+
+> 🔐 **安全策略**：用户必须启用 MFA 才能访问 SageMaker 和 S3 资源。
+
+```
+┌─────────────────────────────────────────────────┐
+│              用户登录 AWS Console               │
+└─────────────────────────────────────────────────┘
+                       │
+                       ▼
+              ┌───────────────┐
+              │  MFA 已启用?  │
+              └───────────────┘
+               /           \
+              /             \
+           是 ✅            否 ❌
+            │                │
+            ▼                ▼
+    ┌─────────────┐   ┌──────────────────────┐
+    │ 正常使用    │   │ 只能进行以下操作:    │
+    │ SageMaker   │   │ - 修改密码           │
+    │ S3, ECR...  │   │ - 启用 MFA           │
+    └─────────────┘   │ - 查看身份           │
+                      └──────────────────────┘
+```
+
+**实现方式**: `DenyAllWithoutMFA` 使用 `NotAction` 排除自服务操作
+
+### 5.7 Canvas 策略组（可选）
+
+Canvas 是 SageMaker 的低代码 ML 平台。`ENABLE_CANVAS=true`（默认）时附加：
+
+| 策略                                    | 用途                                       |
+| --------------------------------------- | ------------------------------------------ |
+| AmazonSageMakerCanvasFullAccess         | Canvas 核心功能                            |
+| AmazonSageMakerCanvasAIServicesAccess   | AI 服务 (Bedrock, Textract, Comprehend 等) |
+| AmazonSageMakerCanvasDataPrepFullAccess | 数据准备 (Data Wrangler, Glue, Athena)     |
+| AmazonSageMakerCanvasDirectDeployAccess | 模型部署到 Endpoint (service-role 路径)    |
 
 ---
 
@@ -297,34 +535,66 @@ IAM Policies
 
 ### 6.1 Group-Policy 绑定
 
-| Group                    | 绑定 Policies                                                   |
-| ------------------------ | --------------------------------------------------------------- |
-| sagemaker-admins         | AmazonSageMakerFullAccess, AdminCustomPolicy                    |
-| sagemaker-readonly       | SageMaker-ReadOnly-Access                                       |
-| sagemaker-risk-control   | SageMaker-Studio-Base-Access, SageMaker-RiskControl-Team-Access |
-| sagemaker-algorithm      | SageMaker-Studio-Base-Access, SageMaker-Algorithm-Team-Access   |
-| sagemaker-rc-project-a   | SageMaker-RiskControl-ProjectA-Access                           |
-| sagemaker-rc-project-b   | SageMaker-RiskControl-ProjectB-Access                           |
-| sagemaker-algo-project-x | SageMaker-Algorithm-ProjectX-Access                             |
-| sagemaker-algo-project-y | SageMaker-Algorithm-ProjectY-Access                             |
+**平台级 Group**：
+
+| Group              | 绑定 Policies                                         |
+| ------------------ | ----------------------------------------------------- |
+| sagemaker-admins   | AmazonSageMakerFullAccess, SageMaker-User-SelfService |
+| sagemaker-readonly | SageMaker-ReadOnly-Access, SageMaker-User-SelfService |
+
+**团队级 Group**：
+
+| Group                  | 绑定 Policies                                                                                    |
+| ---------------------- | ------------------------------------------------------------------------------------------------ |
+| sagemaker-risk-control | AmazonSageMakerFullAccess, SageMaker-Studio-Base-Access, SageMaker-User-SelfService, Team-Access |
+| sagemaker-algorithm    | AmazonSageMakerFullAccess, SageMaker-Studio-Base-Access, SageMaker-User-SelfService, Team-Access |
+
+**项目级 Group**：
+
+| Group                         | 绑定 Policies                                                  |
+| ----------------------------- | -------------------------------------------------------------- |
+| sagemaker-rc-fraud-detection  | Project-Access, SageMaker-Shared-DenyAdmin, S3Access, PassRole |
+| sagemaker-algo-recommendation | Project-Access, SageMaker-Shared-DenyAdmin, S3Access, PassRole |
 
 ### 6.2 User-Group 绑定示例
 
 ```
 sm-rc-alice:
   Groups:
-    - sagemaker-risk-control    → Base + Team Access
-    - sagemaker-rc-project-a    → Project A Access
+    - sagemaker-risk-control      → AmazonSageMakerFullAccess + Base + Team Access
+    - sagemaker-rc-fraud-detection → Project Access + S3 + PassRole + DenyAdmin
 
-  最终权限 = Base + Team + Project A
+  最终权限 = SageMaker Full + Base + Team + Project S3 + PassRole
+            - DenyAdmin (显式拒绝覆盖允许)
 ```
 
-### 6.3 Execution Role 绑定
+### 6.3 Execution Role 绑定（4 角色）
 
-| Role                                         | User Profile                           | Space                |
-| -------------------------------------------- | -------------------------------------- | -------------------- |
-| SageMaker-RiskControl-ProjectA-ExecutionRole | profile-rc-proja-alice, profile-rc-proja-bob       | space-rc-project-a   |
-| SageMaker-Algorithm-ProjectX-ExecutionRole   | profile-algo-projx-frank, profile-algo-projx-grace | space-algo-project-x |
+| ExecutionRole                                      | TrainingRole                                      | 用途          |
+| -------------------------------------------------- | ------------------------------------------------- | ------------- |
+| SageMaker-RiskControl-FraudDetection-ExecutionRole | SageMaker-RiskControl-FraudDetection-TrainingRole | Notebook/训练 |
+| SageMaker-Algorithm-Recommendation-ExecutionRole   | SageMaker-Algorithm-Recommendation-TrainingRole   | Notebook/训练 |
+
+| ProcessingRole                                      | InferenceRole                                      | 用途      |
+| --------------------------------------------------- | -------------------------------------------------- | --------- |
+| SageMaker-RiskControl-FraudDetection-ProcessingRole | SageMaker-RiskControl-FraudDetection-InferenceRole | 处理/推理 |
+| SageMaker-Algorithm-Recommendation-ProcessingRole   | SageMaker-Algorithm-Recommendation-InferenceRole   | 处理/推理 |
+
+### 6.4 User Profile 与 Execution Role 绑定
+
+```
+User Profile: profile-rc-fraud-alice
+├── 绑定 ExecutionRole: SageMaker-RiskControl-FraudDetection-ExecutionRole
+│   └── 可以 PassRole 到:
+│       ├── TrainingRole   (训练作业)
+│       ├── ProcessingRole (处理作业)
+│       └── InferenceRole  (推理部署)
+│
+└── 可访问 S3:
+    ├── acme-sm-rc-fraud-detection/* (读写)
+    ├── acme-sm-shared-assets/* (只读)
+    └── sagemaker-{region}-{account}/* (读写)
+```
 
 ---
 
@@ -498,15 +768,16 @@ sm-rc-alice:
 
 `iam:PassRole` 是一个特殊权限，允许用户将 IAM Role 传递给 AWS 服务（如 SageMaker）使用。
 
-| 场景              | 说明                    |
-| ----------------- | ----------------------- |
-| 创建 User Profile | 需要传递 Execution Role |
-| 启动 Training Job | 需要传递 Training Role  |
-| 创建 Endpoint     | 需要传递 Inference Role |
+| 场景                | 传递的 Role    | 说明             |
+| ------------------- | -------------- | ---------------- |
+| 创建 User Profile   | ExecutionRole  | 绑定到 Profile   |
+| 启动 Training Job   | TrainingRole   | 训练作业专用角色 |
+| 启动 Processing Job | ProcessingRole | 处理作业专用角色 |
+| 创建 Endpoint       | InferenceRole  | 推理部署专用角色 |
 
-### 8.2 PassRole 策略设计
+### 8.2 PassRole 策略设计（4 角色）
 
-**原则**：用户只能 PassRole 自己项目的 Execution Role
+**原则**：用户只能 PassRole 自己项目的 4 个专用角色
 
 ```json
 {
@@ -516,7 +787,12 @@ sm-rc-alice:
       "Sid": "AllowPassRoleToSageMaker",
       "Effect": "Allow",
       "Action": "iam:PassRole",
-      "Resource": "arn:aws:iam::{account-id}:role/SageMaker-RC-ProjectA-ExecutionRole",
+      "Resource": [
+        "arn:aws:iam::{account-id}:role/SageMaker-{Team}-{Project}-ExecutionRole",
+        "arn:aws:iam::{account-id}:role/SageMaker-{Team}-{Project}-TrainingRole",
+        "arn:aws:iam::{account-id}:role/SageMaker-{Team}-{Project}-ProcessingRole",
+        "arn:aws:iam::{account-id}:role/SageMaker-{Team}-{Project}-InferenceRole"
+      ],
       "Condition": {
         "StringEquals": {
           "iam:PassedToService": "sagemaker.amazonaws.com"
@@ -527,16 +803,39 @@ sm-rc-alice:
 }
 ```
 
-**替换说明**：`{account-id}` 替换为 12 位 AWS 账号 ID
+**替换说明**：
 
-### 8.3 PassRole 绑定关系
+- `{account-id}` → 12 位 AWS 账号 ID
+- `{Team}` → 团队名称 PascalCase（如 `RiskControl`）
+- `{Project}` → 项目名称 PascalCase（如 `FraudDetection`）
 
-| 项目组                   | 可 PassRole 的 Execution Role         |
-| ------------------------ | ------------------------------------- |
-| sagemaker-rc-project-a   | SageMaker-RC-ProjectA-ExecutionRole   |
-| sagemaker-rc-project-b   | SageMaker-RC-ProjectB-ExecutionRole   |
-| sagemaker-algo-project-x | SageMaker-Algo-ProjectX-ExecutionRole |
-| sagemaker-algo-project-y | SageMaker-Algo-ProjectY-ExecutionRole |
+### 8.3 PassRole 绑定关系（4 角色）
+
+| 项目组                        | 可 PassRole 的 Roles（4 个）                               |
+| ----------------------------- | ---------------------------------------------------------- |
+| sagemaker-rc-fraud-detection  | ExecutionRole, TrainingRole, ProcessingRole, InferenceRole |
+| sagemaker-algo-recommendation | ExecutionRole, TrainingRole, ProcessingRole, InferenceRole |
+
+### 8.4 PassRole 调用链
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         PassRole 调用链                                      │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│  IAM User (sm-rc-alice)                                                     │
+│      │                                                                      │
+│      ▼ PassRole                                                             │
+│  ExecutionRole (绑定到 User Profile)                                        │
+│      │                                                                      │
+│      ├─► PassRole → TrainingRole   (提交训练作业)                           │
+│      │                                                                      │
+│      ├─► PassRole → ProcessingRole (提交处理作业)                           │
+│      │                                                                      │
+│      └─► PassRole → InferenceRole  (部署推理端点)                           │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
 
 ---
 
