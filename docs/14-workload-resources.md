@@ -32,15 +32,19 @@
 
 ### 1.2 各阶段资源需求
 
-| 资源类型       | Processing | Training | Inference | 备注                        |
-| -------------- | :--------: | :------: | :-------: | --------------------------- |
-| Execution Role |     ✅     |    ✅    |    ✅     | 基础设施已创建项目级 Role   |
-| S3 Bucket      |     ✅     |    ✅    |    ✅     | 基础设施已创建项目级 Bucket |
-| VPC/Subnet     |     ✅     |    ✅    |    ✅     | 基础设施已配置              |
-| Security Group |     ✅     |    ✅    |    ✅     | **需补充工作负载 SG**       |
-| ECR Repository |    可选    |   可选   |    ✅     | **需新建**                  |
-| Model Registry |     -      |    ✅    |    ✅     | **需新建**                  |
-| KMS Key        |    可选    |   可选   |   可选    | 按需配置                    |
+| 资源类型           | Processing | Training | Inference | 备注                                  |
+| ------------------ | :--------: | :------: | :-------: | ------------------------------------- |
+| **IAM Role**       |     ✅     |    ✅    |    ✅     | 4 角色设计已创建专用 Role             |
+| ├─ ExecutionRole   |     -      |    -     |     -     | Notebook/Studio 交互                  |
+| ├─ ProcessingRole  |     ✅     |    -     |     -     | Processing Jobs 专用                  |
+| ├─ TrainingRole    |     -      |    ✅    |     -     | Training Jobs 专用                    |
+| └─ InferenceRole   |     -      |    -     |    ✅     | Inference Endpoints 专用              |
+| S3 Bucket          |     ✅     |    ✅    |    ✅     | 基础设施已创建项目级 Bucket           |
+| VPC/Subnet         |     ✅     |    ✅    |    ✅     | 基础设施已配置 (2-3 个)               |
+| Security Group     |     ✅     |    ✅    |    ✅     | ✅ 工作负载 SG 已通过 `02-vpc` 创建   |
+| ECR Repository     |    可选    |   可选   |    ✅     | ✅ `06-ecr` 脚本创建                  |
+| Model Registry     |     -      |    ✅    |    ✅     | ✅ `07-model-registry` 脚本创建       |
+| KMS Key            |    可选    |   可选   |   可选    | 按需配置                              |
 
 ---
 

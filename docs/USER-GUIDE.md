@@ -9,7 +9,7 @@
 1. [快速开始](#1-快速开始)
 2. [登录 SageMaker Studio](#2-登录-sagemaker-studio)
 3. [使用 JupyterLab](#3-使用-jupyterlab)
-4. [使用 Shared Space](#4-使用-shared-space)
+4. [使用 Private Space](#4-使用-private-space)
 5. [数据访问](#5-数据访问)
 6. [成本控制](#6-成本控制)
 7. [常见问题](#7-常见问题)
@@ -136,36 +136,48 @@ https://d-xxxxxxxxx.studio.{region}.sagemaker.aws/auth/presigned?...
 
 ---
 
-## 4. 使用 Shared Space
+## 4. 使用 Private Space
 
-### 4.1 什么是 Shared Space
+### 4.1 什么是 Private Space
 
-- Shared Space 是项目团队的**共享协作空间**
-- 同一项目的成员可以访问相同的 Space
-- 适合团队协作、代码共享、数据共享
+- Private Space 是您的**私有工作空间**
+- 每个 User Profile 有一个对应的 Private Space
+- Space 自动继承 Profile 的 Execution Role，可以访问项目 S3 桶
+- 只有您本人可以访问
 
-### 4.2 访问 Shared Space
+### 4.2 多项目用户
 
-1. 在 Studio 首页，点击 **Shared Spaces**
-2. 找到您所属项目的 Space（如 `space-rc-fraud-detection`）
-3. 点击 Space 进入
+如果您参与多个项目，您会有多个 Profile + Space：
 
-> ⚠️ **注意**：您只能访问所属项目的 Space
+```
+Alice 参与两个项目:
+├── profile-rc-fraud-alice + space-rc-fraud-alice
+│   └── 可访问 fraud-detection S3 桶
+└── profile-rc-aml-alice   + space-rc-aml-alice
+    └── 可访问 anti-money-laundering S3 桶
+```
 
-### 4.3 在 Space 中创建 JupyterLab
+登录时选择对应项目的 Profile，即可进入对应的 Space。
 
-1. 进入 Space 后，点击 **Create JupyterLab space**
-2. 选择实例类型
-3. 等待 JupyterLab 启动
+### 4.3 访问 Private Space
 
-### 4.4 Space vs Personal Profile
+1. 在 Studio 首页，选择您的 **User Profile**（如 `profile-rc-fraud-alice`）
+2. 点击 **Open Studio**
+3. 进入后，选择对应的 **Private Space**（如 `space-rc-fraud-alice`）
+4. 点击 **Run** 启动 JupyterLab
 
-| 特性     | Personal Profile | Shared Space        |
-| -------- | ---------------- | ------------------- |
-| 数据隔离 | 个人独享         | 团队共享            |
-| 文件存储 | 个人 Home 目录   | Space 共享存储      |
-| 适用场景 | 个人实验、草稿   | 团队协作、正式项目  |
-| EBS 大小 | 继承默认         | 50 GB（可申请扩容） |
+> ⚠️ **注意**：您只能看到和访问属于您的 Profile 和 Space
+
+### 4.4 Space 特点
+
+| 特性           | Private Space        |
+| -------------- | -------------------- |
+| 所有者         | 单个用户             |
+| 数据隔离       | ✅ 完全隔离          |
+| Execution Role | 继承 User Profile    |
+| 项目 S3 访问   | ✅ 可读写项目 Bucket |
+| EBS 存储       | 50 GB（默认）        |
+| Idle Shutdown  | ✅ 60 分钟自动关机   |
 
 ---
 
@@ -366,17 +378,17 @@ model = joblib.load('s3://acme-sm-shared-assets/models/pretrained_encoder.pkl')
 3. 确认文件路径存在
 4. 联系管理员检查权限
 
-### Q4: 无法看到 Shared Space
+### Q4: 无法看到 Private Space
 
 **可能原因**：
 
-- 您不属于该项目
+- 您没有对应项目的 User Profile
 - Space 尚未创建
 
 **解决方案**：
 
 1. 确认您的项目分配
-2. 联系管理员添加权限
+2. 联系管理员创建 Profile + Space
 
 ### Q5: 实例运行缓慢
 
@@ -398,12 +410,12 @@ model = joblib.load('s3://acme-sm-shared-assets/models/pretrained_encoder.pkl')
 
 ### 命名规范
 
-| 资源类型     | 命名格式                        | 示例                         |
-| ------------ | ------------------------------- | ---------------------------- |
-| IAM User     | `sm-{team}-{name}`              | `sm-rc-alice`                |
-| User Profile | `profile-{team}-{project}-{user}`         | `profile-rc-fraud-alice`           |
-| Shared Space | `space-{team}-{project}`        | `space-rc-fraud-detection`   |
-| S3 Bucket    | `{company}-sm-{team}-{project}` | `acme-sm-rc-fraud-detection` |
+| 资源类型      | 命名格式                          | 示例                         |
+| ------------- | --------------------------------- | ---------------------------- |
+| IAM User      | `sm-{team}-{name}`                | `sm-rc-alice`                |
+| User Profile  | `profile-{team}-{project}-{user}` | `profile-rc-fraud-alice`     |
+| Private Space | `space-{team}-{project}-{user}`   | `space-rc-fraud-alice`       |
+| S3 Bucket     | `{company}-sm-{team}-{project}`   | `acme-sm-rc-fraud-detection` |
 
 ### 联系方式
 
@@ -415,4 +427,4 @@ model = joblib.load('s3://acme-sm-shared-assets/models/pretrained_encoder.pkl')
 
 ---
 
-_最后更新：2024-12_
+_最后更新：2025-01_

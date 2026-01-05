@@ -27,14 +27,17 @@ account_id = boto3.client('sts').get_caller_identity()['Account']
 COMPANY = "acme"
 TEAM = "rc"
 PROJECT = "fraud-detection"
+TEAM_FULLNAME = "RiskControl"
+PROJECT_CAMEL = "FraudDetection"
 
-# 自动构建资源名称
-ROLE_NAME = f"SageMaker-RiskControl-FraudDetection-ExecutionRole"
+# 自动构建资源名称（4 角色设计）
+# Processing Job 使用 ProcessingRole
+ROLE_NAME = f"SageMaker-{TEAM_FULLNAME}-{PROJECT_CAMEL}-ProcessingRole"
 ROLE_ARN = f"arn:aws:iam::{account_id}:role/{COMPANY}-sagemaker/{ROLE_NAME}"
 BUCKET = f"{COMPANY}-sm-{TEAM}-{PROJECT}"
 
 print(f"Region: {region}")
-print(f"Role ARN: {ROLE_ARN}")
+print(f"Processing Role ARN: {ROLE_ARN}")
 print(f"S3 Bucket: s3://{BUCKET}/")
 ```
 
