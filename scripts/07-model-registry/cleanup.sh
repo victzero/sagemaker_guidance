@@ -65,7 +65,7 @@ echo ""
 
 if [[ -n "$TEAMS" ]]; then
     for team in $TEAMS; do
-        local projects=$(get_projects_for_team "$team")
+        projects=$(get_projects_for_team "$team")
         for project in $projects; do
             echo "  - $(get_model_group_name "$team" "$project")"
         done
@@ -98,7 +98,7 @@ log_step "Deleting Model Package Groups..."
 
 if [[ -n "$TEAMS" ]]; then
     for team in $TEAMS; do
-        local projects=$(get_projects_for_team "$team")
+        projects=$(get_projects_for_team "$team")
         
         for project in $projects; do
             delete_model_group "$(get_model_group_name "$team" "$project")"

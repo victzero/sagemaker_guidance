@@ -60,7 +60,7 @@ echo "Checking Shared Repositories..."
 echo ""
 
 for repo_type in $ECR_SHARED_REPOS; do
-    local repo_name=$(get_shared_repo_name "$repo_type")
+    repo_name=$(get_shared_repo_name "$repo_type")
     if ! check_repository "$repo_name"; then
         ((ERRORS++))
     fi
@@ -76,11 +76,11 @@ if [[ "$ECR_CREATE_PROJECT_REPOS" == "true" ]]; then
     echo ""
     
     for team in $TEAMS; do
-        local projects=$(get_projects_for_team "$team")
+        projects=$(get_projects_for_team "$team")
         
         for project in $projects; do
             for repo_type in $ECR_PROJECT_REPOS; do
-                local repo_name=$(get_project_repo_name "$team" "$project" "$repo_type")
+                repo_name=$(get_project_repo_name "$team" "$project" "$repo_type")
                 if ! check_repository "$repo_name"; then
                     ((ERRORS++))
                 fi

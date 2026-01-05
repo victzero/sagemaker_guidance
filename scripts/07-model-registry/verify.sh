@@ -52,10 +52,10 @@ if [[ -z "$TEAMS" ]]; then
     log_warn "No teams configured. Skipping verification."
 else
     for team in $TEAMS; do
-        local projects=$(get_projects_for_team "$team")
+        projects=$(get_projects_for_team "$team")
         
         for project in $projects; do
-            local group_name=$(get_model_group_name "$team" "$project")
+            group_name=$(get_model_group_name "$team" "$project")
             if ! check_model_group "$group_name"; then
                 ((ERRORS++))
             fi

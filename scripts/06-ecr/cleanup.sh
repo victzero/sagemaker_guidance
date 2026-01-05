@@ -55,7 +55,7 @@ done
 
 if [[ "$ECR_CREATE_PROJECT_REPOS" == "true" ]]; then
     for team in $TEAMS; do
-        local projects=$(get_projects_for_team "$team")
+        projects=$(get_projects_for_team "$team")
         for project in $projects; do
             for repo_type in $ECR_PROJECT_REPOS; do
                 echo "  - $(get_project_repo_name "$team" "$project" "$repo_type")"
@@ -88,7 +88,7 @@ if [[ "$ECR_CREATE_PROJECT_REPOS" == "true" ]]; then
     log_step "Deleting project repositories..."
     
     for team in $TEAMS; do
-        local projects=$(get_projects_for_team "$team")
+        projects=$(get_projects_for_team "$team")
         
         for project in $projects; do
             for repo_type in $ECR_PROJECT_REPOS; do
