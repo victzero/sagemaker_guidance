@@ -39,15 +39,15 @@ vi .env.local
 
 ## 脚本说明
 
-| 脚本                      | 功能                           |
-| ------------------------- | ------------------------------ |
-| `setup-all.sh`            | 主控脚本，创建 Domain          |
-| `check.sh`                | **前置检查和诊断**             |
-| `01-create-domain.sh`     | 创建 SageMaker Domain          |
-| `fix-execution-roles.sh`  | **修复 Execution Role ARN**    |
-| `fix-lifecycle-config.sh` | **修复 Lifecycle Config 问题** |
-| `verify.sh`               | 验证配置                       |
-| `cleanup.sh`              | 清理所有资源（危险！）         |
+| 脚本                      | 功能                                         |
+| ------------------------- | -------------------------------------------- |
+| `setup-all.sh`            | 主控脚本，创建 Domain                        |
+| `check.sh`                | **创建前**前置检查和诊断                     |
+| `verify.sh`               | **创建后**验证 Domain、Idle Shutdown、Role   |
+| `01-create-domain.sh`     | 创建 SageMaker Domain                        |
+| `fix-execution-roles.sh`  | 修复 Execution Role ARN Path 问题            |
+| `fix-lifecycle-config.sh` | 移除旧 LCC，启用内置 Idle Shutdown           |
+| `cleanup.sh`              | 清理所有资源（危险！）                       |
 
 ## 问题诊断
 
@@ -100,6 +100,29 @@ output/
 
 ## 验证命令
 
+### 使用 verify.sh（推荐）
+
+```bash
+# 标准验证
+./verify.sh
+
+# 详细模式
+./verify.sh --verbose
+```
+
+verify.sh 检查项目：
+
+| 检查项              | 说明                                  |
+| ------------------- | ------------------------------------- |
+| Domain 状态         | InService, Auth Mode, Network Mode    |
+| Idle Shutdown       | 内置功能是否启用，超时时间            |
+| Lifecycle Config    | 检测并警告旧的自定义 LCC              |
+| Execution Role      | Role 存在性、信任策略、Path 问题      |
+| EFS 存储            | 加密状态、文件系统大小                |
+| Space 默认设置      | Space Execution Role 配置             |
+
+### AWS CLI 命令
+
 ```bash
 # 列出 Domains
 aws sagemaker list-domains
@@ -110,6 +133,10 @@ aws sagemaker describe-domain --domain-id d-xxxxxxxxx
 # 检查 Idle Shutdown 配置
 aws sagemaker describe-domain --domain-id d-xxxxxxxxx \
     --query 'DefaultUserSettings.JupyterLabAppSettings.AppLifecycleManagement.IdleSettings'
+
+# 检查 Execution Role
+aws sagemaker describe-domain --domain-id d-xxxxxxxxx \
+    --query 'DefaultUserSettings.ExecutionRole'
 ```
 
 ## 修复 Lifecycle Config 问题
