@@ -24,20 +24,46 @@
 
 ### 1.1 什么是 User Profile
 
-User Profile 是 SageMaker Domain 中代表单个用户的配置实体：
+User Profile 是 SageMaker Domain 中代表用户在特定项目中的配置实体：
 
-- 每个 IAM User 对应一个 User Profile
-- 定义用户的 Execution Role
+- 每个 IAM User 在每个参与的项目中有**独立的 User Profile**
+- 定义用户在该项目中的 Execution Role
 - 定义用户的默认设置
 - 关联用户的 Home 目录（EFS）
+- 配套一个 **Private Space** 用于运行 JupyterLab
 
 ### 1.2 设计原则
 
-| 原则       | 说明                                  |
-| ---------- | ------------------------------------- |
-| 一对一映射 | 每个 IAM User 对应一个 User Profile   |
-| 命名一致   | User Profile 名称与 IAM User 相关联   |
-| 角色绑定   | 通过 User Profile 绑定 Execution Role |
+| 原则         | 说明                                              |
+| ------------ | ------------------------------------------------- |
+| **一对多映射** | 每个 IAM User 可对应多个 Profile（每项目一个）  |
+| 命名一致     | User Profile 名称包含团队、项目、用户信息         |
+| 项目隔离     | 通过 Profile 绑定项目级 Execution Role，实现数据隔离 |
+| Private Space | 每个 Profile 配套一个 Private Space              |
+
+### 1.3 架构图
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                    User Profile & Private Space 架构                    │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                         │
+│  一个用户可以参与多个项目，每个项目有独立的 Profile + Space:            │
+│                                                                         │
+│  IAM User: sm-rc-alice                                                  │
+│      │                                                                  │
+│      ├── profile-rc-fraud-alice  → Fraud Execution Role                │
+│      │       └── space-rc-fraud-alice → Private Space                  │
+│      │               └── 可访问: fraud-detection S3 桶                 │
+│      │                                                                  │
+│      └── profile-rc-aml-alice    → AML Execution Role                  │
+│              └── space-rc-aml-alice → Private Space                    │
+│                      └── 可访问: anti-money-laundering S3 桶           │
+│                                                                         │
+│  用户登录 Studio 时选择对应项目的 Profile，进入对应的 Space            │
+│                                                                         │
+└─────────────────────────────────────────────────────────────────────────┘
+```
 
 ---
 
@@ -45,29 +71,44 @@ User Profile 是 SageMaker Domain 中代表单个用户的配置实体：
 
 ### 2.1 User Profile 清单
 
-| User Profile       | IAM User      | 团队 | 项目      | Execution Role                        |
-| ------------------ | ------------- | ---- | --------- | ------------------------------------- |
-| profile-rc-proja-alice   | sm-rc-alice   | 风控 | project-a | SageMaker-RC-ProjectA-ExecutionRole   |
-| profile-rc-proja-bob     | sm-rc-bob     | 风控 | project-a | SageMaker-RC-ProjectA-ExecutionRole   |
-| profile-rc-proja-carol   | sm-rc-carol   | 风控 | project-a | SageMaker-RC-ProjectA-ExecutionRole   |
-| profile-rc-projb-david   | sm-rc-david   | 风控 | project-b | SageMaker-RC-ProjectB-ExecutionRole   |
-| profile-rc-projb-emma    | sm-rc-emma    | 风控 | project-b | SageMaker-RC-ProjectB-ExecutionRole   |
-| profile-algo-projx-frank | sm-algo-frank | 算法 | project-x | SageMaker-Algo-ProjectX-ExecutionRole |
-| profile-algo-projx-grace | sm-algo-grace | 算法 | project-x | SageMaker-Algo-ProjectX-ExecutionRole |
-| profile-algo-projx-henry | sm-algo-henry | 算法 | project-x | SageMaker-Algo-ProjectX-ExecutionRole |
-| profile-algo-projy-ivy   | sm-algo-ivy   | 算法 | project-y | SageMaker-Algo-ProjectY-ExecutionRole |
-| profile-algo-projy-jack  | sm-algo-jack  | 算法 | project-y | SageMaker-Algo-ProjectY-ExecutionRole |
+| User Profile             | Private Space            | IAM User      | 项目            | Execution Role                              |
+| ------------------------ | ------------------------ | ------------- | --------------- | ------------------------------------------- |
+| profile-rc-fraud-alice   | space-rc-fraud-alice     | sm-rc-alice   | fraud-detection | SageMaker-RiskControl-FraudDetection-ExecutionRole |
+| profile-rc-fraud-bob     | space-rc-fraud-bob       | sm-rc-bob     | fraud-detection | SageMaker-RiskControl-FraudDetection-ExecutionRole |
+| profile-rc-aml-alice     | space-rc-aml-alice       | sm-rc-alice   | anti-money-laundering | SageMaker-RiskControl-AML-ExecutionRole    |
+| profile-rc-aml-charlie   | space-rc-aml-charlie     | sm-rc-charlie | anti-money-laundering | SageMaker-RiskControl-AML-ExecutionRole    |
+| profile-algo-rec-david   | space-algo-rec-david     | sm-algo-david | recommendation  | SageMaker-Algorithm-Recommendation-ExecutionRole |
+| profile-algo-rec-eve     | space-algo-rec-eve       | sm-algo-eve   | recommendation  | SageMaker-Algorithm-Recommendation-ExecutionRole |
+
+> **注意**: Alice 参与了两个项目（fraud-detection 和 anti-money-laundering），所以有两个独立的 Profile。
 
 ### 2.2 命名规范
 
 ```
-User Profile: profile-{team}-{project}-{user}
-IAM User:     sm-{team}-{name}
+User Profile:  profile-{team}-{project_short}-{user}
+Private Space: space-{team}-{project_short}-{user}
+IAM User:      sm-{team}-{name}
+
+其中 project_short 是项目名的第一部分:
+  fraud-detection → fraud
+  anti-money-laundering → anti (或 aml)
+  recommendation → rec
 
 示例:
-- profile-rc-proja-alice  ↔  sm-rc-alice
-- profile-algo-projx-frank  ↔  sm-algo-frank
+- profile-rc-fraud-alice + space-rc-fraud-alice  ↔  sm-rc-alice (fraud-detection 项目)
+- profile-rc-aml-alice   + space-rc-aml-alice    ↔  sm-rc-alice (anti-money-laundering 项目)
+- profile-algo-rec-david + space-algo-rec-david  ↔  sm-algo-david (recommendation 项目)
 ```
+
+### 2.3 资源命名对照表
+
+| 资源类型        | 命名格式                                    | 示例                                             |
+| --------------- | ------------------------------------------- | ------------------------------------------------ |
+| IAM User        | `sm-{team}-{user}`                          | `sm-rc-alice`                                    |
+| User Profile    | `profile-{team}-{project_short}-{user}`     | `profile-rc-fraud-alice`                         |
+| Private Space   | `space-{team}-{project_short}-{user}`       | `space-rc-fraud-alice`                           |
+| Execution Role  | `SageMaker-{Team}-{Project}-ExecutionRole`  | `SageMaker-RiskControl-FraudDetection-ExecutionRole` |
+| S3 Bucket       | `{company}-sm-{team}-{project}`             | `acme-sm-rc-fraud-detection`                     |
 
 ---
 
@@ -75,26 +116,60 @@ IAM User:     sm-{team}-{name}
 
 ### 3.1 核心配置
 
-| 配置项          | 说明         | 示例                                |
-| --------------- | ------------ | ----------------------------------- |
-| UserProfileName | Profile 名称 | profile-rc-proja-alice                    |
-| DomainId        | 所属 Domain  | d-xxxxxxxxx                         |
-| ExecutionRole   | 执行角色     | SageMaker-RC-ProjectA-ExecutionRole |
+| 配置项          | 说明         | 示例                                                |
+| --------------- | ------------ | --------------------------------------------------- |
+| UserProfileName | Profile 名称 | `profile-rc-fraud-alice`                            |
+| DomainId        | 所属 Domain  | `d-xxxxxxxxx`                                       |
+| ExecutionRole   | 执行角色     | `SageMaker-RiskControl-FraudDetection-ExecutionRole`|
 
 ### 3.2 用户设置 (UserSettings)
 
-| 配置项            | 推荐值                | 说明             |
-| ----------------- | --------------------- | ---------------- |
-| ExecutionRole     | 项目级 Role           | 每用户按项目分配 |
-| SecurityGroups    | [sg-sagemaker-studio] | 继承 Domain      |
-| DefaultLandingUri | studio::              | 默认打开 Studio  |
+| 配置项            | 推荐值                  | 说明                         |
+| ----------------- | ----------------------- | ---------------------------- |
+| ExecutionRole     | 项目级 Role             | 每用户按项目分配             |
+| SecurityGroups    | [`{TAG_PREFIX}-studio`] | 继承 Domain                  |
+| DefaultLandingUri | studio::                | 默认打开 Studio              |
 
 ### 3.3 JupyterLab 设置
 
-| 配置项                                 | 推荐值       | 说明     |
-| -------------------------------------- | ------------ | -------- |
-| DefaultResourceSpec.InstanceType       | ml.t3.medium | 默认实例 |
-| DefaultResourceSpec.LifecycleConfigArn | (可选)       | 启动脚本 |
+| 配置项                                      | 推荐值       | 说明               |
+| ------------------------------------------- | ------------ | ------------------ |
+| DefaultResourceSpec.InstanceType            | ml.t3.medium | 默认实例           |
+| AppLifecycleManagement.IdleSettings         | 继承 Domain  | 内置 Idle Shutdown |
+
+---
+
+## 3A. Private Space 配置
+
+### 3A.1 什么是 Private Space
+
+Private Space 是用户的私有工作空间，每个 User Profile 配套一个：
+
+- **继承 Execution Role**：自动继承 User Profile 的 Execution Role
+- **数据隔离**：只有 Profile 所有者可以访问
+- **项目级 S3 访问**：可以访问项目 S3 桶
+
+### 3A.2 Private vs Shared Space
+
+| 特性           | Private Space         | Shared Space           |
+| -------------- | --------------------- | ---------------------- |
+| **所有者**     | 单个用户              | 多用户共享             |
+| **Execution Role** | 继承 User Profile | 继承 Domain Default    |
+| **项目 S3 访问** | ✅ 有权限           | ❌ 无权限              |
+| **数据隔离**   | ✅ 完全隔离          | ⚠️ 共享                |
+| **用途**       | 项目开发             | 团队协作、演示         |
+
+> **本项目使用 Private Space** 以实现项目级数据隔离。
+
+### 3A.3 Space 配置
+
+| 配置项                    | 值                          | 说明                    |
+| ------------------------- | --------------------------- | ----------------------- |
+| SpaceName                 | `space-{team}-{project}-{user}` | 与 Profile 对应     |
+| SharingType               | `Private`                   | 私有空间                |
+| OwnerUserProfileName      | Profile 名称                | 绑定所有者              |
+| SpaceStorageSettings.EBS  | 50 GB                       | 默认 EBS 大小           |
+| AppType                   | JupyterLab                  | 应用类型                |
 
 ---
 
@@ -102,41 +177,42 @@ IAM User:     sm-{team}-{name}
 
 ### 4.1 绑定机制（IAM 模式）
 
-在 IAM 认证模式下，建议将“用户 ↔ Profile”的关系做成**可验证的权限约束**（而不是仅依赖命名约定）：
+在 IAM 认证模式下，一个用户可能有多个 Profile（每项目一个），需要可验证的权限约束：
 
-- **命名约定**：`profile-rc-proja-alice` ↔ `sm-rc-alice`
+- **命名约定**：`profile-rc-fraud-alice` ↔ `sm-rc-alice` (fraud-detection 项目)
 - **资源标记**：给 User Profile 打上 `Owner=sm-rc-alice`、`Team`、`Project` 等标签
 - **访问强制**：通过 IAM Policy 限制：
-  - 只允许用户对“自己的 User Profile”执行 `DescribeUserProfile`、`CreatePresignedDomainUrl`
-  - 只允许用户在“所属项目 Space”执行 `CreateApp/UpdateApp/DeleteApp`
+  - 只允许用户对"自己的 User Profile"执行 `DescribeUserProfile`、`CreatePresignedDomainUrl`
+  - 只允许用户在"所属项目 Space"执行 `CreateApp/UpdateApp/DeleteApp`
 
-> 关键点：即使 Console 能“看到”其他 Profile，用户也必须**无法打开**（即无法生成 Presigned URL / 无法创建 App），从而在验收层面可证明。
+> 关键点：即使 Console 能"看到"其他 Profile，用户也必须**无法打开**（即无法生成 Presigned URL / 无法创建 App），从而在验收层面可证明。
 
 ### 4.2 访问控制
 
-IAM User 只能访问与自己绑定的 User Profile：
+IAM User 只能访问与自己绑定的 User Profile（可能多个）：
 
 ```
-sm-rc-alice 登录后:
-✅ 可以访问: profile-rc-proja-alice
-❌ 不能访问: profile-rc-proja-bob
-❌ 不能访问: profile-algo-projx-frank
+sm-rc-alice 登录后（参与 fraud-detection 和 aml 两个项目）:
+✅ 可以访问: profile-rc-fraud-alice (fraud-detection 项目)
+✅ 可以访问: profile-rc-aml-alice   (anti-money-laundering 项目)
+❌ 不能访问: profile-rc-fraud-bob   (他人的 Profile)
+❌ 不能访问: profile-algo-rec-david (其他团队项目)
 ```
 
-### 4.4 可验证方案（验收用例）
+### 4.3 可验证方案（验收用例）
 
-建议用以下用例作为“可验收”的定义（通过 Console 或 CLI 均可验证）：
+建议用以下用例作为"可验收"的定义（通过 Console 或 CLI 均可验证）：
 
-- **用例 A：打开自己 Profile**
-  - 预期：成功进入 Studio；可创建/启动自己项目的 App。
-- **用例 B：打开他人 Profile**
+- **用例 A：打开自己的 Profile + Space**
+  - 预期：成功进入 Studio；可启动对应的 Private Space。
+- **用例 B：打开他人的 Profile**
   - 预期：失败（AccessDenied 或无法进入 Studio）。
-- **用例 C：访问他人项目 Space / 创建 App**
+- **用例 C：访问他人的 Private Space**
   - 预期：失败（AccessDenied）。
-- **用例 D：越权访问 S3**
-  - 预期：失败（AccessDenied）。
+- **用例 D：在 Profile A 中访问项目 B 的 S3 桶**
+  - 预期：失败（AccessDenied）— 验证项目隔离。
 
-### 4.3 IAM Policy 配置
+### 4.4 IAM Policy 配置
 
 IAM User 需要以下权限访问自己的 User Profile：
 
@@ -146,10 +222,12 @@ IAM User 需要以下权限访问自己的 User Profile：
 2. sagemaker:CreatePresignedDomainUrl - 生成登录 URL
 3. sagemaker:CreateApp - 创建应用
 4. sagemaker:DeleteApp - 删除应用
+5. sagemaker:DescribeSpace - 查看 Space
+6. sagemaker:CreateSpace - 创建 Space（如未预创建）
 
 条件限制:
-- Resource: 只能是自己的 UserProfile ARN
-- 或使用 Tags 限制
+- Resource: 只能是自己的 UserProfile ARN 和 Space ARN
+- 或使用 Tags 限制（Owner=sm-{team}-{user}）
 ```
 
 ---
@@ -158,50 +236,80 @@ IAM User 需要以下权限访问自己的 User Profile：
 
 ### 5.1 绑定策略
 
-**策略**：同一项目的用户使用相同的 Execution Role
+**策略**：同一项目的用户使用相同的 Execution Role，不同项目使用不同 Role
 
 ```
-项目 A (风控):
-├── profile-rc-proja-alice  → SageMaker-RC-ProjectA-ExecutionRole
-├── profile-rc-proja-bob    → SageMaker-RC-ProjectA-ExecutionRole
-└── profile-rc-proja-carol  → SageMaker-RC-ProjectA-ExecutionRole
+fraud-detection 项目（风控团队）:
+├── profile-rc-fraud-alice  → SageMaker-RiskControl-FraudDetection-ExecutionRole
+├── profile-rc-fraud-bob    → SageMaker-RiskControl-FraudDetection-ExecutionRole
+└── profile-rc-fraud-carol  → SageMaker-RiskControl-FraudDetection-ExecutionRole
 
-项目 X (算法):
-├── profile-algo-projx-frank → SageMaker-Algo-ProjectX-ExecutionRole
-├── profile-algo-projx-grace → SageMaker-Algo-ProjectX-ExecutionRole
-└── profile-algo-projx-henry → SageMaker-Algo-ProjectX-ExecutionRole
+anti-money-laundering 项目（风控团队）:
+├── profile-rc-aml-alice    → SageMaker-RiskControl-AML-ExecutionRole
+└── profile-rc-aml-charlie  → SageMaker-RiskControl-AML-ExecutionRole
+
+recommendation 项目（算法团队）:
+├── profile-algo-rec-david  → SageMaker-Algorithm-Recommendation-ExecutionRole
+└── profile-algo-rec-eve    → SageMaker-Algorithm-Recommendation-ExecutionRole
 ```
+
+> **注意**: Alice 参与两个项目，所以有两个 Profile，分别绑定不同的 Execution Role。
 
 ### 5.2 权限效果
 
-用户在 Notebook 中执行代码时：
+用户在 Private Space 中执行代码时：
 
-- 使用 User Profile 中配置的 Execution Role
-- 该 Role 决定了可访问的 S3 Bucket
+- **Space 自动继承 User Profile 的 Execution Role**
+- 该 Role 决定了可访问的 S3 Bucket（仅限所属项目）
 - 该 Role 决定了可使用的 AWS 服务
+
+```
+sm-rc-alice 登录 profile-rc-fraud-alice:
+  → 进入 space-rc-fraud-alice
+  → 使用 SageMaker-RiskControl-FraudDetection-ExecutionRole
+  → ✅ 可访问 acme-sm-rc-fraud-detection S3 桶
+  → ❌ 无法访问 acme-sm-rc-aml S3 桶（不同项目）
+
+sm-rc-alice 登录 profile-rc-aml-alice:
+  → 进入 space-rc-aml-alice
+  → 使用 SageMaker-RiskControl-AML-ExecutionRole
+  → ✅ 可访问 acme-sm-rc-aml S3 桶
+  → ❌ 无法访问 acme-sm-rc-fraud-detection S3 桶
+```
 
 ---
 
 ## 6. 标签设计
 
-### 6.1 必需标签
+### 6.1 User Profile 必需标签
 
-每个 User Profile 必须包含以下标签：
+| Tag Key     | Tag Value            | 示例                 |
+| ----------- | -------------------- | -------------------- |
+| Team        | {team_fullname}      | `risk-control`       |
+| Project     | {project}            | `fraud-detection`    |
+| Owner       | {iam-user}           | `sm-rc-alice`        |
+| Environment | production           | `production`         |
+| ManagedBy   | {TAG_PREFIX}         | `acme-sagemaker`     |
 
-| Tag Key     | Tag Value  | 示例         |
-| ----------- | ---------- | ------------ |
-| Team        | {team}     | risk-control |
-| Project     | {project}  | project-a    |
-| Owner       | {iam-user} | sm-rc-alice  |
-| Environment | production | production   |
+### 6.2 Private Space 必需标签
 
-### 6.2 标签用途
+| Tag Key     | Tag Value            | 示例                 |
+| ----------- | -------------------- | -------------------- |
+| Team        | {team_fullname}      | `risk-control`       |
+| Project     | {project}            | `fraud-detection`    |
+| Owner       | {user_name}          | `alice`              |
+| SpaceType   | private              | `private`            |
+| Environment | production           | `production`         |
+| ManagedBy   | {TAG_PREFIX}         | `acme-sagemaker`     |
+
+### 6.3 标签用途
 
 标签可用于：
 
-1. **权限控制**：IAM Policy 中的 Condition
-2. **成本分配**：Cost Explorer 分析
-3. **资源查找**：按标签筛选 Profile
+1. **权限控制**：IAM Policy 中的 Condition（限制用户只能访问自己的资源）
+2. **成本分配**：Cost Explorer 按 Team/Project 分析成本
+3. **资源查找**：按标签筛选 Profile 和 Space
+4. **ABAC 访问控制**：基于属性的访问控制（按 Owner 标签限制）
 
 ---
 
@@ -263,24 +371,34 @@ EFS 结构:
 
 ```
 UserProfile 配置:
-- UserProfileName: profile-{team}-{project}-{user}
+- UserProfileName: profile-{team}-{project_short}-{user}
 - DomainId: d-xxxxxxxxx
 - Tags:
-    - Key: Team, Value: {team}
+    - Key: Team, Value: {team_fullname}
     - Key: Project, Value: {project}
     - Key: Owner, Value: sm-{team}-{name}
+    - Key: Environment, Value: production
+    - Key: ManagedBy, Value: {TAG_PREFIX}
 - UserSettings:
     - ExecutionRole: arn:aws:iam::{account-id}:role/SageMaker-{Team}-{Project}-ExecutionRole
-    - SecurityGroups: [sg-xxxxxxxxx]
+    - SecurityGroups: [{sg-id}]
+
+Private Space 配置:
+- SpaceName: space-{team}-{project_short}-{user}
+- SharingType: Private
+- OwnerUserProfileName: profile-{team}-{project_short}-{user}
+- SpaceStorageSettings.EbsVolumeSizeInGb: 50
+- AppType: JupyterLab
 ```
 
 ### 8.2 批量创建示例
 
-| #   | UserProfileName    | IAM User      | Execution Role | Tags                                 |
-| --- | ------------------ | ------------- | -------------- | ------------------------------------ |
-| 1   | profile-rc-proja-alice   | sm-rc-alice   | RC-ProjectA    | Team:risk-control, Project:project-a |
-| 2   | profile-rc-proja-bob     | sm-rc-bob     | RC-ProjectA    | Team:risk-control, Project:project-a |
-| 3   | profile-algo-projx-frank | sm-algo-frank | Algo-ProjectX  | Team:algorithm, Project:project-x    |
+| #   | UserProfileName          | Private Space            | IAM User      | Execution Role                              |
+| --- | ------------------------ | ------------------------ | ------------- | ------------------------------------------- |
+| 1   | profile-rc-fraud-alice   | space-rc-fraud-alice     | sm-rc-alice   | SageMaker-RiskControl-FraudDetection-ExecutionRole |
+| 2   | profile-rc-fraud-bob     | space-rc-fraud-bob       | sm-rc-bob     | SageMaker-RiskControl-FraudDetection-ExecutionRole |
+| 3   | profile-rc-aml-alice     | space-rc-aml-alice       | sm-rc-alice   | SageMaker-RiskControl-AML-ExecutionRole     |
+| 4   | profile-algo-rec-david   | space-algo-rec-david     | sm-algo-david | SageMaker-Algorithm-Recommendation-ExecutionRole |
 
 ---
 
@@ -315,89 +433,125 @@ UserProfile 配置:
 
 ## 10. CLI 创建命令
 
-### 10.1 创建单个 User Profile
+### 10.1 创建 User Profile
 
 ```bash
 # 创建 User Profile
 aws sagemaker create-user-profile \
   --domain-id d-xxxxxxxxx \
-  --user-profile-name profile-rc-proja-alice \
+  --user-profile-name profile-rc-fraud-alice \
   --user-settings '{
-    "ExecutionRole": "arn:aws:iam::{account-id}:role/SageMaker-RC-ProjectA-ExecutionRole",
-    "SecurityGroups": ["sg-sagemaker-studio"]
+    "ExecutionRole": "arn:aws:iam::{account-id}:role/SageMaker-RiskControl-FraudDetection-ExecutionRole",
+    "SecurityGroups": ["{sg-id}"]
   }' \
   --tags \
     Key=Team,Value=risk-control \
-    Key=Project,Value=project-a \
+    Key=Project,Value=fraud-detection \
     Key=Owner,Value=sm-rc-alice \
-    Key=Environment,Value=production
+    Key=Environment,Value=production \
+    Key=ManagedBy,Value=acme-sagemaker
 ```
 
-### 10.2 查询 User Profile
+### 10.2 创建 Private Space
+
+```bash
+# 创建 Private Space（绑定到 User Profile）
+aws sagemaker create-space \
+  --domain-id d-xxxxxxxxx \
+  --space-name space-rc-fraud-alice \
+  --space-sharing-settings '{"SharingType": "Private"}' \
+  --ownership-settings '{"OwnerUserProfileName": "profile-rc-fraud-alice"}' \
+  --space-settings '{
+    "AppType": "JupyterLab",
+    "SpaceStorageSettings": {
+      "EbsStorageSettings": {
+        "EbsVolumeSizeInGb": 50
+      }
+    }
+  }' \
+  --tags \
+    Key=Team,Value=risk-control \
+    Key=Project,Value=fraud-detection \
+    Key=Owner,Value=alice \
+    Key=SpaceType,Value=private \
+    Key=Environment,Value=production \
+    Key=ManagedBy,Value=acme-sagemaker
+```
+
+### 10.3 查询 User Profile 和 Space
 
 ```bash
 # 列出 Domain 下所有 User Profiles
 aws sagemaker list-user-profiles --domain-id d-xxxxxxxxx
 
-# 查看单个 Profile 详情
+# 列出 Domain 下所有 Spaces
+aws sagemaker list-spaces --domain-id d-xxxxxxxxx
+
+# 查看 Profile 详情
 aws sagemaker describe-user-profile \
   --domain-id d-xxxxxxxxx \
-  --user-profile-name profile-rc-proja-alice
-```
+  --user-profile-name profile-rc-fraud-alice
 
-### 10.3 更新 User Profile
-
-```bash
-# 更新 Execution Role（用户换项目时）
-aws sagemaker update-user-profile \
+# 查看 Space 详情
+aws sagemaker describe-space \
   --domain-id d-xxxxxxxxx \
-  --user-profile-name profile-rc-proja-alice \
-  --user-settings '{
-    "ExecutionRole": "arn:aws:iam::{account-id}:role/SageMaker-RC-ProjectB-ExecutionRole"
-  }'
+  --space-name space-rc-fraud-alice
 ```
 
-### 10.4 删除 User Profile
+### 10.4 删除 User Profile 和 Space
 
 ```bash
-# 先删除用户的所有 Apps
+# 1. 先删除 Space 中的 Apps
 aws sagemaker list-apps \
   --domain-id d-xxxxxxxxx \
-  --user-profile-name profile-rc-proja-alice
+  --space-name space-rc-fraud-alice
 
 # 删除每个 App（如有）
 aws sagemaker delete-app \
   --domain-id d-xxxxxxxxx \
-  --user-profile-name profile-rc-proja-alice \
+  --space-name space-rc-fraud-alice \
   --app-type JupyterLab \
   --app-name default
 
-# 等待 App 删除完成后，删除 Profile
+# 2. 等待后删除 Space
+aws sagemaker delete-space \
+  --domain-id d-xxxxxxxxx \
+  --space-name space-rc-fraud-alice
+
+# 3. 最后删除 Profile
 aws sagemaker delete-user-profile \
   --domain-id d-xxxxxxxxx \
-  --user-profile-name profile-rc-proja-alice
+  --user-profile-name profile-rc-fraud-alice
 ```
 
 ---
 
-## 11. Lifecycle Configuration
+## 11. Idle Shutdown 配置
 
-> 📌 Lifecycle Configuration 在 Domain 级别配置，所有 User Profile 继承。详见 `05-sagemaker-domain.md` § 11。
+> 📌 **推荐方案**：使用 SageMaker 内置 Idle Shutdown 功能，在 Domain 级别配置，所有 User Profile 自动继承。详见 [05-sagemaker-domain.md § 11](05-sagemaker-domain.md#11-idle-shutdown-配置内置功能)。
 
-如需为特定用户配置不同的 Lifecycle Config：
+### Profile 级别继承
 
-```bash
-aws sagemaker update-user-profile \
-  --domain-id d-xxxxxxxxx \
-  --user-profile-name profile-rc-proja-alice \
-  --user-settings '{
-    "JupyterLabAppSettings": {
-      "DefaultResourceSpec": {
-        "LifecycleConfigArn": "arn:aws:sagemaker:{region}:{account-id}:studio-lifecycle-config/custom-config"
-      }
-    }
-  }'
+User Profile 自动继承 Domain 的 Idle Shutdown 配置：
+
 ```
+Domain DefaultUserSettings:
+  JupyterLabAppSettings:
+    AppLifecycleManagement:
+      IdleSettings:
+        LifecycleManagement: ENABLED
+        IdleTimeoutInMinutes: 60
+
+↓ 所有 User Profile 继承 ↓
+
+profile-rc-fraud-alice → 60 分钟空闲自动关机
+profile-rc-fraud-bob   → 60 分钟空闲自动关机
+...
+```
+
+### 自定义配置（不推荐）
+
+除非有特殊需求，否则不建议为单个 Profile 配置不同的 Idle Shutdown 设置。
 
 ---
 
@@ -406,68 +560,109 @@ aws sagemaker update-user-profile \
 ### 12.1 用户配置文件 `users.csv`
 
 ```csv
-profile_name,iam_user,team,project,execution_role
-profile-rc-proja-alice,sm-rc-alice,risk-control,project-a,SageMaker-RC-ProjectA-ExecutionRole
-profile-rc-proja-bob,sm-rc-bob,risk-control,project-a,SageMaker-RC-ProjectA-ExecutionRole
-profile-rc-proja-carol,sm-rc-carol,risk-control,project-a,SageMaker-RC-ProjectA-ExecutionRole
-profile-rc-projb-david,sm-rc-david,risk-control,project-b,SageMaker-RC-ProjectB-ExecutionRole
-profile-rc-projb-emma,sm-rc-emma,risk-control,project-b,SageMaker-RC-ProjectB-ExecutionRole
-profile-algo-projx-frank,sm-algo-frank,algorithm,project-x,SageMaker-Algo-ProjectX-ExecutionRole
-profile-algo-projx-grace,sm-algo-grace,algorithm,project-x,SageMaker-Algo-ProjectX-ExecutionRole
-profile-algo-projx-henry,sm-algo-henry,algorithm,project-x,SageMaker-Algo-ProjectX-ExecutionRole
-profile-algo-projy-ivy,sm-algo-ivy,algorithm,project-y,SageMaker-Algo-ProjectY-ExecutionRole
-profile-algo-projy-jack,sm-algo-jack,algorithm,project-y,SageMaker-Algo-ProjectY-ExecutionRole
+profile_name,space_name,iam_user,team,project,execution_role
+profile-rc-fraud-alice,space-rc-fraud-alice,sm-rc-alice,risk-control,fraud-detection,SageMaker-RiskControl-FraudDetection-ExecutionRole
+profile-rc-fraud-bob,space-rc-fraud-bob,sm-rc-bob,risk-control,fraud-detection,SageMaker-RiskControl-FraudDetection-ExecutionRole
+profile-rc-aml-alice,space-rc-aml-alice,sm-rc-alice,risk-control,anti-money-laundering,SageMaker-RiskControl-AML-ExecutionRole
+profile-rc-aml-charlie,space-rc-aml-charlie,sm-rc-charlie,risk-control,anti-money-laundering,SageMaker-RiskControl-AML-ExecutionRole
+profile-algo-rec-david,space-algo-rec-david,sm-algo-david,algorithm,recommendation,SageMaker-Algorithm-Recommendation-ExecutionRole
+profile-algo-rec-eve,space-algo-rec-eve,sm-algo-eve,algorithm,recommendation,SageMaker-Algorithm-Recommendation-ExecutionRole
 ```
 
-### 12.2 批量创建脚本 `create-user-profiles.sh`
+> **注意**: Alice 参与两个项目，所以有两行配置（fraud-detection 和 anti-money-laundering）。
+
+### 12.2 批量创建脚本 `create-profiles-and-spaces.sh`
 
 ```bash
 #!/bin/bash
-# create-user-profiles.sh - 批量创建 User Profiles
-# 用法: ./create-user-profiles.sh <domain-id> <account-id> <users.csv>
+# create-profiles-and-spaces.sh - 批量创建 User Profiles 和 Private Spaces
+# 用法: ./create-profiles-and-spaces.sh <domain-id> <account-id> <users.csv>
 
 set -e
 
 DOMAIN_ID="${1:?Usage: $0 <domain-id> <account-id> <users.csv>}"
 ACCOUNT_ID="${2:?Usage: $0 <domain-id> <account-id> <users.csv>}"
 USERS_FILE="${3:?Usage: $0 <domain-id> <account-id> <users.csv>}"
-SECURITY_GROUP="sg-sagemaker-studio"  # 按需修改
+SECURITY_GROUP="${SG_ID:-sg-sagemaker-studio}"  # 从环境变量或默认值
+TAG_PREFIX="${TAG_PREFIX:-acme-sagemaker}"
+DEFAULT_EBS_SIZE="${DEFAULT_EBS_SIZE:-50}"
 
 # 跳过 CSV 头行
-tail -n +2 "$USERS_FILE" | while IFS=',' read -r profile_name iam_user team project execution_role; do
-    echo "Creating User Profile: $profile_name"
+tail -n +2 "$USERS_FILE" | while IFS=',' read -r profile_name space_name iam_user team project execution_role; do
+    echo "=========================================="
+    echo "Processing: $profile_name"
 
-    # 检查是否已存在
+    # 提取用户名（从 iam_user 如 sm-rc-alice 提取 alice）
+    user_name=$(echo "$iam_user" | sed 's/sm-[^-]*-//')
+
+    # 1. 创建 User Profile
     if aws sagemaker describe-user-profile \
         --domain-id "$DOMAIN_ID" \
         --user-profile-name "$profile_name" >/dev/null 2>&1; then
-        echo "  → Already exists, skipping."
-        continue
+        echo "  [Profile] Already exists, skipping."
+    else
+        echo "  [Profile] Creating..."
+        aws sagemaker create-user-profile \
+            --domain-id "$DOMAIN_ID" \
+            --user-profile-name "$profile_name" \
+            --user-settings "{
+                \"ExecutionRole\": \"arn:aws:iam::${ACCOUNT_ID}:role/${execution_role}\",
+                \"SecurityGroups\": [\"${SECURITY_GROUP}\"]
+            }" \
+            --tags \
+                Key=Team,Value="$team" \
+                Key=Project,Value="$project" \
+                Key=Owner,Value="$iam_user" \
+                Key=Environment,Value=production \
+                Key=ManagedBy,Value="$TAG_PREFIX"
+        echo "  [Profile] Created."
+        sleep 2  # 等待 Profile 就绪
     fi
 
-    # 创建 User Profile
-    aws sagemaker create-user-profile \
+    # 2. 创建 Private Space
+    if aws sagemaker describe-space \
         --domain-id "$DOMAIN_ID" \
-        --user-profile-name "$profile_name" \
-        --user-settings "{
-            \"ExecutionRole\": \"arn:aws:iam::${ACCOUNT_ID}:role/${execution_role}\",
-            \"SecurityGroups\": [\"${SECURITY_GROUP}\"]
-        }" \
-        --tags \
-            Key=Team,Value="$team" \
-            Key=Project,Value="$project" \
-            Key=Owner,Value="$iam_user" \
-            Key=Environment,Value=production
+        --space-name "$space_name" >/dev/null 2>&1; then
+        echo "  [Space] Already exists, skipping."
+    else
+        echo "  [Space] Creating..."
+        aws sagemaker create-space \
+            --domain-id "$DOMAIN_ID" \
+            --space-name "$space_name" \
+            --space-sharing-settings '{"SharingType": "Private"}' \
+            --ownership-settings "{\"OwnerUserProfileName\": \"${profile_name}\"}" \
+            --space-settings "{
+                \"AppType\": \"JupyterLab\",
+                \"SpaceStorageSettings\": {
+                    \"EbsStorageSettings\": {
+                        \"EbsVolumeSizeInGb\": ${DEFAULT_EBS_SIZE}
+                    }
+                }
+            }" \
+            --tags \
+                Key=Team,Value="$team" \
+                Key=Project,Value="$project" \
+                Key=Owner,Value="$user_name" \
+                Key=SpaceType,Value=private \
+                Key=Environment,Value=production \
+                Key=ManagedBy,Value="$TAG_PREFIX"
+        echo "  [Space] Created."
+    fi
 
-    echo "  → Created successfully."
-
-    # 避免 API 限流
-    sleep 1
+    sleep 1  # 避免 API 限流
 done
 
 echo ""
+echo "=========================================="
 echo "Batch creation completed. Verifying..."
-aws sagemaker list-user-profiles --domain-id "$DOMAIN_ID" --query 'UserProfiles[].UserProfileName'
+echo ""
+echo "User Profiles:"
+aws sagemaker list-user-profiles --domain-id "$DOMAIN_ID" \
+    --query 'UserProfiles[].UserProfileName' --output table
+echo ""
+echo "Private Spaces:"
+aws sagemaker list-spaces --domain-id "$DOMAIN_ID" \
+    --query 'Spaces[?SpaceSharingSettings.SharingType==`Private`].SpaceName' --output table
 ```
 
 ### 12.3 执行批量创建
@@ -585,18 +780,81 @@ Lambda 调用 create-user-profile
 
 - [ ] Domain 已创建且状态为 InService
 - [ ] IAM Users 已创建
-- [ ] Execution Roles 已创建
-- [ ] 确认用户-项目对应关系
+- [ ] Execution Roles 已创建（项目级，4 角色设计）
+- [ ] 确认用户-项目对应关系（一个用户可参与多个项目）
 
 ### 创建时
 
-- [ ] 使用正确的命名规范
-- [ ] 绑定正确的 Execution Role
-- [ ] 添加必需的标签
+- [ ] User Profile 命名符合规范 (`profile-{team}-{project}-{user}`)
+- [ ] Private Space 命名符合规范 (`space-{team}-{project}-{user}`)
+- [ ] 绑定正确的项目 Execution Role
+- [ ] Space 的 OwnerUserProfileName 正确指向 Profile
+- [ ] 添加必需的标签（Team, Project, Owner, SpaceType）
 
 ### 创建后
 
-- [ ] 验证用户可以登录
-- [ ] 验证用户只能看到自己的 Profile
-- [ ] 验证 Execution Role 权限正确
-- [ ] 创建对应的 Space（见下一文档）
+- [ ] 验证 User Profile 状态为 InService
+- [ ] 验证 Private Space 状态为 InService
+- [ ] 验证用户可以登录对应 Profile
+- [ ] 验证 Space 继承了正确的 Execution Role
+- [ ] 验证 S3 访问权限（只能访问项目 Bucket）
+- [ ] 验证跨项目访问被拒绝（AccessDenied）
+
+---
+
+## 15. 实现脚本
+
+User Profile 和 Private Space 由自动化脚本创建，详见 [scripts/05-user-profiles/README.md](../scripts/05-user-profiles/README.md)。
+
+### 脚本清单
+
+| 脚本                      | 用途                              |
+| ------------------------- | --------------------------------- |
+| `00-init.sh`              | 初始化和环境变量验证              |
+| `01-create-profiles.sh`   | 批量创建 User Profiles            |
+| `02-create-spaces.sh`     | 批量创建 Private Spaces           |
+| `check.sh`                | 前置检查（Domain、Role 存在）     |
+| `verify.sh`               | 验证 Profile 和 Space 状态        |
+| `setup-all.sh`            | 一次性创建所有 Profile + Space    |
+| `cleanup.sh`              | 清理资源（⚠️ 危险）               |
+
+### 关键函数
+
+```bash
+# 创建单个 Profile + Space
+create_user_profile_and_space() {
+  local team=$1
+  local project=$2
+  local user=$3
+
+  local profile_name="profile-${team}-${project}-${user}"
+  local space_name="space-${team}-${project}-${user}"
+
+  # 1. 创建 Profile
+  aws sagemaker create-user-profile ...
+
+  # 2. 等待 Profile Ready
+  wait_for_profile "${profile_name}"
+
+  # 3. 创建 Private Space
+  aws sagemaker create-space ...
+
+  # 4. 等待 Space Ready
+  wait_for_space "${space_name}"
+}
+```
+
+### 环境变量
+
+| 变量               | 说明                           |
+| ------------------ | ------------------------------ |
+| `DOMAIN_ID`        | SageMaker Domain ID            |
+| `DEFAULT_EBS_SIZE` | Private Space EBS 大小 (默认 50GB) |
+| `TAG_PREFIX`       | 资源标签前缀                   |
+
+### 输出文件
+
+```
+output/
+└── profiles.csv    # Profile 和 Space 清单
+```

@@ -55,11 +55,13 @@ SageMaker Domain 是 SageMaker Studio 的逻辑边界，包含：
 
 ### 2.2 VPC 配置
 
-| 配置项          | 值                  | 说明            |
-| --------------- | ------------------- | --------------- |
-| VPC             | vpc-xxxxxxxxx       | 现有 VPC        |
-| Subnets         | subnet-a, subnet-b  | Private Subnets |
-| Security Groups | sg-sagemaker-studio | Studio 安全组   |
+| 配置项          | 值                       | 说明                    |
+| --------------- | ------------------------ | ----------------------- |
+| VPC             | vpc-xxxxxxxxx            | 现有 VPC                |
+| Subnets         | subnet-a, subnet-b [, c] | Private Subnets (2-3个) |
+| Security Groups | `{TAG_PREFIX}-studio`    | Studio 安全组           |
+
+> **注意**: 安全组命名格式为 `{TAG_PREFIX}-studio`，如 `acme-sagemaker-studio`。详见 [03-vpc-network.md](03-vpc-network.md)。
 
 ### 2.3 存储配置
 
@@ -110,13 +112,16 @@ VPC Endpoints → AWS Services
 
 ### 4.1 JupyterLab 默认设置
 
-| 配置项             | 推荐值       | 说明                         |
-| ------------------ | ------------ | ---------------------------- |
-| Default Instance   | ml.t3.medium | 基础开发                     |
-| Auto Shutdown Idle | 60 分钟      | 成本控制                     |
-| Lifecycle Config   | **强烈建议** | 启动脚本（含 idle-shutdown） |
+| 配置项                     | 推荐值       | 说明                        |
+| -------------------------- | ------------ | --------------------------- |
+| Default Instance           | ml.t3.medium | 基础开发                    |
+| Idle Shutdown              | **ENABLED**  | 内置自动关机（推荐）        |
+| IdleTimeoutInMinutes       | 60           | 空闲超时时间                |
 
-> 💡 **成本管控**：强烈建议配置 Lifecycle Configuration 脚本，用于自动检测 Jupyter Kernel 空闲并关闭实例。未配置此脚本可能导致 GPU 实例（如 `ml.g4dn`、`ml.p3`）持续运行产生较高费用。
+> 💡 **成本管控**：使用 SageMaker **内置 Idle Shutdown** 功能（非自定义 Lifecycle Config）：
+> - 更稳定可靠（AWS 官方维护）
+> - 无需自定义脚本（避免环境兼容性问题）
+> - 默认 60 分钟无活动自动关闭 JupyterLab
 
 ### 4.2 默认 Space 设置
 
@@ -365,107 +370,116 @@ aws sagemaker update-domain \
 
 ---
 
-## 11. Lifecycle Configuration 脚本
+## 11. Idle Shutdown 配置（内置功能）
 
-### 11.1 创建 Lifecycle Config（自动关闭空闲实例）
+> 📌 **推荐方案**：使用 SageMaker **内置 Idle Shutdown** 功能，而非自定义 Lifecycle Config。
 
-> 💡 此脚本检测 JupyterLab 空闲状态，超时后自动关闭实例以节省成本。
+### 11.1 内置 Idle Shutdown（推荐）
 
-**步骤 1：创建脚本文件** `auto-shutdown.sh`
+SageMaker 提供内置的 App Lifecycle Management 功能，无需自定义脚本：
 
-```bash
-#!/bin/bash
-# auto-shutdown.sh - 空闲检测与自动关闭脚本
+| 特性             | 内置 Idle Shutdown     | 自定义 Lifecycle Config |
+| ---------------- | ---------------------- | ----------------------- |
+| **稳定性**       | ✅ AWS 官方维护        | ⚠️ 可能因环境差异失败   |
+| **配置复杂度**   | 简单（API 参数）       | 复杂（需编写脚本）      |
+| **兼容性**       | ✅ 自动适配新镜像      | ⚠️ 可能需要更新脚本     |
+| **调试难度**     | 低                     | 高                      |
 
-set -e
+### 11.2 启用内置 Idle Shutdown
 
-# 配置参数
-IDLE_TIMEOUT_MINUTES=${IDLE_TIMEOUT_MINUTES:-60}
-LOG_FILE="/var/log/auto-shutdown.log"
-
-echo "$(date): Auto-shutdown script started. Idle timeout: ${IDLE_TIMEOUT_MINUTES} minutes" >> $LOG_FILE
-
-# 安装依赖（如果需要）
-pip install -q sagemaker-studio-analytics-extension 2>/dev/null || true
-
-# 后台运行空闲检测
-nohup bash -c '
-IDLE_TIMEOUT_SECONDS=$((IDLE_TIMEOUT_MINUTES * 60))
-LAST_ACTIVITY=$(date +%s)
-
-while true; do
-    sleep 60
-
-    # 检查是否有活跃的 kernel
-    ACTIVE_KERNELS=$(jupyter kernelgateway --list 2>/dev/null | grep -c "running" || echo "0")
-
-    if [ "$ACTIVE_KERNELS" -gt 0 ]; then
-        LAST_ACTIVITY=$(date +%s)
-    fi
-
-    CURRENT_TIME=$(date +%s)
-    IDLE_TIME=$((CURRENT_TIME - LAST_ACTIVITY))
-
-    if [ $IDLE_TIME -gt $IDLE_TIMEOUT_SECONDS ]; then
-        echo "$(date): Idle timeout reached. Shutting down..." >> /var/log/auto-shutdown.log
-
-        # 调用 SageMaker API 关闭 App
-        aws sagemaker delete-app \
-            --domain-id $DOMAIN_ID \
-            --user-profile-name $USER_PROFILE_NAME \
-            --app-type JupyterLab \
-            --app-name default 2>/dev/null || true
-
-        break
-    fi
-done
-' &
-
-echo "$(date): Auto-shutdown monitor started in background" >> $LOG_FILE
-```
-
-**步骤 2：Base64 编码并创建 Lifecycle Config**
+**在 Domain 创建时启用**（推荐）：
 
 ```bash
-# 编码脚本
-LCC_CONTENT=$(cat auto-shutdown.sh | base64 -w 0)
-
-# 创建 Lifecycle Configuration
-aws sagemaker create-studio-lifecycle-config \
-  --studio-lifecycle-config-name auto-shutdown-60min \
-  --studio-lifecycle-config-app-type JupyterLab \
-  --studio-lifecycle-config-content "$LCC_CONTENT"
+aws sagemaker create-domain \
+  --domain-name {company}-ml-platform \
+  --auth-mode IAM \
+  --vpc-id vpc-xxxxxxxxx \
+  --subnet-ids subnet-aaaaaaaa subnet-bbbbbbbb \
+  --app-network-access-type VpcOnly \
+  --default-user-settings '{
+    "ExecutionRole": "arn:aws:iam::{account-id}:role/SageMaker-Domain-DefaultExecutionRole",
+    "SecurityGroups": ["{sg-id}"],
+    "JupyterLabAppSettings": {
+      "DefaultResourceSpec": {
+        "InstanceType": "ml.t3.medium"
+      },
+      "AppLifecycleManagement": {
+        "IdleSettings": {
+          "LifecycleManagement": "ENABLED",
+          "IdleTimeoutInMinutes": 60
+        }
+      }
+    }
+  }'
 ```
 
-**步骤 3：绑定到 Domain（应用于所有用户）**
+**更新现有 Domain**：
 
 ```bash
 aws sagemaker update-domain \
   --domain-id d-xxxxxxxxx \
   --default-user-settings '{
     "JupyterLabAppSettings": {
-      "DefaultResourceSpec": {
-        "InstanceType": "ml.t3.medium",
-        "LifecycleConfigArn": "arn:aws:sagemaker:{region}:{account-id}:studio-lifecycle-config/auto-shutdown-60min"
-      },
-      "LifecycleConfigArns": [
-        "arn:aws:sagemaker:{region}:{account-id}:studio-lifecycle-config/auto-shutdown-60min"
-      ]
+      "AppLifecycleManagement": {
+        "IdleSettings": {
+          "LifecycleManagement": "ENABLED",
+          "IdleTimeoutInMinutes": 60
+        }
+      }
     }
   }'
 ```
 
-### 11.2 简化版：使用 AWS 官方扩展
-
-> AWS 提供了官方的 SageMaker Studio 自动关闭扩展，可作为替代方案。
+### 11.3 验证 Idle Shutdown 配置
 
 ```bash
-# 在 JupyterLab 中安装（用户手动或通过 Lifecycle Config）
-pip install sagemaker-studio-auto-shutdown-extension
+# 检查 Domain 的 Idle Shutdown 配置
+aws sagemaker describe-domain --domain-id d-xxxxxxxxx \
+  --query 'DefaultUserSettings.JupyterLabAppSettings.AppLifecycleManagement.IdleSettings'
 
-# 配置空闲超时（分钟）
-jupyter server extension enable --py sagemaker_studio_auto_shutdown
+# 预期输出
+{
+  "LifecycleManagement": "ENABLED",
+  "IdleTimeoutInMinutes": 60
+}
 ```
+
+### 11.4 从自定义 Lifecycle Config 迁移
+
+如果之前使用自定义 Lifecycle Config 导致启动失败：
+
+```
+ConfigurationError: LifecycleConfig execution failed with non zero exit code 1
+```
+
+**修复方法**：
+
+```bash
+# 移除自定义 Lifecycle Config，启用内置 Idle Shutdown
+aws sagemaker update-domain \
+  --domain-id d-xxxxxxxxx \
+  --default-user-settings '{
+    "JupyterLabAppSettings": {
+      "DefaultResourceSpec": {},
+      "LifecycleConfigArns": [],
+      "AppLifecycleManagement": {
+        "IdleSettings": {
+          "LifecycleManagement": "ENABLED",
+          "IdleTimeoutInMinutes": 60
+        }
+      }
+    }
+  }'
+```
+
+> 💡 脚本 `scripts/04-sagemaker-domain/fix-lifecycle-config.sh` 可自动完成此迁移。
+
+### 11.5 自定义 Lifecycle Config（可选）
+
+> ⚠️ 仅在有特殊需求时使用自定义 Lifecycle Config（如预装特定库、配置环境变量等）。
+
+如需自定义启动脚本，参考 AWS 官方文档：
+- [SageMaker Studio Lifecycle Configurations](https://docs.aws.amazon.com/sagemaker/latest/dg/studio-lcc.html)
 
 ---
 
@@ -609,21 +623,58 @@ aws sagemaker update-domain \
 
 ### 创建前
 
-- [ ] 确认 VPC 和 Subnet 信息
-- [ ] 创建 Security Group
-- [ ] 创建 VPC Endpoints
-- [ ] 确认 IAM Roles 已创建
+- [ ] 确认 VPC 和 Subnet 信息（2-3 个 Private Subnets）
+- [ ] 创建 Security Group (`{TAG_PREFIX}-studio`)
+- [ ] 创建 VPC Endpoints（6 个必需）
+- [ ] 确认 IAM Roles 已创建（`SageMaker-Domain-DefaultExecutionRole`）
 
 ### 创建时
 
 - [ ] 使用 IAM 认证模式
 - [ ] 选择 VPCOnly 网络模式
-- [ ] 配置正确的 Subnets
+- [ ] 配置正确的 Subnets（2-3 个）
 - [ ] 配置正确的 Security Groups
+- [ ] 启用内置 Idle Shutdown（60 分钟）
 
 ### 创建后
 
 - [ ] 验证 Domain 状态为 InService
-- [ ] 验证 EFS 创建成功
+- [ ] 验证 EFS 创建成功（检查加密状态）
+- [ ] 验证 Idle Shutdown 配置已启用
 - [ ] 记录 Domain ID
 - [ ] 开始创建 User Profiles
+
+---
+
+## 15. 实现脚本
+
+Domain 配置由自动化脚本实现，详见 [scripts/04-sagemaker-domain/README.md](../scripts/04-sagemaker-domain/README.md)。
+
+### 脚本清单
+
+| 脚本                      | 用途                                    |
+| ------------------------- | --------------------------------------- |
+| `00-init.sh`              | 初始化和环境变量验证                    |
+| `01-create-domain.sh`     | 创建 SageMaker Domain                   |
+| `check.sh`                | 创建前前置检查和诊断                    |
+| `verify.sh`               | 创建后验证（Domain、Idle Shutdown、Role）|
+| `fix-execution-roles.sh`  | 修复 Execution Role ARN Path 问题       |
+| `fix-lifecycle-config.sh` | 迁移到内置 Idle Shutdown                |
+| `setup-all.sh`            | 一次性创建所有资源                      |
+| `cleanup.sh`              | 清理资源（⚠️ 危险）                     |
+
+### 环境变量
+
+| 变量                    | 默认值                  | 说明              |
+| ----------------------- | ----------------------- | ----------------- |
+| `DOMAIN_NAME`           | `{company}-ml-platform` | Domain 名称       |
+| `IDLE_TIMEOUT_MINUTES`  | `60`                    | 空闲超时（分钟）  |
+| `DEFAULT_INSTANCE_TYPE` | `ml.t3.medium`          | 默认实例类型      |
+| `DEFAULT_EBS_SIZE_GB`   | `100`                   | 默认 EBS 大小     |
+
+### 输出文件
+
+```
+output/
+└── domain-info.env    # Domain ID, EFS ID, VPC 信息
+```
