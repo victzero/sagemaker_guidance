@@ -2,16 +2,32 @@
   "Version": "2012-10-17",
   "Statement": [
     {
-      "Sid": "AllowCloudWatchLogs",
+      "Sid": "AllowCloudWatchLogsProject",
       "Effect": "Allow",
       "Action": ["logs:CreateLogGroup", "logs:CreateLogStream", "logs:PutLogEvents", "logs:DescribeLogGroups", "logs:DescribeLogStreams", "logs:GetLogEvents", "logs:FilterLogEvents"],
-      "Resource": ["arn:aws:logs:${AWS_REGION}:${AWS_ACCOUNT_ID}:log-group:/aws/sagemaker/*"]
+      "Resource": [
+        "arn:aws:logs:${AWS_REGION}:${AWS_ACCOUNT_ID}:log-group:/aws/sagemaker/studio/*",
+        "arn:aws:logs:${AWS_REGION}:${AWS_ACCOUNT_ID}:log-group:/aws/sagemaker/*/${TEAM}-${PROJECT}-*",
+        "arn:aws:logs:${AWS_REGION}:${AWS_ACCOUNT_ID}:log-group:/aws/sagemaker/*/${TEAM}-${PROJECT}-*:*"
+      ]
     },
     {
-      "Sid": "AllowECRReadWrite",
+      "Sid": "AllowCloudWatchLogsDescribe",
+      "Effect": "Allow",
+      "Action": ["logs:DescribeLogGroups"],
+      "Resource": ["arn:aws:logs:${AWS_REGION}:${AWS_ACCOUNT_ID}:log-group:*"]
+    },
+    {
+      "Sid": "AllowECRReadWriteProject",
       "Effect": "Allow",
       "Action": ["ecr:GetDownloadUrlForLayer", "ecr:BatchGetImage", "ecr:BatchCheckLayerAvailability", "ecr:CreateRepository", "ecr:DescribeRepositories", "ecr:ListImages", "ecr:BatchDeleteImage", "ecr:InitiateLayerUpload", "ecr:UploadLayerPart", "ecr:CompleteLayerUpload", "ecr:PutImage", "ecr:TagResource"],
-      "Resource": "arn:aws:ecr:${AWS_REGION}:${AWS_ACCOUNT_ID}:repository/${COMPANY}-sm-*"
+      "Resource": "arn:aws:ecr:${AWS_REGION}:${AWS_ACCOUNT_ID}:repository/${COMPANY}-sm-${TEAM}-${PROJECT}-*"
+    },
+    {
+      "Sid": "AllowECRReadShared",
+      "Effect": "Allow",
+      "Action": ["ecr:GetDownloadUrlForLayer", "ecr:BatchGetImage", "ecr:BatchCheckLayerAvailability", "ecr:DescribeRepositories", "ecr:ListImages"],
+      "Resource": "arn:aws:ecr:${AWS_REGION}:${AWS_ACCOUNT_ID}:repository/${COMPANY}-sm-shared-*"
     },
     {
       "Sid": "AllowECRAuth",

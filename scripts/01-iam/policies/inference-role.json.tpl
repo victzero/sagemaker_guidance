@@ -43,10 +43,16 @@
       ]
     },
     {
-      "Sid": "AllowECRPullOnly",
+      "Sid": "AllowECRPullProject",
       "Effect": "Allow",
       "Action": ["ecr:GetDownloadUrlForLayer", "ecr:BatchGetImage", "ecr:BatchCheckLayerAvailability", "ecr:DescribeRepositories", "ecr:ListImages"],
-      "Resource": ["arn:aws:ecr:${AWS_REGION}:${AWS_ACCOUNT_ID}:repository/${COMPANY}-sm-*"]
+      "Resource": ["arn:aws:ecr:${AWS_REGION}:${AWS_ACCOUNT_ID}:repository/${COMPANY}-sm-${TEAM}-${PROJECT}-*"]
+    },
+    {
+      "Sid": "AllowECRPullShared",
+      "Effect": "Allow",
+      "Action": ["ecr:GetDownloadUrlForLayer", "ecr:BatchGetImage", "ecr:BatchCheckLayerAvailability", "ecr:DescribeRepositories", "ecr:ListImages"],
+      "Resource": ["arn:aws:ecr:${AWS_REGION}:${AWS_ACCOUNT_ID}:repository/${COMPANY}-sm-shared-*"]
     },
     {
       "Sid": "AllowECRAuth",
