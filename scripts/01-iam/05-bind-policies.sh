@@ -101,8 +101,21 @@ main() {
             local project_formatted=$(format_name "$project")
             local group_name="sagemaker-${team}-${project}"
             
+            # 项目访问策略 (Space, UserProfile)
             attach_policy_to_group "$group_name" \
                 "${policy_prefix}SageMaker-${team_capitalized}-${project_formatted}-Access"
+            
+            # 共享策略 - Deny Admin Actions (安全限制)
+            attach_policy_to_group "$group_name" \
+                "${policy_prefix}SageMaker-Shared-DenyAdmin"
+            
+            # 共享策略 - S3 项目访问 (与 Execution Role 共用)
+            attach_policy_to_group "$group_name" \
+                "${policy_prefix}SageMaker-${team_capitalized}-${project_formatted}-S3Access"
+            
+            # 共享策略 - PassRole 到项目角色
+            attach_policy_to_group "$group_name" \
+                "${policy_prefix}SageMaker-${team_capitalized}-${project_formatted}-PassRole"
         done
     done
     

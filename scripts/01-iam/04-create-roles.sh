@@ -205,6 +205,31 @@ attach_mlflow_app_access() {
 }
 
 # -----------------------------------------------------------------------------
+# 通用策略附加函数
+# 用法: attach_policy_to_role <role_name> <policy_name> <policy_arn>
+# -----------------------------------------------------------------------------
+attach_policy_to_role() {
+    local role_name=$1
+    local policy_name=$2
+    local policy_arn=$3
+    
+    # 检查是否已附加
+    local attached=$(aws iam list-attached-role-policies \
+        --role-name "$role_name" \
+        --query "AttachedPolicies[?PolicyName=='${policy_name}'].PolicyName" \
+        --output text 2>/dev/null || echo "")
+    
+    if [[ -n "$attached" ]]; then
+        log_warn "Policy $policy_name already attached to $role_name"
+    else
+        aws iam attach-role-policy \
+            --role-name "$role_name" \
+            --policy-arn "$policy_arn"
+        log_success "Policy $policy_name attached to $role_name"
+    fi
+}
+
+# -----------------------------------------------------------------------------
 # 创建 Domain 默认 Execution Role
 # 
 # Domain Default Role 权限:
@@ -394,41 +419,28 @@ create_execution_role() {
     attach_mlflow_app_access "$role_name"
     
     # ========================================
-    # 第五步: 附加项目自定义策略 (S3、ECR、CloudWatch 等)
+    # 第五步: 附加共享策略 (User 和 Role 都使用)
     # ========================================
-    log_info "Step 5: Attaching project-specific policies to role..."
+    log_info "Step 5: Attaching shared policies..."
     
-    # 附加基础策略 (S3、ECR、CloudWatch、VPC)
-    local attached=$(aws iam list-attached-role-policies \
-        --role-name "$role_name" \
-        --query "AttachedPolicies[?PolicyName=='${policy_name}'].PolicyName" \
-        --output text 2>/dev/null || echo "")
+    # 共享 Deny Admin 策略
+    local deny_admin_policy="SageMaker-Shared-DenyAdmin"
+    attach_policy_to_role "$role_name" "$deny_admin_policy" "arn:aws:iam::${AWS_ACCOUNT_ID}:policy${IAM_PATH}${deny_admin_policy}"
     
-    if [[ -n "$attached" ]]; then
-        log_warn "Policy $policy_name already attached to $role_name"
-    else
-        aws iam attach-role-policy \
-            --role-name "$role_name" \
-            --policy-arn "arn:aws:iam::${AWS_ACCOUNT_ID}:policy${IAM_PATH}${policy_name}"
-        
-        log_success "Policy $policy_name attached to $role_name"
-    fi
+    # 共享 S3 访问策略
+    local s3_policy_name="SageMaker-${team_capitalized}-${project_formatted}-S3Access"
+    attach_policy_to_role "$role_name" "$s3_policy_name" "arn:aws:iam::${AWS_ACCOUNT_ID}:policy${IAM_PATH}${s3_policy_name}"
+    
+    # ========================================
+    # 第六步: 附加项目自定义策略 (ECR、CloudWatch、VPC 等)
+    # ========================================
+    log_info "Step 6: Attaching project-specific policies to role..."
+    
+    # 附加基础策略 (ECR、CloudWatch、VPC、AI Assistant)
+    attach_policy_to_role "$role_name" "$policy_name" "arn:aws:iam::${AWS_ACCOUNT_ID}:policy${IAM_PATH}${policy_name}"
     
     # 附加作业提交策略 (PassRole、Training/Processing/Inference)
-    local job_attached=$(aws iam list-attached-role-policies \
-        --role-name "$role_name" \
-        --query "AttachedPolicies[?PolicyName=='${job_policy_name}'].PolicyName" \
-        --output text 2>/dev/null || echo "")
-    
-    if [[ -n "$job_attached" ]]; then
-        log_warn "Policy $job_policy_name already attached to $role_name"
-    else
-        aws iam attach-role-policy \
-            --role-name "$role_name" \
-            --policy-arn "arn:aws:iam::${AWS_ACCOUNT_ID}:policy${IAM_PATH}${job_policy_name}"
-        
-        log_success "Policy $job_policy_name attached to $role_name"
-    fi
+    attach_policy_to_role "$role_name" "$job_policy_name" "arn:aws:iam::${AWS_ACCOUNT_ID}:policy${IAM_PATH}${job_policy_name}"
     
     # 显示权限总结
     echo ""
@@ -441,7 +453,9 @@ create_execution_role() {
     if [[ "$ENABLE_MLFLOW" == "true" ]]; then
         echo "  ✓ MLflow App Access (experiment tracking)"
     fi
-    echo "  ✓ $policy_name (custom - S3, ECR, CloudWatch, VPC)"
+    echo "  ✓ SageMaker-Shared-DenyAdmin (shared - security restriction)"
+    echo "  ✓ SageMaker-*-S3Access (shared - project S3 access)"
+    echo "  ✓ $policy_name (custom - ECR, CloudWatch, VPC, AI Assistant)"
     echo "  ✓ $job_policy_name (custom - PassRole, Jobs, Model Registry)"
 }
 
@@ -501,45 +515,29 @@ create_training_role() {
     fi
     
     # ========================================
+    # 附加共享 Deny Admin 策略
+    # ========================================
+    log_info "Attaching shared Deny Admin policy..."
+    attach_policy_to_role "$role_name" "SageMaker-Shared-DenyAdmin" \
+        "arn:aws:iam::${AWS_ACCOUNT_ID}:policy${IAM_PATH}SageMaker-Shared-DenyAdmin"
+    
+    # ========================================
     # 附加 Training 策略（已拆分为基础+操作）
     # ========================================
     log_info "Attaching training policies to role..."
     
     # 附加基础策略 (S3、ECR、CloudWatch、VPC)
-    local policy_arn="arn:aws:iam::${AWS_ACCOUNT_ID}:policy${IAM_PATH}${policy_name}"
-    local attached=$(aws iam list-attached-role-policies \
-        --role-name "$role_name" \
-        --query "AttachedPolicies[?PolicyName=='${policy_name}'].PolicyName" \
-        --output text 2>/dev/null || echo "")
-    
-    if [[ -n "$attached" ]]; then
-        log_warn "Policy $policy_name already attached to $role_name"
-    else
-        aws iam attach-role-policy \
-            --role-name "$role_name" \
-            --policy-arn "$policy_arn"
-        log_success "Policy $policy_name attached to $role_name"
-    fi
+    attach_policy_to_role "$role_name" "$policy_name" \
+        "arn:aws:iam::${AWS_ACCOUNT_ID}:policy${IAM_PATH}${policy_name}"
     
     # 附加操作策略 (Training ops, Model Registry, Experiment)
-    local ops_policy_arn="arn:aws:iam::${AWS_ACCOUNT_ID}:policy${IAM_PATH}${ops_policy_name}"
-    local ops_attached=$(aws iam list-attached-role-policies \
-        --role-name "$role_name" \
-        --query "AttachedPolicies[?PolicyName=='${ops_policy_name}'].PolicyName" \
-        --output text 2>/dev/null || echo "")
-    
-    if [[ -n "$ops_attached" ]]; then
-        log_warn "Policy $ops_policy_name already attached to $role_name"
-    else
-        aws iam attach-role-policy \
-            --role-name "$role_name" \
-            --policy-arn "$ops_policy_arn"
-        log_success "Policy $ops_policy_name attached to $role_name"
-    fi
+    attach_policy_to_role "$role_name" "$ops_policy_name" \
+        "arn:aws:iam::${AWS_ACCOUNT_ID}:policy${IAM_PATH}${ops_policy_name}"
     
     # 显示权限总结
     echo ""
     log_info "Training Role $role_name permissions:"
+    echo "  ✓ SageMaker-Shared-DenyAdmin (security restriction)"
     echo "  ✓ $policy_name (S3, ECR, CloudWatch, VPC)"
     echo "  ✓ $ops_policy_name (Training ops, Model Registry, Experiment)"
     echo "  → Scope: Training Jobs only"
@@ -601,45 +599,29 @@ create_processing_role() {
     fi
     
     # ========================================
+    # 附加共享 Deny Admin 策略
+    # ========================================
+    log_info "Attaching shared Deny Admin policy..."
+    attach_policy_to_role "$role_name" "SageMaker-Shared-DenyAdmin" \
+        "arn:aws:iam::${AWS_ACCOUNT_ID}:policy${IAM_PATH}SageMaker-Shared-DenyAdmin"
+    
+    # ========================================
     # 附加 Processing 策略（已拆分为基础+操作）
     # ========================================
     log_info "Attaching processing policies to role..."
     
     # 附加基础策略 (S3、ECR、CloudWatch、VPC)
-    local policy_arn="arn:aws:iam::${AWS_ACCOUNT_ID}:policy${IAM_PATH}${policy_name}"
-    local attached=$(aws iam list-attached-role-policies \
-        --role-name "$role_name" \
-        --query "AttachedPolicies[?PolicyName=='${policy_name}'].PolicyName" \
-        --output text 2>/dev/null || echo "")
-    
-    if [[ -n "$attached" ]]; then
-        log_warn "Policy $policy_name already attached to $role_name"
-    else
-        aws iam attach-role-policy \
-            --role-name "$role_name" \
-            --policy-arn "$policy_arn"
-        log_success "Policy $policy_name attached to $role_name"
-    fi
+    attach_policy_to_role "$role_name" "$policy_name" \
+        "arn:aws:iam::${AWS_ACCOUNT_ID}:policy${IAM_PATH}${policy_name}"
     
     # 附加操作策略 (Processing ops, Feature Store, Glue/Athena)
-    local ops_policy_arn="arn:aws:iam::${AWS_ACCOUNT_ID}:policy${IAM_PATH}${ops_policy_name}"
-    local ops_attached=$(aws iam list-attached-role-policies \
-        --role-name "$role_name" \
-        --query "AttachedPolicies[?PolicyName=='${ops_policy_name}'].PolicyName" \
-        --output text 2>/dev/null || echo "")
-    
-    if [[ -n "$ops_attached" ]]; then
-        log_warn "Policy $ops_policy_name already attached to $role_name"
-    else
-        aws iam attach-role-policy \
-            --role-name "$role_name" \
-            --policy-arn "$ops_policy_arn"
-        log_success "Policy $ops_policy_name attached to $role_name"
-    fi
+    attach_policy_to_role "$role_name" "$ops_policy_name" \
+        "arn:aws:iam::${AWS_ACCOUNT_ID}:policy${IAM_PATH}${ops_policy_name}"
     
     # 显示权限总结
     echo ""
     log_info "Processing Role $role_name permissions:"
+    echo "  ✓ SageMaker-Shared-DenyAdmin (security restriction)"
     echo "  ✓ $policy_name (S3, ECR, CloudWatch, VPC)"
     echo "  ✓ $ops_policy_name (Processing ops, Feature Store, Glue/Athena)"
     echo "  → Scope: Processing Jobs only"
@@ -701,45 +683,29 @@ create_inference_role() {
     fi
     
     # ========================================
+    # 附加共享 Deny Admin 策略
+    # ========================================
+    log_info "Attaching shared Deny Admin policy..."
+    attach_policy_to_role "$role_name" "SageMaker-Shared-DenyAdmin" \
+        "arn:aws:iam::${AWS_ACCOUNT_ID}:policy${IAM_PATH}SageMaker-Shared-DenyAdmin"
+    
+    # ========================================
     # 附加 Inference 策略（已拆分为基础+操作）
     # ========================================
     log_info "Attaching inference policies to role..."
     
     # 附加基础策略 (S3、ECR、CloudWatch、VPC)
-    local policy_arn="arn:aws:iam::${AWS_ACCOUNT_ID}:policy${IAM_PATH}${policy_name}"
-    local attached=$(aws iam list-attached-role-policies \
-        --role-name "$role_name" \
-        --query "AttachedPolicies[?PolicyName=='${policy_name}'].PolicyName" \
-        --output text 2>/dev/null || echo "")
-    
-    if [[ -n "$attached" ]]; then
-        log_warn "Policy $policy_name already attached to $role_name"
-    else
-        aws iam attach-role-policy \
-            --role-name "$role_name" \
-            --policy-arn "$policy_arn"
-        log_success "Policy $policy_name attached to $role_name"
-    fi
+    attach_policy_to_role "$role_name" "$policy_name" \
+        "arn:aws:iam::${AWS_ACCOUNT_ID}:policy${IAM_PATH}${policy_name}"
     
     # 附加操作策略 (Inference ops, Model Registry read-only)
-    local ops_policy_arn="arn:aws:iam::${AWS_ACCOUNT_ID}:policy${IAM_PATH}${ops_policy_name}"
-    local ops_attached=$(aws iam list-attached-role-policies \
-        --role-name "$role_name" \
-        --query "AttachedPolicies[?PolicyName=='${ops_policy_name}'].PolicyName" \
-        --output text 2>/dev/null || echo "")
-    
-    if [[ -n "$ops_attached" ]]; then
-        log_warn "Policy $ops_policy_name already attached to $role_name"
-    else
-        aws iam attach-role-policy \
-            --role-name "$role_name" \
-            --policy-arn "$ops_policy_arn"
-        log_success "Policy $ops_policy_name attached to $role_name"
-    fi
+    attach_policy_to_role "$role_name" "$ops_policy_name" \
+        "arn:aws:iam::${AWS_ACCOUNT_ID}:policy${IAM_PATH}${ops_policy_name}"
     
     # 显示权限总结
     echo ""
     log_info "Inference Role $role_name permissions (minimal):"
+    echo "  ✓ SageMaker-Shared-DenyAdmin (security restriction)"
     echo "  ✓ $policy_name (S3, ECR, CloudWatch, VPC)"
     echo "  ✓ $ops_policy_name (Inference ops, Model Registry read-only)"
     echo "  → Scope: Inference Endpoints only"

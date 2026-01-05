@@ -59,6 +59,86 @@ render_template() {
     echo "$content"
 }
 
+# 公共模板片段目录
+COMMON_FRAGMENTS_DIR="${POLICY_TEMPLATES_DIR}/common"
+
+# 渲染公共片段，替换变量
+# 用法: render_fragment <fragment_name> [VAR1=value1 VAR2=value2 ...]
+render_fragment() {
+    local fragment_name=$1
+    shift
+    local fragment_file="${COMMON_FRAGMENTS_DIR}/${fragment_name}.json.tpl"
+    
+    if [[ ! -f "$fragment_file" ]]; then
+        log_error "Fragment file not found: $fragment_file"
+        exit 1
+    fi
+    
+    local content=$(cat "$fragment_file")
+    
+    # 替换通用变量
+    content=$(echo "$content" | sed \
+        -e "s|\${AWS_REGION}|${AWS_REGION}|g" \
+        -e "s|\${AWS_ACCOUNT_ID}|${AWS_ACCOUNT_ID}|g" \
+        -e "s|\${COMPANY}|${COMPANY}|g" \
+        -e "s|\${IAM_PATH}|${IAM_PATH}|g")
+    
+    # 替换额外传入的变量
+    for var in "$@"; do
+        local key="${var%%=*}"
+        local value="${var#*=}"
+        content=$(echo "$content" | sed "s|\${${key}}|${value}|g")
+    done
+    
+    echo "$content"
+}
+
+# 构建策略：基础模板 + 公共片段
+# 用法: build_policy_with_fragments <base_template> <fragments_json_array> [VAR=value ...]
+# fragments_json_array 格式: '["fragment1", "fragment2"]'
+build_policy_with_fragments() {
+    local base_template=$1
+    local fragments=$2
+    shift 2
+    
+    # 渲染基础模板
+    local base_content=$(render_template "$base_template" "$@")
+    
+    # 如果没有片段，直接返回
+    if [[ "$fragments" == "[]" || -z "$fragments" ]]; then
+        echo "$base_content"
+        return
+    fi
+    
+    # 解析片段列表并渲染
+    local fragment_statements=""
+    for fragment in $(echo "$fragments" | tr -d '[]"' | tr ',' ' '); do
+        local frag_content=$(render_fragment "$fragment" "$@")
+        if [[ -n "$fragment_statements" ]]; then
+            fragment_statements="${fragment_statements},
+    ${frag_content}"
+        else
+            fragment_statements="    ${frag_content}"
+        fi
+    done
+    
+    # 将片段插入到基础模板的 Statement 数组末尾
+    # 找到最后一个 } ] } 模式，在 ] 之前插入片段
+    local result=$(echo "$base_content" | sed '$d')  # 移除最后一行 }
+    result=$(echo "$result" | sed '$d')              # 移除倒数第二行 ]
+    
+    # 检查最后一个 statement 是否需要加逗号
+    local last_line=$(echo "$result" | tail -1)
+    if [[ "$last_line" =~ ^[[:space:]]*\} ]]; then
+        result=$(echo "$result" | sed '$ s/}$/},/')
+    fi
+    
+    echo "$result"
+    echo "$fragment_statements"
+    echo "  ]"
+    echo "}"
+}
+
 # -----------------------------------------------------------------------------
 # Policy 生成函数 (使用模板)
 # -----------------------------------------------------------------------------
@@ -81,6 +161,32 @@ generate_project_access_policy() {
     render_template "${POLICY_TEMPLATES_DIR}/project-access.json.tpl" \
         "TEAM=${team}" "PROJECT=${project}" \
         "TEAM_FULLNAME=${team_capitalized}" "PROJECT_FULLNAME=${project_formatted}"
+}
+
+# -----------------------------------------------------------------------------
+# 共享策略生成函数 (User 和 Role 共用)
+# -----------------------------------------------------------------------------
+
+generate_shared_s3_access_policy() {
+    local team=$1
+    local project=$2
+    render_template "${POLICY_TEMPLATES_DIR}/shared-s3-access.json.tpl" \
+        "TEAM=${team}" "PROJECT=${project}"
+}
+
+generate_shared_passrole_policy() {
+    local team=$1
+    local project=$2
+    local team_fullname=$(get_team_fullname "$team")
+    local team_capitalized=$(format_name "$team_fullname")
+    local project_formatted=$(format_name "$project")
+    render_template "${POLICY_TEMPLATES_DIR}/shared-passrole.json.tpl" \
+        "TEAM=${team}" "PROJECT=${project}" \
+        "TEAM_FULLNAME=${team_capitalized}" "PROJECT_FULLNAME=${project_formatted}"
+}
+
+generate_shared_deny_admin_policy() {
+    render_template "${POLICY_TEMPLATES_DIR}/shared-deny-admin.json.tpl"
 }
 
 generate_execution_role_policy() {
@@ -266,6 +372,12 @@ main() {
         "$(generate_mlflow_app_access_policy)" \
         "MLflow App access for experiment tracking"
     
+    # 7. 创建共享 Deny Admin 策略 (全局共享，User 和 Role 都使用)
+    log_info "Creating shared Deny Admin policy..."
+    create_policy "SageMaker-Shared-DenyAdmin" \
+        "$(generate_shared_deny_admin_policy)" \
+        "Shared policy to deny admin actions (Domain/Space/Bucket creation)"
+    
     # 8. 创建团队策略
     for team in $TEAMS; do
         local team_fullname=$(get_team_fullname "$team")
@@ -293,6 +405,15 @@ main() {
             create_policy "SageMaker-${team_capitalized}-${project_formatted}-Access" \
                 "$(generate_project_access_policy "$team" "$project")" \
                 "Project access policy for ${team}/${project}"
+            
+            # 创建共享策略 (User Group 和 Execution Role 共用)
+            create_policy "SageMaker-${team_capitalized}-${project_formatted}-S3Access" \
+                "$(generate_shared_s3_access_policy "$team" "$project")" \
+                "Shared S3 access policy for ${team}/${project}"
+            
+            create_policy "SageMaker-${team_capitalized}-${project_formatted}-PassRole" \
+                "$(generate_shared_passrole_policy "$team" "$project")" \
+                "Shared PassRole policy for ${team}/${project}"
             
             # 创建 Execution Role 策略（拆分为基础+作业）
             create_policy "SageMaker-${team_capitalized}-${project_formatted}-ExecutionPolicy" \

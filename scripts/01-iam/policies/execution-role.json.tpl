@@ -2,51 +2,6 @@
   "Version": "2012-10-17",
   "Statement": [
     {
-      "Sid": "DenySageMakerAdminActions",
-      "Effect": "Deny",
-      "Action": [
-        "sagemaker:CreateDomain",
-        "sagemaker:DeleteDomain",
-        "sagemaker:UpdateDomain",
-        "sagemaker:CreateUserProfile",
-        "sagemaker:DeleteUserProfile",
-        "sagemaker:CreateSpace",
-        "sagemaker:UpdateSpace",
-        "sagemaker:DeleteSpace"
-      ],
-      "Resource": "*"
-    },
-    {
-      "Sid": "DenyS3BucketAdmin",
-      "Effect": "Deny",
-      "Action": [
-        "s3:CreateBucket",
-        "s3:DeleteBucket",
-        "s3:PutBucketPolicy",
-        "s3:DeleteBucketPolicy",
-        "s3:ListAllMyBuckets"
-      ],
-      "Resource": "*"
-    },
-    {
-      "Sid": "AllowS3ProjectAccess",
-      "Effect": "Allow",
-      "Action": ["s3:GetObject", "s3:PutObject", "s3:DeleteObject", "s3:ListBucket", "s3:GetBucketLocation"],
-      "Resource": ["arn:aws:s3:::${COMPANY}-sm-${TEAM}-${PROJECT}", "arn:aws:s3:::${COMPANY}-sm-${TEAM}-${PROJECT}/*"]
-    },
-    {
-      "Sid": "AllowS3SageMakerDefaultBucket",
-      "Effect": "Allow",
-      "Action": ["s3:GetObject", "s3:PutObject", "s3:DeleteObject", "s3:ListBucket", "s3:GetBucketLocation"],
-      "Resource": ["arn:aws:s3:::sagemaker-${AWS_REGION}-${AWS_ACCOUNT_ID}", "arn:aws:s3:::sagemaker-${AWS_REGION}-${AWS_ACCOUNT_ID}/*"]
-    },
-    {
-      "Sid": "AllowSharedAssetsReadOnly",
-      "Effect": "Allow",
-      "Action": ["s3:GetObject", "s3:ListBucket"],
-      "Resource": ["arn:aws:s3:::${COMPANY}-sm-shared-assets", "arn:aws:s3:::${COMPANY}-sm-shared-assets/*"]
-    },
-    {
       "Sid": "AllowCloudWatchLogs",
       "Effect": "Allow",
       "Action": ["logs:CreateLogGroup", "logs:CreateLogStream", "logs:PutLogEvents", "logs:DescribeLogGroups", "logs:DescribeLogStreams", "logs:GetLogEvents", "logs:FilterLogEvents"],
