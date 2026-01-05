@@ -36,13 +36,14 @@
 
 ### 1.2 Bucket 清单
 
-| Bucket 名称                   | 团队 | 项目   | 用途           |
-| ----------------------------- | ---- | ------ | -------------- |
-| `{company}-sm-rc-project-a`   | 风控 | 项目 A | 项目 A 数据    |
-| `{company}-sm-rc-project-b`   | 风控 | 项目 B | 项目 B 数据    |
-| `{company}-sm-algo-project-x` | 算法 | 项目 X | 项目 X 数据    |
-| `{company}-sm-algo-project-y` | 算法 | 项目 Y | 项目 Y 数据    |
-| `{company}-sm-shared-assets`  | 共享 | -      | 共享模型、脚本 |
+| Bucket 名称                        | 团队 | 项目         | 用途               |
+| ---------------------------------- | ---- | ------------ | ------------------ |
+| `{company}-sm-rc-fraud-detection`  | 风控 | 欺诈检测     | 欺诈检测项目数据   |
+| `{company}-sm-rc-aml`              | 风控 | 反洗钱       | 反洗钱项目数据     |
+| `{company}-sm-algo-recommendation` | 算法 | 推荐系统     | 推荐系统项目数据   |
+| `{company}-sm-shared-assets`       | 共享 | -            | 共享模型、脚本     |
+
+> **命名规范**: `{company}-sm-{team}-{project}`，其中 `team` 和 `project` 使用 kebab-case。
 
 ### 1.3 命名规范
 
@@ -50,9 +51,13 @@
 {company}-sm-{team}-{project}
 
 示例:
-- {company}-sm-rc-project-a
-- {company}-sm-algo-project-x
+- acme-sm-rc-fraud-detection    # 风控团队欺诈检测项目
+- acme-sm-rc-aml                # 风控团队反洗钱项目
+- acme-sm-algo-recommendation   # 算法团队推荐系统项目
+- acme-sm-shared-assets         # 共享资源 Bucket
 ```
+
+> **与 IAM 命名一致性**: Bucket 名称中的 `{team}` 和 `{project}` 与 IAM 用户/组命名保持一致。详见 [02-iam-design.md](02-iam-design.md)。
 
 ---
 
@@ -283,15 +288,29 @@ Policy 要点:
 
 ```
 Policy 要点:
-1. 只读访问（除管理员外）
-2. 允许所有 SageMaker Execution Role 读取
-3. 管理员可写入
+1. 允许所有 SageMaker Execution Role 只读
+2. 允许所有 SageMaker 用户 (sm-*) 只读
+3. 管理员 (sm-admin-*) 可写入
 ```
 
 **允许的操作（普通用户）**:
 
 - s3:GetObject
 - s3:ListBucket
+- s3:GetBucketLocation
+
+### 4.4 4 角色设计与 S3 访问（更新）
+
+生产级 4 角色分离设计中，各角色对 S3 的访问权限如下：
+
+| 角色             | S3 访问需求                              | 权限范围                    |
+| ---------------- | ---------------------------------------- | --------------------------- |
+| **ExecutionRole**| Notebook 开发、提交作业                  | 项目 Bucket 读写 + 共享只读 |
+| **TrainingRole** | Training Job 读取数据、写入模型          | 项目 Bucket 读写            |
+| **ProcessingRole**| Processing Job 数据处理、特征工程       | 项目 Bucket 读写            |
+| **InferenceRole** | Endpoint 加载模型、写入预测结果（只读优先）| 项目 Bucket 只读为主        |
+
+> **最小权限原则**: InferenceRole 通常只需要读取模型和配置，限制写权限可降低安全风险。
 
 ---
 
@@ -372,23 +391,39 @@ IAM User → Console → S3 Bucket
 
 ## 8. 权限绑定关系
 
-### 8.1 Execution Role → Bucket
+### 8.1 4 角色 → Bucket（生产级）
 
-| Execution Role                               | 可访问 Bucket                                                  |
-| -------------------------------------------- | -------------------------------------------------------------- |
-| SageMaker-RiskControl-ProjectA-ExecutionRole | {company}-sm-rc-project-a, {company}-sm-shared-assets (只读)   |
-| SageMaker-RiskControl-ProjectB-ExecutionRole | {company}-sm-rc-project-b, {company}-sm-shared-assets (只读)   |
-| SageMaker-Algorithm-ProjectX-ExecutionRole   | {company}-sm-algo-project-x, {company}-sm-shared-assets (只读) |
-| SageMaker-Algorithm-ProjectY-ExecutionRole   | {company}-sm-algo-project-y, {company}-sm-shared-assets (只读) |
+每个项目有 4 个专用角色，各自的 S3 访问权限如下：
 
-### 8.2 IAM User → Bucket (Console 访问)
+| 角色类型       | 角色名称示例                                   | 项目 Bucket          | 共享 Bucket |
+| -------------- | ---------------------------------------------- | -------------------- | ----------- |
+| ExecutionRole  | SageMaker-RiskControl-FraudDetection-ExecutionRole | 读写                 | 只读        |
+| TrainingRole   | SageMaker-RiskControl-FraudDetection-TrainingRole  | 读写                 | 只读        |
+| ProcessingRole | SageMaker-RiskControl-FraudDetection-ProcessingRole| 读写                 | 只读        |
+| InferenceRole  | SageMaker-RiskControl-FraudDetection-InferenceRole | 只读（最小权限）     | 只读        |
 
-| User Group               | 可访问 Bucket               |
-| ------------------------ | --------------------------- |
-| sagemaker-rc-project-a   | {company}-sm-rc-project-a   |
-| sagemaker-rc-project-b   | {company}-sm-rc-project-b   |
-| sagemaker-algo-project-x | {company}-sm-algo-project-x |
-| sagemaker-algo-project-y | {company}-sm-algo-project-y |
+> **注意**: Execution Role 使用默认 IAM 路径 (`/`)，不使用 `IAM_PATH`，以确保 SageMaker 服务兼容性。
+
+### 8.2 Execution Role → Bucket（简化视图）
+
+| Execution Role                                     | 可访问 Bucket                                                    |
+| -------------------------------------------------- | ---------------------------------------------------------------- |
+| SageMaker-RiskControl-FraudDetection-ExecutionRole | {company}-sm-rc-fraud-detection, {company}-sm-shared-assets (只读) |
+| SageMaker-RiskControl-AML-ExecutionRole            | {company}-sm-rc-aml, {company}-sm-shared-assets (只读)           |
+| SageMaker-Algorithm-Recommendation-ExecutionRole   | {company}-sm-algo-recommendation, {company}-sm-shared-assets (只读) |
+
+### 8.4 IAM User → Bucket (Console 访问)
+
+| User Group                   | 可访问 Bucket                    |
+| ---------------------------- | -------------------------------- |
+| sagemaker-rc-fraud-detection | {company}-sm-rc-fraud-detection  |
+| sagemaker-rc-aml             | {company}-sm-rc-aml              |
+| sagemaker-algo-recommendation| {company}-sm-algo-recommendation |
+
+> **命名说明**:
+> - 用户名格式: `sm-{team}-{name}` (如 `sm-rc-alice`)
+> - 组名格式: `sagemaker-{team}-{project}` (如 `sagemaker-rc-fraud-detection`)
+> - 详见 [02-iam-design.md](02-iam-design.md) 中的命名规范
 
 ---
 
@@ -489,6 +524,23 @@ IAM User → Console → S3 Bucket
       }
     },
     {
+      "Sid": "AllowAllSageMakerUsersReadOnly",
+      "Effect": "Allow",
+      "Principal": {
+        "AWS": "arn:aws:iam::{account-id}:root"
+      },
+      "Action": ["s3:GetObject", "s3:ListBucket", "s3:GetBucketLocation"],
+      "Resource": [
+        "arn:aws:s3:::{company}-sm-shared-assets",
+        "arn:aws:s3:::{company}-sm-shared-assets/*"
+      ],
+      "Condition": {
+        "StringLike": {
+          "aws:username": "sm-*"
+        }
+      }
+    },
+    {
       "Sid": "AllowAdminFullAccess",
       "Effect": "Allow",
       "Principal": {
@@ -501,13 +553,18 @@ IAM User → Console → S3 Bucket
       ],
       "Condition": {
         "StringLike": {
-          "aws:PrincipalArn": "arn:aws:iam::{account-id}:group/sagemaker-admins"
+          "aws:username": "sm-admin-*"
         }
       }
     }
   ]
 }
 ```
+
+> **说明**:
+> - `AllowAllExecutionRolesReadOnly`: 允许所有项目的 Execution Role 只读访问（用于 Notebook/作业）
+> - `AllowAllSageMakerUsersReadOnly`: 允许所有 SageMaker 用户 (`sm-*`) 通过 Console 只读访问
+> - `AllowAdminFullAccess`: 只有管理员用户 (`sm-admin-*`) 可以写入共享 Bucket
 
 ---
 
@@ -660,17 +717,51 @@ aws s3api put-bucket-lifecycle-configuration \
 - [ ] 确认公司名称前缀
 - [ ] 确认项目清单
 - [ ] 确认 Region
+- [ ] 确认 IAM Roles 已创建（Execution/Training/Processing/Inference）
 
 ### 创建时
 
 - [ ] 启用版本控制
-- [ ] 启用默认加密
+- [ ] 启用默认加密 (SSE-S3 或 SSE-KMS)
 - [ ] 阻止公开访问
-- [ ] 添加标签
+- [ ] 添加标签 (Team, Project, Environment, CostCenter, ManagedBy)
+- [ ] 创建目录结构
 
 ### 创建后
 
 - [ ] 配置 Bucket Policy
 - [ ] 配置生命周期规则
 - [ ] 验证 Execution Role 访问
-- [ ] 验证 IAM User 访问
+- [ ] 验证 Training/Processing/Inference Role 访问
+- [ ] 验证 IAM User Console 访问
+
+---
+
+## 13. 实现脚本
+
+S3 配置由自动化脚本实现，详见 [scripts/03-s3/README.md](../scripts/03-s3/README.md)。
+
+### 脚本清单
+
+| 脚本                       | 用途                      |
+| -------------------------- | ------------------------- |
+| `00-init.sh`               | 初始化和环境变量验证      |
+| `01-create-buckets.sh`     | 创建 S3 Buckets           |
+| `02-configure-policies.sh` | 配置 Bucket Policies      |
+| `03-configure-lifecycle.sh`| 配置生命周期规则          |
+| `setup-all.sh`             | 一次性创建所有资源        |
+| `verify.sh`                | 验证配置                  |
+| `cleanup.sh`               | 清理资源（⚠️ 危险）       |
+
+### 环境变量
+
+| 变量                     | 说明               | 默认值   |
+| ------------------------ | ------------------ | -------- |
+| `COMPANY`                | 公司前缀           | 必填     |
+| `ENCRYPTION_TYPE`        | 加密类型           | SSE-S3   |
+| `KMS_KEY_ID`             | KMS 密钥 ID        | -        |
+| `ENABLE_VERSIONING`      | 启用版本控制       | true     |
+| `ENABLE_LIFECYCLE_RULES` | 启用生命周期规则   | true     |
+| `RESTRICT_TO_VPC`        | 限制 VPC 内访问    | false    |
+| `VPC_ID`                 | VPC ID（可选）     | -        |
+| `CREATE_SHARED_BUCKET`   | 创建共享 Bucket    | true     |

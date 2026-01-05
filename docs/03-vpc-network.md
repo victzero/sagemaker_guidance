@@ -24,12 +24,13 @@
 
 ### 1.1 现有 VPC 要求
 
-| 要求            | 说明                      | 检查项 |
-| --------------- | ------------------------- | ------ |
-| Private Subnets | 至少 2 个可用区           | ☐      |
-| DNS 解析        | enableDnsHostnames = true | ☐      |
-| DNS 支持        | enableDnsSupport = true   | ☐      |
-| CIDR 空间       | 足够的 IP 地址            | ☐      |
+| 要求            | 说明                              | 检查项 |
+| --------------- | --------------------------------- | ------ |
+| Private Subnets | 2-3 个可用区（支持 2 或 3 个子网）| ☐      |
+| DNS 解析        | enableDnsHostnames = true         | ☐      |
+| DNS 支持        | enableDnsSupport = true           | ☐      |
+| CIDR 空间       | 足够的 IP 地址（每子网 128+ IPs） | ☐      |
+| 路由表          | 1-3 个路由表（用于 S3 Gateway）   | ☐      |
 
 ### 1.2 网络模式选择
 
@@ -73,20 +74,40 @@ VPC: vpc-xxxxxxxxx (现有)
 
 ### 2.3 子网选择清单
 
-| 配置项        | 值               | 备注   |
-| ------------- | ---------------- | ------ |
-| Subnet 1 ID   | subnet-xxxxxxxxx | AZ-a   |
-| Subnet 2 ID   | subnet-yyyyyyyyy | AZ-b   |
-| Subnet CIDR 1 | 10.x.x.0/24      | 待确认 |
-| Subnet CIDR 2 | 10.x.x.0/24      | 待确认 |
+| 配置项        | 值               | 备注         |
+| ------------- | ---------------- | ------------ |
+| Subnet 1 ID   | subnet-xxxxxxxxx | AZ-a（必需） |
+| Subnet 2 ID   | subnet-yyyyyyyyy | AZ-b（必需） |
+| Subnet 3 ID   | subnet-zzzzzzzzz | AZ-c（可选） |
+| Subnet CIDR 1 | 10.x.x.0/24      | 待确认       |
+| Subnet CIDR 2 | 10.x.x.0/24      | 待确认       |
+| Subnet CIDR 3 | 10.x.x.0/24      | 待确认       |
+
+> **注意**：脚本支持 2-3 个子网配置。第三个子网 (`PRIVATE_SUBNET_3_ID`) 为可选。
 
 ---
 
 ## 3. 安全组设计
 
-### 3.1 SageMaker Studio 安全组
+> 📌 安全组命名格式：`{TAG_PREFIX}-{用途}`，其中 `TAG_PREFIX` 默认为 `{COMPANY}-sagemaker`
+>
+> 示例：`acme-sagemaker-studio`、`acme-sagemaker-training`
 
-**名称**: `sg-sagemaker-studio`
+### 3.1 安全组概览
+
+| 安全组名称                 | 类型     | 用途                              |
+| -------------------------- | -------- | --------------------------------- |
+| `{TAG_PREFIX}-studio`      | 核心     | SageMaker Studio 实例             |
+| `{TAG_PREFIX}-vpc-endpoints` | 核心   | VPC Endpoints                     |
+| `{TAG_PREFIX}-training`    | 工作负载 | Training Jobs (分布式训练)        |
+| `{TAG_PREFIX}-processing`  | 工作负载 | Processing Jobs (Spark 集群)      |
+| `{TAG_PREFIX}-inference`   | 工作负载 | Inference Endpoints (推理服务)    |
+
+> **注意**: AWS 不允许安全组名称以 `sg-` 开头（这是安全组 ID 的保留前缀）
+
+### 3.2 SageMaker Studio 安全组（核心）
+
+**名称**: `{TAG_PREFIX}-studio`
 
 #### 入站规则 (Inbound)
 
@@ -102,15 +123,74 @@ VPC: vpc-xxxxxxxxx (现有)
 | HTTPS       | TCP  | 443      | 0.0.0.0/0 | AWS 服务访问    |
 | All Traffic | All  | All      | 自身 SG   | Studio 内部通信 |
 
-### 3.2 VPC Endpoints 安全组
+### 3.3 VPC Endpoints 安全组（核心）
 
-**名称**: `sg-vpc-endpoints`
+**名称**: `{TAG_PREFIX}-vpc-endpoints`
 
 #### 入站规则 (Inbound)
 
 | 类型  | 协议 | 端口范围 | 来源     | 说明            |
 | ----- | ---- | -------- | -------- | --------------- |
 | HTTPS | TCP  | 443      | VPC CIDR | 允许 VPC 内访问 |
+
+### 3.4 Training Jobs 安全组（工作负载）
+
+**名称**: `{TAG_PREFIX}-training`
+
+用于分布式训练作业，需要节点间通信。
+
+#### 入站规则 (Inbound)
+
+| 类型        | 协议 | 端口范围 | 来源     | 说明                     |
+| ----------- | ---- | -------- | -------- | ------------------------ |
+| All Traffic | All  | All      | 自身 SG  | 分布式训练节点间通信     |
+| HTTPS       | TCP  | 443      | VPC CIDR | API 访问                 |
+
+#### 出站规则 (Outbound)
+
+| 类型        | 协议 | 端口范围 | 目标      | 说明                 |
+| ----------- | ---- | -------- | --------- | -------------------- |
+| All Traffic | All  | All      | 自身 SG   | 分布式训练节点间通信 |
+| HTTPS       | TCP  | 443      | 0.0.0.0/0 | AWS 服务访问（默认） |
+
+### 3.5 Processing Jobs 安全组（工作负载）
+
+**名称**: `{TAG_PREFIX}-processing`
+
+用于 Processing Jobs 和 Spark 集群，需要节点间通信。
+
+#### 入站规则 (Inbound)
+
+| 类型        | 协议 | 端口范围 | 来源     | 说明                 |
+| ----------- | ---- | -------- | -------- | -------------------- |
+| All Traffic | All  | All      | 自身 SG  | Spark 集群节点间通信 |
+| HTTPS       | TCP  | 443      | VPC CIDR | API 访问             |
+
+#### 出站规则 (Outbound)
+
+| 类型        | 协议 | 端口范围 | 目标      | 说明                 |
+| ----------- | ---- | -------- | --------- | -------------------- |
+| All Traffic | All  | All      | 自身 SG   | Spark 集群节点间通信 |
+| HTTPS       | TCP  | 443      | 0.0.0.0/0 | AWS 服务访问（默认） |
+
+### 3.6 Inference Endpoints 安全组（工作负载）
+
+**名称**: `{TAG_PREFIX}-inference`
+
+用于实时推理端点和批量转换。
+
+#### 入站规则 (Inbound)
+
+| 类型  | 协议 | 端口范围 | 来源     | 说明             |
+| ----- | ---- | -------- | -------- | ---------------- |
+| HTTPS | TCP  | 443      | VPC CIDR | 推理请求         |
+| TCP   | TCP  | 8080     | VPC CIDR | 推理容器端口     |
+
+#### 出站规则 (Outbound)
+
+| 类型  | 协议 | 端口范围 | 目标      | 说明                 |
+| ----- | ---- | -------- | --------- | -------------------- |
+| HTTPS | TCP  | 443      | 0.0.0.0/0 | AWS 服务访问（默认） |
 
 ---
 
@@ -131,12 +211,15 @@ SageMaker Studio (VPCOnly 模式) 需要以下 Endpoints：
 
 ### 4.2 可选但推荐的 Endpoints
 
-| Endpoint 类型 | Service Name                   | 类型      | 用途         |
-| ------------- | ------------------------------ | --------- | ------------ |
-| ECR API       | com.amazonaws.{region}.ecr.api | Interface | 拉取容器镜像 |
-| ECR DKR       | com.amazonaws.{region}.ecr.dkr | Interface | 拉取容器镜像 |
-| KMS           | com.amazonaws.{region}.kms     | Interface | 数据加密     |
-| SSM           | com.amazonaws.{region}.ssm     | Interface | 配置管理     |
+| Endpoint 类型   | Service Name                           | 类型      | 用途                            | 环境变量                     |
+| --------------- | -------------------------------------- | --------- | ------------------------------- | ---------------------------- |
+| ECR API         | com.amazonaws.{region}.ecr.api         | Interface | 拉取容器镜像                    | `CREATE_ECR_ENDPOINTS=true`  |
+| ECR DKR         | com.amazonaws.{region}.ecr.dkr         | Interface | 拉取容器镜像                    | `CREATE_ECR_ENDPOINTS=true`  |
+| KMS             | com.amazonaws.{region}.kms             | Interface | 数据加密                        | `CREATE_KMS_ENDPOINT=true`   |
+| SSM             | com.amazonaws.{region}.ssm             | Interface | 配置管理                        | `CREATE_SSM_ENDPOINT=true`   |
+| Bedrock Runtime | com.amazonaws.{region}.bedrock-runtime | Interface | Canvas AI 功能 (Chat for data) | `CREATE_BEDROCK_ENDPOINT=true` |
+
+> ⚠️ **SageMaker Canvas 用户注意**: 如需在 VPCOnly 模式下使用 Canvas 的 AI 功能（如 Chat for data prep、AI-powered insights），**必须**创建 Bedrock Runtime endpoint。否则 Canvas 控制台会显示警告：*"The selected VPC is not connected to Amazon Bedrock"*
 
 ### 4.3 Gateway vs Interface Endpoint：为什么 S3 使用 Gateway？
 
@@ -339,16 +422,21 @@ S3 Bucket
 
 ### 部署前
 
-- [ ] 确认 VPC 信息
-- [ ] 确认子网信息
-- [ ] 计算 IP 地址需求
+- [ ] 确认 VPC 信息（VPC ID, CIDR）
+- [ ] 确认子网信息（2-3 个 Private Subnets）
+- [ ] 确认路由表（1-3 个，用于 S3 Gateway Endpoint）
+- [ ] 计算 IP 地址需求（每子网 128+ IPs）
 - [ ] 确认现有 VPC Endpoints
 
 ### 部署中
 
-- [ ] 创建安全组 sg-sagemaker-studio
-- [ ] 创建安全组 sg-vpc-endpoints
-- [ ] 创建必需的 VPC Endpoints
+- [ ] 创建核心安全组 `{TAG_PREFIX}-studio`
+- [ ] 创建核心安全组 `{TAG_PREFIX}-vpc-endpoints`
+- [ ] 创建工作负载安全组 `{TAG_PREFIX}-training`
+- [ ] 创建工作负载安全组 `{TAG_PREFIX}-processing`
+- [ ] 创建工作负载安全组 `{TAG_PREFIX}-inference`
+- [ ] 创建必需的 VPC Endpoints（6 个）
+- [ ] 创建可选的 VPC Endpoints（按需：ECR, KMS, SSM, Bedrock）
 - [ ] 验证路由表配置
 
 ### 部署后
@@ -356,3 +444,39 @@ S3 Bucket
 - [ ] 测试 Studio 连接
 - [ ] 测试 S3 访问
 - [ ] 测试 ECR 访问（如需要）
+- [ ] 测试 Canvas AI 功能（如启用 Bedrock）
+
+---
+
+## 9. 实现脚本
+
+VPC 配置由自动化脚本实现，详见 [scripts/02-vpc/README.md](../scripts/02-vpc/README.md)。
+
+### 脚本清单
+
+| 脚本                           | 用途                                |
+| ------------------------------ | ----------------------------------- |
+| `00-init.sh`                   | 初始化和环境变量验证                |
+| `01-create-security-groups.sh` | 创建核心安全组 (Studio + Endpoints) |
+| `02-create-vpc-endpoints.sh`   | 创建 VPC Endpoints                  |
+| `03-create-workload-sgs.sh`    | 创建工作负载安全组                  |
+| `setup-all.sh`                 | 一次性创建所有资源                  |
+| `verify.sh`                    | 验证配置                            |
+| `cleanup.sh`                   | 清理资源                            |
+
+### 环境变量
+
+| 变量                    | 说明                   | 必需 |
+| ----------------------- | ---------------------- | ---- |
+| `VPC_ID`                | 现有 VPC ID            | ✅   |
+| `VPC_CIDR`              | VPC CIDR 范围          | ✅   |
+| `PRIVATE_SUBNET_1_ID`   | 私有子网 1 (AZ-a)      | ✅   |
+| `PRIVATE_SUBNET_2_ID`   | 私有子网 2 (AZ-b)      | ✅   |
+| `PRIVATE_SUBNET_3_ID`   | 私有子网 3 (AZ-c)      | ❌   |
+| `ROUTE_TABLE_1_ID`      | 路由表 1               | ✅   |
+| `ROUTE_TABLE_2_ID`      | 路由表 2               | ❌   |
+| `ROUTE_TABLE_3_ID`      | 路由表 3               | ❌   |
+| `CREATE_ECR_ENDPOINTS`  | 创建 ECR Endpoints     | ❌   |
+| `CREATE_KMS_ENDPOINT`   | 创建 KMS Endpoint      | ❌   |
+| `CREATE_SSM_ENDPOINT`   | 创建 SSM Endpoint      | ❌   |
+| `CREATE_BEDROCK_ENDPOINT` | 创建 Bedrock Endpoint (Canvas AI) | ❌ |
