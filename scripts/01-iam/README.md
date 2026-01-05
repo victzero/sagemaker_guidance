@@ -245,7 +245,9 @@ IAM User: sm-rc-alice (参与两个项目)
 │       │ • acme-sm-algo-recommendation/* 读写  │                         │
 │       │ • acme-sm-shared-assets/* 只读        │                         │
 │       │ • sagemaker-{region}-{account}/* 读写 │                         │
-│       │ • ECR: acme-sm-* 读写                 │                         │
+│       │ • ECR: acme-sm-algo-recommendation-* 读写│                       │
+│       │ • ECR: acme-sm-shared-* 只读          │                         │
+│       │ • Logs: /aws/sagemaker/*/algo-rec-*   │                         │
 │       └───────────────────────────────────────┘                         │
 │                                                                         │
 └─────────────────────────────────────────────────────────────────────────┘
@@ -268,20 +270,71 @@ IAM User: sm-rc-alice (参与两个项目)
 
 ### 访问矩阵示例
 
-| 用户             | fraud-detection S3 | aml S3  | recommendation S3 | shared-assets |
-| ---------------- | :----------------: | :-----: | :---------------: | :-----------: |
-| alice (rc/fraud) |      ✅ 读写       |   ❌    |        ❌         |    ✅ 只读    |
-| charlie (rc/aml) |         ❌         | ✅ 读写 |        ❌         |    ✅ 只读    |
-| david (algo/rec) |         ❌         |   ❌    |      ✅ 读写      |    ✅ 只读    |
+| 用户             | fraud-detection S3 | aml S3  | recommendation S3 | shared-assets | fraud ECR | shared ECR |
+| ---------------- | :----------------: | :-----: | :---------------: | :-----------: | :-------: | :--------: |
+| alice (rc/fraud) |      ✅ 读写       |   ❌    |        ❌         |    ✅ 只读    |  ✅ 读写  |  ✅ 只读   |
+| charlie (rc/aml) |         ❌         | ✅ 读写 |        ❌         |    ✅ 只读    |    ❌     |  ✅ 只读   |
+| david (algo/rec) |         ❌         |   ❌    |      ✅ 读写      |    ✅ 只读    |    ❌     |  ✅ 只读   |
+
+### 项目级 ECR 隔离
+
+```
+ECR Repositories
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+项目私有仓库 (完全隔离):
+┌────────────────────────────────────────┐
+│ acme-sm-rc-fraud-training              │ ← rc/fraud 项目专用
+│ acme-sm-rc-fraud-inference             │
+├────────────────────────────────────────┤
+│ acme-sm-algo-recommendation-training   │ ← algo/rec 项目专用
+│ acme-sm-algo-recommendation-inference  │
+└────────────────────────────────────────┘
+
+共享仓库 (只读):
+┌────────────────────────────────────────┐
+│ acme-sm-shared-base-images             │ ← 所有项目可拉取
+│ acme-sm-shared-sklearn                 │
+│ acme-sm-shared-pytorch                 │
+└────────────────────────────────────────┘
+```
+
+**ECR 命名规范**:
+
+- 项目私有: `${COMPANY}-sm-${TEAM}-${PROJECT}-*`
+- 共享镜像: `${COMPANY}-sm-shared-*`
+
+### 项目级 CloudWatch Logs 隔离
+
+```
+CloudWatch Log Groups
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+ExecutionRole 可访问:
+┌────────────────────────────────────────────────────┐
+│ /aws/sagemaker/studio/*                            │ ← Studio 日志
+│ /aws/sagemaker/*/{team}-{project}-*                │ ← 项目作业日志
+└────────────────────────────────────────────────────┘
+
+专用 Role 只访问特定类型:
+┌────────────────────────────────────────────────────┐
+│ TrainingRole   → /aws/sagemaker/TrainingJobs/*     │
+│ ProcessingRole → /aws/sagemaker/ProcessingJobs/*   │
+│ InferenceRole  → /aws/sagemaker/Endpoints/*        │
+│                  /aws/sagemaker/TransformJobs/*    │
+└────────────────────────────────────────────────────┘
+```
 
 ### 与控制台创建的区别
 
-| 方面           | 控制台快速设置       | 我们的设计                             |
-| -------------- | -------------------- | -------------------------------------- |
-| S3 权限        | 通配符 `sagemaker-*` | 项目桶 `{company}-sm-{team}-{project}` |
-| 隔离粒度       | 无隔离               | 团队 → 项目 → 用户                     |
-| Execution Role | 所有用户共用一个     | 每个项目独立 Role                      |
-| 扩展性         | 手动管理             | 脚本化，加项目只需改 .env              |
+| 方面           | 控制台快速设置            | 我们的设计                                 |
+| -------------- | ------------------------- | ------------------------------------------ |
+| S3 权限        | 通配符 `sagemaker-*`      | 项目桶 `{company}-sm-{team}-{project}`     |
+| ECR 权限       | 通配符 `{company}-sm-*`   | 项目仓库 `{company}-sm-{team}-{project}-*` |
+| CloudWatch     | 通配符 `/aws/sagemaker/*` | 项目前缀 `*/{team}-{project}-*`            |
+| 隔离粒度       | 无隔离                    | 团队 → 项目 → 用户                         |
+| Execution Role | 所有用户共用一个          | 每个项目独立 Role                          |
+| 扩展性         | 手动管理                  | 脚本化，加项目只需改 .env                  |
 
 ## 环境变量说明
 
@@ -796,38 +849,39 @@ ENABLE_INFERENCE_ROLE=false ./04-create-roles.sh
 
 策略内容与 Shell 脚本分离，位于 `policies/` 目录：
 
-| 模板文件                          | 说明                    | 变量                           |
-| --------------------------------- | ----------------------- | ------------------------------ |
-| `trust-policy-sagemaker.json`     | Trust Policy            | 无（静态）                     |
-| `base-access.json.tpl`            | 基础访问                   | `AWS_REGION`, `AWS_ACCOUNT_ID` |
-| `team-access.json.tpl`            | 团队访问                   | + `COMPANY`, `TEAM`            |
-| `project-access.json.tpl`         | 项目访问                   | + `PROJECT`                    |
-| `execution-role.json.tpl`         | ExecutionRole 基础         | + `PROJECT`                    |
-| `execution-role-jobs.json.tpl`    | ExecutionRole 作业         | + `TEAM_FULLNAME`, `PROJECT_FULLNAME` |
-| `training-role.json.tpl`          | TrainingRole 基础          | + `PROJECT`                    |
-| `training-role-ops.json.tpl`      | TrainingRole 操作          | + `TEAM_FULLNAME`, `PROJECT_FULLNAME` |
-| `processing-role.json.tpl`        | ProcessingRole 基础        | + `PROJECT`                    |
-| `processing-role-ops.json.tpl`    | ProcessingRole 操作        | + `TEAM_FULLNAME`, `PROJECT_FULLNAME` |
-| `inference-role.json.tpl`         | InferenceRole 基础         | + `PROJECT`                    |
-| `inference-role-ops.json.tpl`     | InferenceRole 操作         | + `TEAM_FULLNAME`, `PROJECT_FULLNAME` |
-| `user-boundary.json.tpl`          | 权限边界                   | `AWS_ACCOUNT_ID`, `COMPANY`    |
-| `readonly.json.tpl`               | 只读访问                   | 无                             |
-| `self-service.json.tpl`           | 自助服务                   | `AWS_ACCOUNT_ID`, `IAM_PATH`   |
-| `studio-app-permissions.json.tpl` | Studio 用户隔离         | `AWS_REGION`, `AWS_ACCOUNT_ID` |
-| `mlflow-app-access.json.tpl`      | MLflow 实验追踪         | `AWS_REGION`, `AWS_ACCOUNT_ID` |
+| 模板文件                          | 说明                | 变量                                  |
+| --------------------------------- | ------------------- | ------------------------------------- |
+| `trust-policy-sagemaker.json`     | Trust Policy        | 无（静态）                            |
+| `base-access.json.tpl`            | 基础访问            | `AWS_REGION`, `AWS_ACCOUNT_ID`        |
+| `team-access.json.tpl`            | 团队访问            | + `COMPANY`, `TEAM`                   |
+| `project-access.json.tpl`         | 项目访问            | + `PROJECT`                           |
+| `execution-role.json.tpl`         | ExecutionRole 基础  | + `PROJECT`                           |
+| `execution-role-jobs.json.tpl`    | ExecutionRole 作业  | + `TEAM_FULLNAME`, `PROJECT_FULLNAME` |
+| `training-role.json.tpl`          | TrainingRole 基础   | + `PROJECT`                           |
+| `training-role-ops.json.tpl`      | TrainingRole 操作   | + `TEAM_FULLNAME`, `PROJECT_FULLNAME` |
+| `processing-role.json.tpl`        | ProcessingRole 基础 | + `PROJECT`                           |
+| `processing-role-ops.json.tpl`    | ProcessingRole 操作 | + `TEAM_FULLNAME`, `PROJECT_FULLNAME` |
+| `inference-role.json.tpl`         | InferenceRole 基础  | + `PROJECT`                           |
+| `inference-role-ops.json.tpl`     | InferenceRole 操作  | + `TEAM_FULLNAME`, `PROJECT_FULLNAME` |
+| `user-boundary.json.tpl`          | 权限边界            | `AWS_ACCOUNT_ID`, `COMPANY`           |
+| `readonly.json.tpl`               | 只读访问            | 无                                    |
+| `self-service.json.tpl`           | 自助服务            | `AWS_ACCOUNT_ID`, `IAM_PATH`          |
+| `studio-app-permissions.json.tpl` | Studio 用户隔离     | `AWS_REGION`, `AWS_ACCOUNT_ID`        |
+| `mlflow-app-access.json.tpl`      | MLflow 实验追踪     | `AWS_REGION`, `AWS_ACCOUNT_ID`        |
 
 ### 策略拆分设计
 
 每个 Role 的策略拆分为 **基础** + **操作** 两个策略，以避免超过 AWS IAM 的 **6144 字节**限制：
 
-| Role | 基础策略 (S3/ECR/VPC) | 操作策略 (Jobs/Ops) |
-|------|----------------------|---------------------|
-| ExecutionRole | `ExecutionPolicy` | `ExecutionJobPolicy` |
-| TrainingRole | `TrainingPolicy` | `TrainingOpsPolicy` |
-| ProcessingRole | `ProcessingPolicy` | `ProcessingOpsPolicy` |
-| InferenceRole | `InferencePolicy` | `InferenceOpsPolicy` |
+| Role           | 基础策略 (S3/ECR/VPC) | 操作策略 (Jobs/Ops)   |
+| -------------- | --------------------- | --------------------- |
+| ExecutionRole  | `ExecutionPolicy`     | `ExecutionJobPolicy`  |
+| TrainingRole   | `TrainingPolicy`      | `TrainingOpsPolicy`   |
+| ProcessingRole | `ProcessingPolicy`    | `ProcessingOpsPolicy` |
+| InferenceRole  | `InferencePolicy`     | `InferenceOpsPolicy`  |
 
 **拆分原则:**
+
 - **基础策略**: S3 访问、ECR 拉取、CloudWatch Logs、VPC 网络接口
 - **操作策略**: 作业相关操作、PassRole、实验追踪、Model Registry 等
 

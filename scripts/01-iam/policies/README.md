@@ -93,8 +93,9 @@ User Profile 绑定的 Execution Role 包含以下权限（按附加顺序）：
 | S3 处理输出写入           |      ✅       |      ❌      |       ✅       |      ❌       |
 | S3 模型只读               |      ✅       |      ❌      |       ❌       |      ✅       |
 | S3 推理输出               |      ✅       |      ❌      |       ❌       |      ✅       |
-| ECR 读写                  |      ✅       |      ❌      |       ❌       |      ❌       |
-| ECR 只读                  |      ✅       |      ✅      |       ✅       |      ✅       |
+| ECR 项目仓库读写          |      ✅       |      ❌      |       ❌       |      ❌       |
+| ECR 项目仓库只读          |      ✅       |      ✅      |       ✅       |      ✅       |
+| ECR 共享仓库只读          |      ✅       |      ✅      |       ✅       |      ✅       |
 | Training/HPO 操作         |      ✅       |      ✅      |       ❌       |      ❌       |
 | Processing 操作           |      ✅       |      ❌      |       ✅       |      ❌       |
 | Inference 操作            |      ✅       |      ❌      |       ❌       |      ✅       |
@@ -110,7 +111,9 @@ User Profile 绑定的 Execution Role 包含以下权限（按附加顺序）：
 
 - S3 训练数据读取 (`data/*`, `datasets/*`, `processed/*`)
 - S3 模型输出写入 (`models/*`, `training-output/*`, `checkpoints/*`)
-- ECR 只读（拉取训练镜像）
+- ECR 项目仓库只读 (`${COMPANY}-sm-${TEAM}-${PROJECT}-*`)
+- ECR 共享仓库只读 (`${COMPANY}-sm-shared-*`)
+- CloudWatch Logs (`/aws/sagemaker/TrainingJobs/*`, `/aws/sagemaker/HyperParameterTuningJobs/*`)
 - Model Registry 写入（注册模型）
 - 实验追踪（Experiments API）
 - Training/HPO 操作
@@ -121,7 +124,9 @@ User Profile 绑定的 Execution Role 包含以下权限（按附加顺序）：
 
 - S3 原始数据读取 (`data/*`, `raw/*`, `datasets/*`)
 - S3 处理输出写入 (`processed/*`, `features/*`)
-- ECR 只读（拉取处理镜像）
+- ECR 项目仓库只读 (`${COMPANY}-sm-${TEAM}-${PROJECT}-*`)
+- ECR 共享仓库只读 (`${COMPANY}-sm-shared-*`)
+- CloudWatch Logs (`/aws/sagemaker/ProcessingJobs/*`)
 - Processing/Data Wrangler 操作
 - Feature Store 访问
 - Glue/Athena 数据目录访问
@@ -132,7 +137,9 @@ User Profile 绑定的 Execution Role 包含以下权限（按附加顺序）：
 
 - S3 模型只读 (`models/*`, `inference/*`)
 - S3 推理输出 (`inference/output/*`, `batch-transform/*`)
-- ECR 只读（拉取推理镜像）
+- ECR 项目仓库只读 (`${COMPANY}-sm-${TEAM}-${PROJECT}-*`)
+- ECR 共享仓库只读 (`${COMPANY}-sm-shared-*`)
+- CloudWatch Logs (`/aws/sagemaker/Endpoints/*`, `/aws/sagemaker/TransformJobs/*`)
 - Model Registry 只读
 - Inference 操作（Endpoint, Transform）
 
@@ -239,6 +246,48 @@ Domain 默认 Execution Role 只附加 **AmazonSageMakerFullAccess**：
 - ✅ 通过 URL 直接访问项目桶: `s3://${COMPANY}-sm-${TEAM}-${PROJECT}/`
 - ✅ 通过 SageMaker SDK/boto3 读写文件
 
+### ECR 访问控制
+
+| 控制点         | 实现方式                                               | 效果                           |
+| -------------- | ------------------------------------------------------ | ------------------------------ |
+| 项目仓库读写   | `AllowECRReadWriteProject` 限定 `${TEAM}-${PROJECT}-*` | 只能管理自己项目的镜像仓库     |
+| 共享仓库只读   | `AllowECRReadShared` 限定 `shared-*`                   | 只能拉取共享镜像，不能推送     |
+| AWS 镜像拉取   | `AllowECRPullAWSImages` Resource: `*`                  | 可以拉取 AWS 官方 SageMaker 镜像 |
+| 认证令牌       | `AllowECRAuth` `ecr:GetAuthorizationToken`             | 允许获取 ECR 认证（必需）      |
+
+**ECR 仓库命名规范**:
+
+```
+${COMPANY}-sm-${TEAM}-${PROJECT}-*    # 项目私有仓库 (读写)
+${COMPANY}-sm-shared-*                 # 共享仓库 (只读)
+```
+
+**示例**:
+
+- `acme-sm-rc-fraud-training` - 风控/欺诈检测项目的训练镜像
+- `acme-sm-rc-fraud-inference` - 风控/欺诈检测项目的推理镜像
+- `acme-sm-shared-sklearn` - 共享的 scikit-learn 基础镜像
+- `acme-sm-shared-pytorch` - 共享的 PyTorch 基础镜像
+
+### CloudWatch Logs 访问控制
+
+| Role           | 日志组范围                                           | 说明                       |
+| -------------- | ---------------------------------------------------- | -------------------------- |
+| ExecutionRole  | `/aws/sagemaker/studio/*`                            | Studio 日志                |
+|                | `/aws/sagemaker/*/${TEAM}-${PROJECT}-*`              | 项目作业日志（按命名前缀） |
+| TrainingRole   | `/aws/sagemaker/TrainingJobs/*`                      | 训练作业日志               |
+|                | `/aws/sagemaker/HyperParameterTuningJobs/*`          | HPO 作业日志               |
+| ProcessingRole | `/aws/sagemaker/ProcessingJobs/*`                    | 处理作业日志               |
+| InferenceRole  | `/aws/sagemaker/Endpoints/*`                         | 实时推理日志               |
+|                | `/aws/sagemaker/TransformJobs/*`                     | 批量推理日志               |
+|                | `/aws/sagemaker/InferenceRecommendationsJobs/*`      | 推理优化日志               |
+
+**最佳实践**:
+
+- 作业名称使用项目前缀: `${TEAM}-${PROJECT}-training-xxx`
+- 这样 ExecutionRole 的日志隔离才能生效
+- 专用 Role 的日志权限按作业类型自动隔离
+
 ### SageMaker 资源隔离
 
 | 控制点            | 实现方式                             | 效果                                           |
@@ -319,6 +368,18 @@ Domain 默认 Execution Role 只附加 **AmazonSageMakerFullAccess**：
 | `DenySageMakerAdminActions`        | Domain/UserProfile/Space 管理     | 防止越权管理，禁止用户自建 Space |
 | `DenyPresignedUrlForOthersProfile` | 为他人 Profile 创建预签名 URL     | 防止跨用户访问 Studio            |
 | `DenyS3BucketAdmin`                | Bucket 创建/删除/策略修改         | 防止基础设施变更                 |
+
+### 跨资源隔离矩阵
+
+| 资源类型       | 隔离方式                        | 隔离粒度 | 实现位置              |
+| -------------- | ------------------------------- | -------- | --------------------- |
+| S3 Bucket      | ARN 前缀 + Deny 语句            | 项目     | `shared-s3-access.json.tpl` |
+| ECR Repository | ARN 前缀 `${TEAM}-${PROJECT}-*` | 项目     | `execution-role.json.tpl` 等 |
+| CloudWatch Logs| 日志组前缀 `/${TEAM}-${PROJECT}-*` | 项目   | `execution-role.json.tpl` 等 |
+| SageMaker Jobs | ARN 前缀 + Tag 条件             | 项目     | `*-ops.json.tpl`      |
+| Model Registry | ARN 前缀                        | 项目     | `*-ops.json.tpl`      |
+| IAM PassRole   | 显式 Role ARN 列表              | 项目     | `shared-passrole.json.tpl` |
+| Space/Profile  | Tag 条件 + Owner 条件           | 用户     | `studio-app-permissions.json.tpl` |
 
 ### Studio 跨用户访问控制
 
