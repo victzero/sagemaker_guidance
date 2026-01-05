@@ -75,8 +75,12 @@ generate_team_access_policy() {
 generate_project_access_policy() {
     local team=$1
     local project=$2
+    local team_fullname=$(get_team_fullname "$team")
+    local team_capitalized=$(format_name "$team_fullname")
+    local project_formatted=$(format_name "$project")
     render_template "${POLICY_TEMPLATES_DIR}/project-access.json.tpl" \
-        "TEAM=${team}" "PROJECT=${project}"
+        "TEAM=${team}" "PROJECT=${project}" \
+        "TEAM_FULLNAME=${team_capitalized}" "PROJECT_FULLNAME=${project_formatted}"
 }
 
 generate_execution_role_policy() {
