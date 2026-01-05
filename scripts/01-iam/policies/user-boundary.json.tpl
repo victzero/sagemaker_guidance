@@ -176,6 +176,17 @@
       "Resource": "*"
     },
     {
+      "Sid": "DenyPresignedUrlForOthersProfile",
+      "Effect": "Deny",
+      "Action": "sagemaker:CreatePresignedDomainUrl",
+      "Resource": "arn:aws:sagemaker:${AWS_REGION}:${AWS_ACCOUNT_ID}:user-profile/*/*",
+      "Condition": {
+        "StringNotEquals": {
+          "sagemaker:ResourceTag/Owner": "${aws:username}"
+        }
+      }
+    },
+    {
       "Sid": "DenyS3BucketAdmin",
       "Effect": "Deny",
       "Action": [

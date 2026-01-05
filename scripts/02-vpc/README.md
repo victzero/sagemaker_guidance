@@ -19,38 +19,56 @@ cp .env.local.example .env.local
 vi .env.local  # 填入 VPC ID、Subnet IDs、Route Table 等
 
 # 3. 执行创建 (显示预览后确认)
-./setup-all.sh
+./setup-all.sh           # Phase 1: 基础 SG + Endpoints
+./setup-all.sh --phase2  # Phase 1 + Phase 2A: 工作负载 SG
 
 # 4. 验证配置
 ./verify.sh
+```
+
+### 单独运行 Phase 2A (工作负载安全组)
+
+如果 Phase 1 已完成，可以单独运行：
+
+```bash
+./03-create-workload-sgs.sh
 ```
 
 ## 目录结构
 
 ```
 scripts/02-vpc/
-├── .env.local.example        # VPC 模块环境变量模板
-├── .env.local                # VPC 模块实际配置 (不提交到 Git)
-├── 00-init.sh                # 初始化和工具函数
-├── 01-create-security-groups.sh  # 创建安全组
-├── 02-create-vpc-endpoints.sh    # 创建 VPC Endpoints
-├── setup-all.sh              # 主控脚本
-├── verify.sh                 # 验证配置
-├── cleanup.sh                # 清理资源
-├── output/                   # 生成的配置文件
-│   ├── security-groups.env
+├── .env.local.example            # VPC 模块环境变量模板
+├── .env.local                    # VPC 模块实际配置 (不提交到 Git)
+├── 00-init.sh                    # 初始化和工具函数
+├── 01-create-security-groups.sh  # Phase 1: 创建基础安全组
+├── 02-create-vpc-endpoints.sh    # Phase 1: 创建 VPC Endpoints
+├── 03-create-workload-sgs.sh     # Phase 2A: 创建工作负载安全组
+├── setup-all.sh                  # 主控脚本 (支持 --phase2)
+├── verify.sh                     # 验证配置
+├── cleanup.sh                    # 清理资源
+├── output/                       # 生成的配置文件
+│   ├── security-groups.env       # 包含所有 SG ID
 │   └── vpc-endpoints.env
 └── README.md
 ```
 
 ## 创建的资源
 
-### 安全组
+### 安全组 - Phase 1 (必需)
 
-| 安全组名称                   | 用途                  |
-| ---------------------------- | --------------------- |
-| `{TAG_PREFIX}-studio`        | SageMaker Studio 实例 |
-| `{TAG_PREFIX}-vpc-endpoints` | VPC Endpoints         |
+| 安全组名称                   | 用途                   |
+| ---------------------------- | ---------------------- |
+| `{TAG_PREFIX}-studio`        | SageMaker Studio 实例  |
+| `{TAG_PREFIX}-vpc-endpoints` | VPC Endpoints          |
+
+### 安全组 - Phase 2A (工作负载)
+
+| 安全组名称                   | 用途                              |
+| ---------------------------- | --------------------------------- |
+| `{TAG_PREFIX}-training`      | Training Jobs (分布式训练)        |
+| `{TAG_PREFIX}-processing`    | Processing Jobs (Spark 集群)      |
+| `{TAG_PREFIX}-inference`     | Inference Endpoints (推理服务)    |
 
 > 注意: AWS 不允许安全组名称以 `sg-` 开头（这是安全组 ID 的保留前缀）
 
@@ -147,7 +165,7 @@ Canvas 需要 Bedrock 端点的功能：
 
 ## 安全组规则
 
-### {TAG_PREFIX}-studio
+### Phase 1: {TAG_PREFIX}-studio
 
 **入站规则:**
 
@@ -159,11 +177,46 @@ Canvas 需要 Bedrock 端点的功能：
 - All Traffic to self
 - HTTPS (443) to 0.0.0.0/0 (默认)
 
-### {TAG_PREFIX}-vpc-endpoints
+### Phase 1: {TAG_PREFIX}-vpc-endpoints
 
 **入站规则:**
 
 - HTTPS (443) from VPC CIDR
+
+### Phase 2A: {TAG_PREFIX}-training
+
+**入站规则:**
+
+- All Traffic from self (分布式训练节点间通信)
+- HTTPS (443) from VPC CIDR
+
+**出站规则:**
+
+- All Traffic to self
+- HTTPS (443) to 0.0.0.0/0 (默认)
+
+### Phase 2A: {TAG_PREFIX}-processing
+
+**入站规则:**
+
+- All Traffic from self (Spark 集群节点间通信)
+- HTTPS (443) from VPC CIDR
+
+**出站规则:**
+
+- All Traffic to self
+- HTTPS (443) to 0.0.0.0/0 (默认)
+
+### Phase 2A: {TAG_PREFIX}-inference
+
+**入站规则:**
+
+- HTTPS (443) from VPC CIDR (推理请求)
+- TCP 8080 from VPC CIDR (推理容器端口)
+
+**出站规则:**
+
+- HTTPS (443) to 0.0.0.0/0 (默认)
 
 ## 验证
 

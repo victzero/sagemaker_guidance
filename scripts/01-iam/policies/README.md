@@ -204,4 +204,22 @@ Domain 默认 Execution Role 只附加 **AmazonSageMakerFullAccess**：
 | `DenyAccessToOtherBuckets` | 非公司桶的所有 S3 操作 | 强制桶隔离 |
 | `DenyDangerousIAMActions` | IAM 策略创建/修改/删除 | 防止权限提升 |
 | `DenySageMakerAdminActions` | Domain/UserProfile/Space 管理 | 防止越权管理，禁止用户自建 Space |
+| `DenyPresignedUrlForOthersProfile` | 为他人 Profile 创建预签名 URL | 防止跨用户访问 Studio |
 | `DenyS3BucketAdmin` | Bucket 创建/删除/策略修改 | 防止基础设施变更 |
+
+### Studio 跨用户访问控制
+
+防止用户 A 通过创建预签名 URL 进入用户 B 的 Studio 环境：
+
+```
+攻击路径（已阻止）:
+┌─────────────────────────────────────────────────────────┐
+│ 1. 用户 A 通过 AWS CLI 调用 ListUserProfiles            │
+│ 2. 看到用户 B 的 Profile 名称                           │
+│ 3. 调用 CreatePresignedDomainUrl(UserProfileName="B")   │
+│ 4. ❌ DenyPresignedUrlForOthersProfile 阻止              │
+│    (Owner 标签 != 当前 IAM 用户名)                       │
+└─────────────────────────────────────────────────────────┘
+```
+
+**前提条件**: User Profile 必须有 `Owner` 标签，值为 IAM 用户名（创建脚本自动设置）

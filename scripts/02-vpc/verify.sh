@@ -80,8 +80,15 @@ check_sg() {
     fi
 }
 
+echo "Phase 1 (Required):"
 check_sg "${TAG_PREFIX}-studio" || ((errors++)) || true
 check_sg "${TAG_PREFIX}-vpc-endpoints" || ((errors++)) || true
+
+echo ""
+echo "Phase 2A (Workload - Optional):"
+check_sg "${TAG_PREFIX}-training" || true
+check_sg "${TAG_PREFIX}-processing" || true
+check_sg "${TAG_PREFIX}-inference" || true
 
 # -----------------------------------------------------------------------------
 # 验证 VPC Endpoints

@@ -20,14 +20,20 @@ scripts/
 ├── 02-vpc/              # VPC 网络配置 (对应 docs/03-vpc-network.md)
 ├── 03-s3/               # S3 数据管理 (对应 docs/04-s3-data-management.md)
 ├── 04-sagemaker-domain/ # SageMaker Domain (对应 docs/05-sagemaker-domain.md)
-├── 05-user-profiles/    # User Profiles (对应 docs/06-user-profile.md)
+├── 05-user-profiles/    # User Profiles + Private Spaces (对应 docs/06-user-profile.md)
+│
+│   ─────── Phase 2: 工作负载资源 (待实现) ───────
+├── 07-ecr/              # ECR 仓库 (可选，自定义镜像需要)
+├── 08-model-registry/   # Model Registry (模型版本管理)
+├── 09-monitoring/       # 日志与监控配置
+│
 ├── common.sh            # 共享函数库
 ├── .env.shared.example  # 共享配置模板
 ├── CONVENTIONS.md       # 开发规范
 └── README.md
 ```
 
-> **Note**: 使用 Private Space (用户在 Studio 中自动获得)，不创建 Shared Space。
+> **Note**: 使用 Private Space，每个 User Profile 对应一个 Private Space。
 > Private Space 使用 User Profile 的项目级 Execution Role，可以访问项目 S3 桶。
 
 ## 执行顺序
@@ -35,38 +41,65 @@ scripts/
 **必须按顺序执行**，因为存在依赖关系：
 
 ```
-Phase 1-3: 基础资源
-01-iam  →  02-vpc  →  03-s3
+Phase 1: 基础设施 (必需)
+01-iam  →  02-vpc  →  03-s3  →  04-sagemaker-domain  →  05-user-profiles
 
-Phase 4: SageMaker 配置
-  04-sagemaker-domain  →  05-user-profiles
+Phase 2: 工作负载资源 (按需)
+02-vpc/03-workload-sgs  →  07-ecr (可选)  →  08-model-registry
 ```
 
 ```
-┌─────────────────┐
-│   01-iam        │  ← IAM Policies, Groups, Users, Roles
-└────────┬────────┘
-         │
-   ┌─────┴─────┐
-   ▼           ▼
-┌───────┐  ┌───────┐
-│02-vpc │  │ 03-s3 │  ← Security Groups, Endpoints, Buckets
-└───┬───┘  └───────┘
-    │
-    ▼
-┌─────────────────────┐
-│ 04-sagemaker-domain │  ← Domain + Idle Shutdown
-└─────────┬───────────┘
-          │
-          ▼
-┌─────────────────────┐
-│  05-user-profiles   │  ← User Profiles (per user)
-└─────────────────────┘
-          │
-          ▼
-   ┌──────────────┐
-   │ Private Space│  ← 用户在 Studio 中自动获得
-   └──────────────┘
+┌─────────────────────────────────────────────────────────────────────┐
+│                        Phase 1: 基础设施                            │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                     │
+│  ┌─────────────────┐                                                │
+│  │   01-iam        │  ← IAM Policies, Groups, Users, Roles          │
+│  └────────┬────────┘                                                │
+│           │                                                         │
+│     ┌─────┴─────┐                                                   │
+│     ▼           ▼                                                   │
+│  ┌───────┐  ┌───────┐                                               │
+│  │02-vpc │  │ 03-s3 │  ← Security Groups, Endpoints, Buckets        │
+│  └───┬───┘  └───────┘                                               │
+│      │                                                              │
+│      ▼                                                              │
+│  ┌─────────────────────┐                                            │
+│  │ 04-sagemaker-domain │  ← Domain + Idle Shutdown                  │
+│  └─────────┬───────────┘                                            │
+│            │                                                        │
+│            ▼                                                        │
+│  ┌─────────────────────┐                                            │
+│  │  05-user-profiles   │  ← User Profiles + Private Spaces          │
+│  └─────────────────────┘                                            │
+│                                                                     │
+│  ✅ 完成后可进行交互式开发 (Studio Notebook)                        │
+│                                                                     │
+└─────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────┐
+│                     Phase 2: 工作负载资源 (按需)                    │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                     │
+│  Phase 2A: 网络资源                                                 │
+│  ┌─────────────────────────┐                                        │
+│  │ 02-vpc/03-workload-sgs  │  ← Training/Processing/Inference SG    │
+│  └─────────────────────────┘                                        │
+│                                                                     │
+│  Phase 2B: 容器镜像 (可选)     Phase 2C: 模型治理                   │
+│  ┌─────────────────────────┐  ┌─────────────────────────┐          │
+│  │       07-ecr            │  │   08-model-registry     │          │
+│  │  (自定义镜像需要)       │  │   (模型版本管理)        │          │
+│  └─────────────────────────┘  └─────────────────────────┘          │
+│                                                                     │
+│  Phase 2D: 日志与监控 (可选)                                        │
+│  ┌─────────────────────────┐                                        │
+│  │     09-monitoring       │  ← CloudWatch Logs/Alarms              │
+│  └─────────────────────────┘                                        │
+│                                                                     │
+│  ✅ 完成后可运行 Processing/Training Jobs                           │
+│                                                                     │
+└─────────────────────────────────────────────────────────────────────┘
 ```
 
 ## AWS Profile 配置
@@ -158,6 +191,8 @@ cd ../05-user-profiles
 | Security Groups | 2    | Studio, VPC Endpoints       |
 | VPC Endpoints   | 7+   | SageMaker, STS, S3, Logs 等 |
 
+> **Phase 2A 补充**：`03-create-workload-sgs.sh` 会创建 Training/Processing/Inference 安全组
+
 ### 03-s3 (S3 存储)
 
 | 资源类型        | 数量 | 说明            |
@@ -168,23 +203,31 @@ cd ../05-user-profiles
 
 ### 04-sagemaker-domain (SageMaker Domain)
 
-| 资源类型         | 数量 | 说明                         |
-| ---------------- | ---- | ---------------------------- |
-| SageMaker Domain | 1    | VPCOnly + IAM 认证           |
-| Lifecycle Config | 1    | 空闲自动关机（默认 60 分钟） |
+| 资源类型         | 数量 | 说明                              |
+| ---------------- | ---- | --------------------------------- |
+| SageMaker Domain | 1    | VPCOnly + IAM 认证                |
+| 内置 Idle Shutdown | - | 空闲自动关机（默认 60 分钟）      |
 
 **特殊脚本**：
 - `check.sh` - 前置检查和故障诊断（推荐在 setup 前运行）
 - `check.sh --diagnose` - 诊断失败的 Domain
+- `fix-execution-roles.sh` - 修复 Execution Role ARN 问题
+- `fix-lifecycle-config.sh` - 移除自定义 LCC，启用内置 Idle Shutdown
 
-### 05-user-profiles (User Profiles)
+### 05-user-profiles (User Profiles + Private Spaces)
 
-| 资源类型      | 数量   | 说明              |
-| ------------- | ------ | ----------------- |
-| User Profiles | N 用户 | 每个 IAM 用户一个 |
-| Private Space | 自动 | 用户在 Studio 中自动获得 |
+| 资源类型       | 数量   | 说明                              |
+| -------------- | ------ | --------------------------------- |
+| User Profiles  | N      | 每个用户每项目一个                |
+| Private Spaces | N      | 每个 Profile 对应一个 Space       |
 
-> **Note**: 使用 Private Space 进行开发，可访问项目 S3 桶。
+> **命名格式**：
+> - User Profile: `profile-{team}-{project}-{user}`
+> - Private Space: `space-{team}-{project}-{user}`
+>
+> **示例**：用户 alice 参与两个项目会创建：
+> - `profile-rc-fraud-alice` + `space-rc-fraud-alice`
+> - `profile-rc-aml-alice` + `space-rc-aml-alice`
 
 ## 环境变量配置
 
@@ -343,6 +386,10 @@ cd ../01-iam && ./cleanup.sh
 
 1. IAM User 登录 AWS Console
 2. 导航到 SageMaker → Studio
-3. 选择自己的 User Profile (`profile-{team}-{name}`)
+3. 选择对应项目的 User Profile (`profile-{team}-{project}-{user}`)
 4. 点击 "Open Studio"
-5. 在 Studio 中使用 Private Space 进行开发
+5. 选择对应的 Private Space (`space-{team}-{project}-{user}`)
+6. 点击 "Run" 启动 JupyterLab
+7. 在 JupyterLab 中可以访问项目 S3 桶
+
+> **多项目用户**：如果参与多个项目，需要切换 Profile 来访问不同项目的资源。
