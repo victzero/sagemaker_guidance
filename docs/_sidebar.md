@@ -38,10 +38,6 @@
   - [ECR 容器镜像](../scripts/06-ecr/README.md)
   - [Model Registry](../scripts/07-model-registry/README.md)
 
-- **设计参考**
-
-  - [07 - Shared Space (未实现)](07-shared-space.md)
-
 - **用户指南**
 
   - [📘 使用手册](USER-GUIDE.md)
