@@ -4,21 +4,21 @@
 
 ## 文件说明
 
-| 文件                              | 说明                           | 变量                                                         |
-| --------------------------------- | ------------------------------ | ------------------------------------------------------------ |
-| `trust-policy-sagemaker.json`     | Execution Role 信任策略        | 无（静态）                                                   |
-| `base-access.json.tpl`            | 用户基础访问策略               | `AWS_REGION`, `AWS_ACCOUNT_ID`                               |
-| `team-access.json.tpl`            | 团队访问策略                   | `AWS_REGION`, `AWS_ACCOUNT_ID`, `COMPANY`, `TEAM`            |
-| `project-access.json.tpl`         | 项目访问策略                   | `AWS_REGION`, `AWS_ACCOUNT_ID`, `COMPANY`, `TEAM`, `PROJECT` |
+| 文件                              | 说明                           | 变量                                                                                              |
+| --------------------------------- | ------------------------------ | ------------------------------------------------------------------------------------------------- |
+| `trust-policy-sagemaker.json`     | Execution Role 信任策略        | 无（静态）                                                                                        |
+| `base-access.json.tpl`            | 用户基础访问策略               | `AWS_REGION`, `AWS_ACCOUNT_ID`                                                                    |
+| `team-access.json.tpl`            | 团队访问策略                   | `AWS_REGION`, `AWS_ACCOUNT_ID`, `COMPANY`, `TEAM`                                                 |
+| `project-access.json.tpl`         | 项目访问策略                   | `AWS_REGION`, `AWS_ACCOUNT_ID`, `COMPANY`, `TEAM`, `PROJECT`                                      |
 | `execution-role.json.tpl`         | ExecutionRole（开发/Notebook） | `AWS_REGION`, `AWS_ACCOUNT_ID`, `COMPANY`, `TEAM`, `PROJECT`, `TEAM_FULLNAME`, `PROJECT_FULLNAME` |
 | `training-role.json.tpl`          | TrainingRole（训练专用）       | `AWS_REGION`, `AWS_ACCOUNT_ID`, `COMPANY`, `TEAM`, `PROJECT`, `TEAM_FULLNAME`, `PROJECT_FULLNAME` |
 | `processing-role.json.tpl`        | ProcessingRole（处理专用）     | `AWS_REGION`, `AWS_ACCOUNT_ID`, `COMPANY`, `TEAM`, `PROJECT`, `TEAM_FULLNAME`, `PROJECT_FULLNAME` |
 | `inference-role.json.tpl`         | InferenceRole（推理专用）      | `AWS_REGION`, `AWS_ACCOUNT_ID`, `COMPANY`, `TEAM`, `PROJECT`, `TEAM_FULLNAME`, `PROJECT_FULLNAME` |
-| `user-boundary.json.tpl`          | 用户权限边界                   | `AWS_ACCOUNT_ID`, `COMPANY`                                  |
-| `readonly.json.tpl`               | 只读访问策略                   | `AWS_REGION`, `AWS_ACCOUNT_ID`, `COMPANY`                    |
-| `self-service.json.tpl`           | 用户自助服务策略               | `AWS_ACCOUNT_ID`, `IAM_PATH`                                 |
-| `studio-app-permissions.json.tpl` | Studio App 用户隔离            | `AWS_REGION`, `AWS_ACCOUNT_ID`                               |
-| `mlflow-app-access.json.tpl`      | MLflow 实验追踪                | `AWS_REGION`, `AWS_ACCOUNT_ID`                               |
+| `user-boundary.json.tpl`          | 用户权限边界                   | `AWS_ACCOUNT_ID`, `COMPANY`                                                                       |
+| `readonly.json.tpl`               | 只读访问策略                   | `AWS_REGION`, `AWS_ACCOUNT_ID`, `COMPANY`                                                         |
+| `self-service.json.tpl`           | 用户自助服务策略               | `AWS_ACCOUNT_ID`, `IAM_PATH`                                                                      |
+| `studio-app-permissions.json.tpl` | Studio App 用户隔离            | `AWS_REGION`, `AWS_ACCOUNT_ID`                                                                    |
+| `mlflow-app-access.json.tpl`      | MLflow 实验追踪                | `AWS_REGION`, `AWS_ACCOUNT_ID`                                                                    |
 
 ## Trust Policy 说明
 
@@ -79,26 +79,26 @@ User Profile 绑定的 Execution Role 包含以下权限（按附加顺序）：
 
 ### 角色权限对比矩阵
 
-| 权限类型 | ExecutionRole | TrainingRole | ProcessingRole | InferenceRole |
-| -------- | :-----------: | :----------: | :------------: | :-----------: |
-| AmazonSageMakerFullAccess | ✅ | ❌ | ❌ | ❌ |
-| S3 完整读写 | ✅ | ❌ | ❌ | ❌ |
-| S3 训练数据读取 | ✅ | ✅ | ❌ | ❌ |
-| S3 模型输出写入 | ✅ | ✅ | ❌ | ❌ |
-| S3 原始数据读取 | ✅ | ❌ | ✅ | ❌ |
-| S3 处理输出写入 | ✅ | ❌ | ✅ | ❌ |
-| S3 模型只读 | ✅ | ❌ | ❌ | ✅ |
-| S3 推理输出 | ✅ | ❌ | ❌ | ✅ |
-| ECR 读写 | ✅ | ❌ | ❌ | ❌ |
-| ECR 只读 | ✅ | ✅ | ✅ | ✅ |
-| Training/HPO 操作 | ✅ | ✅ | ❌ | ❌ |
-| Processing 操作 | ✅ | ❌ | ✅ | ❌ |
-| Inference 操作 | ✅ | ❌ | ❌ | ✅ |
-| Model Registry 写入 | ✅ | ✅ | ❌ | ❌ |
-| Model Registry 只读 | ✅ | ✅ | ❌ | ✅ |
-| Feature Store | ✅ | ❌ | ✅ | ❌ |
-| Glue/Athena | ❌ | ❌ | ✅ | ❌ |
-| Pass Role 到其他角色 | ✅ | ❌ | ❌ | ❌ |
+| 权限类型                  | ExecutionRole | TrainingRole | ProcessingRole | InferenceRole |
+| ------------------------- | :-----------: | :----------: | :------------: | :-----------: |
+| AmazonSageMakerFullAccess |      ✅       |      ❌      |       ❌       |      ❌       |
+| S3 完整读写               |      ✅       |      ❌      |       ❌       |      ❌       |
+| S3 训练数据读取           |      ✅       |      ✅      |       ❌       |      ❌       |
+| S3 模型输出写入           |      ✅       |      ✅      |       ❌       |      ❌       |
+| S3 原始数据读取           |      ✅       |      ❌      |       ✅       |      ❌       |
+| S3 处理输出写入           |      ✅       |      ❌      |       ✅       |      ❌       |
+| S3 模型只读               |      ✅       |      ❌      |       ❌       |      ✅       |
+| S3 推理输出               |      ✅       |      ❌      |       ❌       |      ✅       |
+| ECR 读写                  |      ✅       |      ❌      |       ❌       |      ❌       |
+| ECR 只读                  |      ✅       |      ✅      |       ✅       |      ✅       |
+| Training/HPO 操作         |      ✅       |      ✅      |       ❌       |      ❌       |
+| Processing 操作           |      ✅       |      ❌      |       ✅       |      ❌       |
+| Inference 操作            |      ✅       |      ❌      |       ❌       |      ✅       |
+| Model Registry 写入       |      ✅       |      ✅      |       ❌       |      ❌       |
+| Model Registry 只读       |      ✅       |      ✅      |       ❌       |      ✅       |
+| Feature Store             |      ✅       |      ❌      |       ✅       |      ❌       |
+| Glue/Athena               |      ❌       |      ❌      |       ✅       |      ❌       |
+| Pass Role 到其他角色      |      ✅       |      ❌      |       ❌       |      ❌       |
 
 ### Training Role（训练专用）
 
@@ -222,28 +222,30 @@ Domain 默认 Execution Role 只附加 **AmazonSageMakerFullAccess**：
 
 ### S3 访问控制
 
-| 控制点 | 实现方式 | 效果 |
-|--------|----------|------|
-| 禁止浏览桶列表 | `DenyS3BucketListing` 拒绝 `s3:ListAllMyBuckets` | 用户无法看到账号内所有桶 |
-| 限制桶访问范围 | `DenyAccessToOtherBuckets` + `NotResource` | 用户只能访问公司 SM 桶和 SageMaker 默认桶 |
-| 项目级隔离 | `project-access.json.tpl` 限定到具体项目桶 | 用户只能访问自己项目的桶 |
-| 禁止桶管理 | `DenyS3BucketAdmin` 拒绝 Create/Delete Bucket | 用户无法创建或删除桶 |
+| 控制点         | 实现方式                                         | 效果                                      |
+| -------------- | ------------------------------------------------ | ----------------------------------------- |
+| 禁止浏览桶列表 | `DenyS3BucketListing` 拒绝 `s3:ListAllMyBuckets` | 用户无法看到账号内所有桶                  |
+| 限制桶访问范围 | `DenyAccessToOtherBuckets` + `NotResource`       | 用户只能访问公司 SM 桶和 SageMaker 默认桶 |
+| 项目级隔离     | `project-access.json.tpl` 限定到具体项目桶       | 用户只能访问自己项目的桶                  |
+| 禁止桶管理     | `DenyS3BucketAdmin` 拒绝 Create/Delete Bucket    | 用户无法创建或删除桶                      |
 
 **用户访问 S3 的方式**:
+
 - ❌ 不能通过 S3 Console 浏览所有桶
 - ✅ 通过 URL 直接访问项目桶: `s3://${COMPANY}-sm-${TEAM}-${PROJECT}/`
 - ✅ 通过 SageMaker SDK/boto3 读写文件
 
 ### SageMaker 资源隔离
 
-| 控制点 | 实现方式 | 效果 |
-|--------|----------|------|
-| User Profile 隔离 | `sagemaker:ResourceTag/Owner` 条件 | 用户只能操作自己的 Profile |
-| Space/App 隔离 | `sagemaker:OwnerUserProfileArn` 条件 | 用户只能管理自己创建的 Space 和 App |
-| 项目 Space 访问 | `sagemaker:ResourceTag/Project` 条件 | 用户只能访问所属项目的共享 Space |
-| 禁止管理操作 | `DenySageMakerAdminActions` | 用户无法创建/删除 Domain、UserProfile 和 Space |
+| 控制点            | 实现方式                             | 效果                                           |
+| ----------------- | ------------------------------------ | ---------------------------------------------- |
+| User Profile 隔离 | `sagemaker:ResourceTag/Owner` 条件   | 用户只能操作自己的 Profile                     |
+| Space/App 隔离    | `sagemaker:OwnerUserProfileArn` 条件 | 用户只能管理自己创建的 Space 和 App            |
+| 项目 Space 访问   | `sagemaker:ResourceTag/Project` 条件 | 用户只能访问所属项目的共享 Space               |
+| 禁止管理操作      | `DenySageMakerAdminActions`          | 用户无法创建/删除 Domain、UserProfile 和 Space |
 
 **跨项目隔离说明**:
+
 - `sagemaker:List*` 和 `sagemaker:Describe*` 对所有资源可见（SageMaker Studio Console 需要）
 - 实际的 Create/Update/Delete 操作通过标签条件限制
 - 敏感数据通过 S3 项目桶隔离保护
@@ -296,6 +298,7 @@ Domain 默认 Execution Role 只附加 **AmazonSageMakerFullAccess**：
 **实现方式**: `DenyAllWithoutMFA` 使用 `NotAction` 排除自服务操作
 
 **允许的无 MFA 操作**:
+
 - `iam:CreateVirtualMFADevice` / `iam:EnableMFADevice` - 设置 MFA
 - `iam:ChangePassword` / `iam:GetUser` - 密码管理
 - `iam:GetAccountPasswordPolicy` - 查看密码策略
@@ -303,15 +306,15 @@ Domain 默认 Execution Role 只附加 **AmazonSageMakerFullAccess**：
 
 ### 已实现的 Deny 控制
 
-| Sid | 拒绝的操作 | 目的 |
-|-----|-----------|------|
-| `DenyAllWithoutMFA` | 未启用 MFA 时拒绝所有非自服务操作 | 强制 MFA |
-| `DenyS3BucketListing` | `s3:ListAllMyBuckets` | 禁止浏览桶列表 |
-| `DenyAccessToOtherBuckets` | 非公司桶的所有 S3 操作 | 强制桶隔离 |
-| `DenyDangerousIAMActions` | IAM 策略创建/修改/删除 | 防止权限提升 |
-| `DenySageMakerAdminActions` | Domain/UserProfile/Space 管理 | 防止越权管理，禁止用户自建 Space |
-| `DenyPresignedUrlForOthersProfile` | 为他人 Profile 创建预签名 URL | 防止跨用户访问 Studio |
-| `DenyS3BucketAdmin` | Bucket 创建/删除/策略修改 | 防止基础设施变更 |
+| Sid                                | 拒绝的操作                        | 目的                             |
+| ---------------------------------- | --------------------------------- | -------------------------------- |
+| `DenyAllWithoutMFA`                | 未启用 MFA 时拒绝所有非自服务操作 | 强制 MFA                         |
+| `DenyS3BucketListing`              | `s3:ListAllMyBuckets`             | 禁止浏览桶列表                   |
+| `DenyAccessToOtherBuckets`         | 非公司桶的所有 S3 操作            | 强制桶隔离                       |
+| `DenyDangerousIAMActions`          | IAM 策略创建/修改/删除            | 防止权限提升                     |
+| `DenySageMakerAdminActions`        | Domain/UserProfile/Space 管理     | 防止越权管理，禁止用户自建 Space |
+| `DenyPresignedUrlForOthersProfile` | 为他人 Profile 创建预签名 URL     | 防止跨用户访问 Studio            |
+| `DenyS3BucketAdmin`                | Bucket 创建/删除/策略修改         | 防止基础设施变更                 |
 
 ### Studio 跨用户访问控制
 

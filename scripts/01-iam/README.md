@@ -89,17 +89,17 @@ Company (acme)
 
 **命名约定**:
 
-| 资源类型            | 命名规则                                      | 示例                                                    |
-| ------------------- | --------------------------------------------- | ------------------------------------------------------- |
-| IAM User            | `sm-{team}-{username}`                        | `sm-rc-alice`                                           |
-| IAM Group (团队)    | `sagemaker-{team-fullname}`                   | `sagemaker-risk-control`                                |
-| IAM Group (项目)    | `sagemaker-{team}-{project}`                  | `sagemaker-rc-fraud-detection`                          |
-| **User Profile**    | `profile-{team}-{project}-{user}`             | `profile-rc-fraud-alice`                                |
-| ExecutionRole       | `SageMaker-{Team}-{Project}-ExecutionRole`    | `SageMaker-RiskControl-FraudDetection-ExecutionRole`    |
-| **TrainingRole**    | `SageMaker-{Team}-{Project}-TrainingRole`     | `SageMaker-RiskControl-FraudDetection-TrainingRole`     |
-| **ProcessingRole**  | `SageMaker-{Team}-{Project}-ProcessingRole`   | `SageMaker-RiskControl-FraudDetection-ProcessingRole`   |
-| **InferenceRole**   | `SageMaker-{Team}-{Project}-InferenceRole`    | `SageMaker-RiskControl-FraudDetection-InferenceRole`    |
-| S3 Bucket           | `{company}-sm-{team}-{project}`               | `acme-sm-rc-fraud-detection`                            |
+| 资源类型           | 命名规则                                    | 示例                                                  |
+| ------------------ | ------------------------------------------- | ----------------------------------------------------- |
+| IAM User           | `sm-{team}-{username}`                      | `sm-rc-alice`                                         |
+| IAM Group (团队)   | `sagemaker-{team-fullname}`                 | `sagemaker-risk-control`                              |
+| IAM Group (项目)   | `sagemaker-{team}-{project}`                | `sagemaker-rc-fraud-detection`                        |
+| **User Profile**   | `profile-{team}-{project}-{user}`           | `profile-rc-fraud-alice`                              |
+| ExecutionRole      | `SageMaker-{Team}-{Project}-ExecutionRole`  | `SageMaker-RiskControl-FraudDetection-ExecutionRole`  |
+| **TrainingRole**   | `SageMaker-{Team}-{Project}-TrainingRole`   | `SageMaker-RiskControl-FraudDetection-TrainingRole`   |
+| **ProcessingRole** | `SageMaker-{Team}-{Project}-ProcessingRole` | `SageMaker-RiskControl-FraudDetection-ProcessingRole` |
+| **InferenceRole**  | `SageMaker-{Team}-{Project}-InferenceRole`  | `SageMaker-RiskControl-FraudDetection-InferenceRole`  |
+| S3 Bucket          | `{company}-sm-{team}-{project}`             | `acme-sm-rc-fraud-detection`                          |
 
 > **Note**: 一个用户可以有多个 User Profile（每个参与的项目一个），
 > 例如 Alice 参与两个项目会有 `profile-rc-fraud-alice` 和 `profile-rc-aml-alice`。
@@ -415,26 +415,26 @@ aws iam list-roles --query 'Roles[?starts_with(RoleName, `SageMaker-`) && contai
 
 ### 角色权限对比
 
-| 权限类型 | ExecutionRole | TrainingRole | ProcessingRole | InferenceRole |
-| -------- | :-----------: | :----------: | :------------: | :-----------: |
-| AmazonSageMakerFullAccess | ✅ | ❌ | ❌ | ❌ |
-| Canvas 策略组 | ✅ (可选) | ❌ | ❌ | ❌ |
-| StudioAppPermissions | ✅ | ❌ | ❌ | ❌ |
-| MLflowAppAccess | ✅ (可选) | ❌ | ❌ | ❌ |
-| S3 完整读写 | ✅ | ❌ | ❌ | ❌ |
-| S3 训练数据/模型输出 | ✅ | ✅ | ❌ | ❌ |
-| S3 原始数据/处理输出 | ✅ | ❌ | ✅ | ❌ |
-| S3 模型只读/推理输出 | ✅ | ❌ | ❌ | ✅ |
-| ECR 读写 | ✅ | ❌ | ❌ | ❌ |
-| ECR 只读 | ✅ | ✅ | ✅ | ✅ |
-| Training/HPO 操作 | ✅ | ✅ | ❌ | ❌ |
-| Processing 操作 | ✅ | ❌ | ✅ | ❌ |
-| Inference 操作 | ✅ | ❌ | ❌ | ✅ |
-| Model Registry 写入 | ✅ | ✅ | ❌ | ❌ |
-| Model Registry 只读 | ✅ | ✅ | ❌ | ✅ |
-| Feature Store | ✅ | ❌ | ✅ | ❌ |
-| Glue/Athena | ❌ | ❌ | ✅ | ❌ |
-| Pass Role 到其他角色 | ✅ | ❌ | ❌ | ❌ |
+| 权限类型                  | ExecutionRole | TrainingRole | ProcessingRole | InferenceRole |
+| ------------------------- | :-----------: | :----------: | :------------: | :-----------: |
+| AmazonSageMakerFullAccess |      ✅       |      ❌      |       ❌       |      ❌       |
+| Canvas 策略组             |   ✅ (可选)   |      ❌      |       ❌       |      ❌       |
+| StudioAppPermissions      |      ✅       |      ❌      |       ❌       |      ❌       |
+| MLflowAppAccess           |   ✅ (可选)   |      ❌      |       ❌       |      ❌       |
+| S3 完整读写               |      ✅       |      ❌      |       ❌       |      ❌       |
+| S3 训练数据/模型输出      |      ✅       |      ✅      |       ❌       |      ❌       |
+| S3 原始数据/处理输出      |      ✅       |      ❌      |       ✅       |      ❌       |
+| S3 模型只读/推理输出      |      ✅       |      ❌      |       ❌       |      ✅       |
+| ECR 读写                  |      ✅       |      ❌      |       ❌       |      ❌       |
+| ECR 只读                  |      ✅       |      ✅      |       ✅       |      ✅       |
+| Training/HPO 操作         |      ✅       |      ✅      |       ❌       |      ❌       |
+| Processing 操作           |      ✅       |      ❌      |       ✅       |      ❌       |
+| Inference 操作            |      ✅       |      ❌      |       ❌       |      ✅       |
+| Model Registry 写入       |      ✅       |      ✅      |       ❌       |      ❌       |
+| Model Registry 只读       |      ✅       |      ✅      |       ❌       |      ✅       |
+| Feature Store             |      ✅       |      ❌      |       ✅       |      ❌       |
+| Glue/Athena               |      ❌       |      ❌      |       ✅       |      ❌       |
+| Pass Role 到其他角色      |      ✅       |      ❌      |       ❌       |      ❌       |
 
 ### 权限层次详解
 
@@ -459,9 +459,9 @@ aws iam list-roles --query 'Roles[?starts_with(RoleName, `SageMaker-`) && contai
 
 **TrainingRole / ProcessingRole / InferenceRole:**
 
-| 顺序 | 权限                   | 说明                     |
-| ---- | ---------------------- | ------------------------ |
-| 1    | 专用自定义策略         | 只包含该阶段所需最小权限 |
+| 顺序 | 权限           | 说明                     |
+| ---- | -------------- | ------------------------ |
+| 1    | 专用自定义策略 | 只包含该阶段所需最小权限 |
 
 ### Canvas 策略组（默认开启）
 
@@ -531,15 +531,15 @@ ENABLE_CANVAS=false ./04-create-roles.sh
 
 **Inference Role 权限范围**：
 
-| 权限类型 | 范围 | 说明 |
-| -------- | ---- | ---- |
-| S3 读取 | `models/*`, `inference/*` | 模型文件只读 |
-| S3 写入 | `inference/output/*`, `batch-transform/*` | 仅推理输出 |
-| ECR | 只读 | 拉取推理容器镜像 |
-| Model Registry | 只读 | 读取已批准模型 |
-| CloudWatch Logs | 写入 | 推理日志 |
-| Inference 操作 | 完整 | Endpoint, Transform |
-| VPC ENI | 允许 | VPCOnly 模式部署 |
+| 权限类型        | 范围                                      | 说明                |
+| --------------- | ----------------------------------------- | ------------------- |
+| S3 读取         | `models/*`, `inference/*`                 | 模型文件只读        |
+| S3 写入         | `inference/output/*`, `batch-transform/*` | 仅推理输出          |
+| ECR             | 只读                                      | 拉取推理容器镜像    |
+| Model Registry  | 只读                                      | 读取已批准模型      |
+| CloudWatch Logs | 写入                                      | 推理日志            |
+| Inference 操作  | 完整                                      | Endpoint, Transform |
+| VPC ENI         | 允许                                      | VPCOnly 模式部署    |
 
 **配置控制**：
 
@@ -721,15 +721,16 @@ setup-all.sh
 
 **创建的角色类型：**
 
-| 角色类型       | 命名格式                                    | 用途                         |
-| -------------- | ------------------------------------------- | ---------------------------- |
-| Domain Default | `SageMaker-Domain-DefaultExecutionRole`     | Domain 默认角色              |
-| ExecutionRole  | `SageMaker-{Team}-{Project}-ExecutionRole`  | Notebook/Studio 开发         |
-| TrainingRole   | `SageMaker-{Team}-{Project}-TrainingRole`   | Training Jobs, HPO           |
+| 角色类型       | 命名格式                                    | 用途                           |
+| -------------- | ------------------------------------------- | ------------------------------ |
+| Domain Default | `SageMaker-Domain-DefaultExecutionRole`     | Domain 默认角色                |
+| ExecutionRole  | `SageMaker-{Team}-{Project}-ExecutionRole`  | Notebook/Studio 开发           |
+| TrainingRole   | `SageMaker-{Team}-{Project}-TrainingRole`   | Training Jobs, HPO             |
 | ProcessingRole | `SageMaker-{Team}-{Project}-ProcessingRole` | Processing Jobs, Data Wrangler |
-| InferenceRole  | `SageMaker-{Team}-{Project}-InferenceRole`  | Endpoints, Batch Transform   |
+| InferenceRole  | `SageMaker-{Team}-{Project}-InferenceRole`  | Endpoints, Batch Transform     |
 
 **特性：**
+
 - 信任 sagemaker.amazonaws.com (仅 `sts:AssumeRole`)
 - ExecutionRole: AmazonSageMakerFullAccess + Pass Role + 项目策略
 - TrainingRole: 训练数据 + 模型输出 + Model Registry 写入
