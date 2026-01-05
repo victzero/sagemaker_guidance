@@ -10,25 +10,27 @@
 
 ### Phase 1: 基础平台（✅ 已完成）
 
-| 序号 | 文档                                         | 说明                                 | 状态    |
-| ---- | -------------------------------------------- | ------------------------------------ | ------- |
-| 01   | [架构概览](./01-architecture-overview.md)    | 整体架构、团队组织、复杂度评估       | ✅ 完成 |
-| 02   | [IAM 权限设计](./02-iam-design.md)           | 4 角色设计、Policy JSON、MFA 强制    | ✅ 完成 |
-| 03   | [VPC 网络配置](./03-vpc-network.md)          | 子网、安全组、VPC Endpoints          | ✅ 完成 |
-| 04   | [S3 数据管理](./04-s3-data-management.md)    | Bucket Policy、生命周期规则 JSON     | ✅ 完成 |
-| 05   | [SageMaker Domain](./05-sagemaker-domain.md) | CLI 创建、内置 Idle Shutdown         | ✅ 完成 |
-| 06   | [User Profile 设计](./06-user-profile.md)    | Profile + Private Space、批量脚本   | ✅ 完成 |
-| 08   | [实施步骤指南](./08-implementation-guide.md) | 创建顺序 Checklist                   | ✅ 完成 |
-| 09   | [附录与参考](./09-appendix.md)               | 术语表、FAQ、参考链接                | ✅ 完成 |
+| 序号 | 文档                                         | 说明                              | 状态    |
+| ---- | -------------------------------------------- | --------------------------------- | ------- |
+| 01   | [架构概览](./01-architecture-overview.md)    | 整体架构、团队组织、复杂度评估    | ✅ 完成 |
+| 02   | [IAM 权限设计](./02-iam-design.md)           | 4 角色设计、Policy JSON、MFA 强制 | ✅ 完成 |
+| 03   | [VPC 网络配置](./03-vpc-network.md)          | 子网、安全组、VPC Endpoints       | ✅ 完成 |
+| 04   | [S3 数据管理](./04-s3-data-management.md)    | Bucket Policy、生命周期规则 JSON  | ✅ 完成 |
+| 05   | [SageMaker Domain](./05-sagemaker-domain.md) | CLI 创建、内置 Idle Shutdown      | ✅ 完成 |
+| 06   | [User Profile 设计](./06-user-profile.md)    | Profile + Private Space、批量脚本 | ✅ 完成 |
+| 08   | [实施步骤指南](./08-implementation-guide.md) | 创建顺序 Checklist                | ✅ 完成 |
+| 09   | [附录与参考](./09-appendix.md)               | 术语表、FAQ、参考链接             | ✅ 完成 |
 
 ### Phase 2: ML 服务扩展（✅ POC 就绪）
 
-| 序号 | 文档                                             | 说明                           | 状态      |
-| ---- | ------------------------------------------------ | ------------------------------ | --------- |
-| 10   | [SageMaker Processing](./10-sagemaker-processing.md) | 数据处理、特征工程 Job     | ✅ 可用 |
-| 11   | [Data Wrangler](./11-data-wrangler.md)           | 可视化数据准备                 | ✅ 可用 |
-| 12   | [SageMaker Training](./12-sagemaker-training.md) | 模型训练、分布式训练、HPO      | ✅ 可用 |
-| 13   | [Real-Time Inference](./13-realtime-inference.md)| 实时推理 Endpoint              | ✅ 可用 |
+| 序号 | 文档                                                 | 说明                        | 状态    |
+| ---- | ---------------------------------------------------- | --------------------------- | ------- |
+| 10   | [SageMaker Processing](./10-sagemaker-processing.md) | 数据处理、特征工程 Job      | ✅ 可用 |
+| 11   | [Data Wrangler](./11-data-wrangler.md)               | 可视化数据准备              | ✅ 可用 |
+| 12   | [SageMaker Training](./12-sagemaker-training.md)     | 模型训练、分布式训练、HPO   | ✅ 可用 |
+| 13   | [Real-Time Inference](./13-realtime-inference.md)    | 实时推理 Endpoint           | ✅ 可用 |
+| 14   | [工作负载资源设计](./14-workload-resources.md)       | 安全组、ECR、Model Registry | ✅ 可用 |
+| 15   | [工作负载实施计划](./15-workload-implementation.md)  | 详细实施步骤                | ✅ 可用 |
 
 ---
 
@@ -80,11 +82,12 @@ Phase 2 - ML 服务扩展 ✅ POC 就绪
 ├── SageMaker Processing    (数据处理)
 ├── SageMaker Data Wrangler (可视化数据准备)
 ├── SageMaker Training      (模型训练)
-└── SageMaker Inference     (实时推理)
+├── SageMaker Inference     (实时推理)
+├── ECR 容器镜像仓库        (scripts/06-ecr)
+└── Model Registry          (scripts/07-model-registry)
 
 Phase 3 - 高级功能 ⏳ 待规划
 ├── Feature Store
-├── Model Registry
 ├── ML Pipelines
 └── Model Monitor
 ```
@@ -148,12 +151,12 @@ Phase 3 - 高级功能 ⏳ 待规划
 
 ## 📝 版本记录
 
-| 版本 | 日期       | 说明                                             |
-| ---- | ---------- | ------------------------------------------------ |
-| v0.1 | 2024-12-24 | 初始框架，文档结构设计                           |
-| v1.0 | 2024-12-24 | Phase 1 完成：基础平台设计，含 CLI、Policy JSON、脚本 |
-| v2.0 | 2024-12-24 | Phase 2 框架：新增 Processing/Training/Inference 文档 |
-| v2.1 | 2024-12-30 | Phase 2 POC 就绪：完善实操指南，IAM 权限已支持 ML Jobs |
+| 版本 | 日期       | 说明                                                                                |
+| ---- | ---------- | ----------------------------------------------------------------------------------- |
+| v0.1 | 2024-12-24 | 初始框架，文档结构设计                                                              |
+| v1.0 | 2024-12-24 | Phase 1 完成：基础平台设计，含 CLI、Policy JSON、脚本                               |
+| v2.0 | 2024-12-24 | Phase 2 框架：新增 Processing/Training/Inference 文档                               |
+| v2.1 | 2024-12-30 | Phase 2 POC 就绪：完善实操指南，IAM 权限已支持 ML Jobs                              |
 | v2.2 | 2025-01-05 | 文档与实现对齐：4 角色设计、Private Space、内置 Idle Shutdown、移除 07-shared-space |
 
 ---
@@ -165,3 +168,4 @@ Phase 3 - 高级功能 ⏳ 待规划
 - **权限问题**：参考 [02-IAM 权限设计](./02-iam-design.md)
 - **用户手册**：[用户使用手册](./USER-GUIDE.md)
 - **ML Jobs**：[Processing](./10-sagemaker-processing.md) | [Training](./12-sagemaker-training.md) | [Inference](./13-realtime-inference.md)
+- **工作负载**：[资源设计](./14-workload-resources.md) | [实施计划](./15-workload-implementation.md)
