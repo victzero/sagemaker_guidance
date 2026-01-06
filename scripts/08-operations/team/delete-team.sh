@@ -27,6 +27,10 @@ source "${SCRIPT_DIR}/../00-init.sh"
 # 静默初始化
 init_silent
 
+# 加载工厂函数库
+POLICY_TEMPLATES_DIR="${SCRIPTS_ROOT}/01-iam/policies"
+source "${SCRIPTS_ROOT}/lib/iam-core.sh"
+
 # =============================================================================
 # 交互式选择
 # =============================================================================
@@ -273,7 +277,7 @@ if [[ "$confirm2" != "$SELECTED_TEAM" ]]; then
 fi
 
 # =============================================================================
-# 执行删除
+# 执行删除 (使用 lib/iam-core.sh 工厂函数)
 # =============================================================================
 
 echo ""
@@ -281,28 +285,11 @@ log_step "开始删除资源..."
 echo ""
 
 # -----------------------------------------------------------------------------
-# Step 1: 分离并删除 Group
+# Step 1: 删除 IAM Group (包含策略分离)
 # -----------------------------------------------------------------------------
 log_info "Step 1/2: 删除 IAM Group..."
 
-# 分离所有策略
-ATTACHED_POLICIES=$(aws iam list-attached-group-policies \
-    --group-name "$SELECTED_GROUP" \
-    --query 'AttachedPolicies[].PolicyArn' \
-    --output text 2>/dev/null || echo "")
-
-for policy_arn in $ATTACHED_POLICIES; do
-    if [[ -n "$policy_arn" ]]; then
-        aws iam detach-group-policy \
-            --group-name "$SELECTED_GROUP" \
-            --policy-arn "$policy_arn" 2>/dev/null || true
-        log_info "  已分离策略: ${policy_arn##*/}"
-    fi
-done
-
-# 删除 Group
-aws iam delete-group --group-name "$SELECTED_GROUP"
-log_success "已删除 Group: $SELECTED_GROUP"
+delete_iam_group "$SELECTED_GROUP"
 
 # -----------------------------------------------------------------------------
 # Step 2: 删除团队 Policy
@@ -310,23 +297,7 @@ log_success "已删除 Group: $SELECTED_GROUP"
 log_info "Step 2/2: 删除 IAM Policy..."
 
 if [[ "$POLICY_EXISTS" == "true" ]]; then
-    # 删除所有非默认版本
-    VERSIONS=$(aws iam list-policy-versions \
-        --policy-arn "$POLICY_ARN" \
-        --query 'Versions[?!IsDefaultVersion].VersionId' \
-        --output text 2>/dev/null || echo "")
-    
-    for version in $VERSIONS; do
-        if [[ -n "$version" ]]; then
-            aws iam delete-policy-version \
-                --policy-arn "$POLICY_ARN" \
-                --version-id "$version" 2>/dev/null || true
-        fi
-    done
-    
-    # 删除策略
-    aws iam delete-policy --policy-arn "$POLICY_ARN"
-    log_success "已删除 Policy: $POLICY_NAME"
+    delete_iam_policy "$POLICY_ARN"
 else
     log_info "跳过 (策略不存在)"
 fi

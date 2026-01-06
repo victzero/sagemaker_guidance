@@ -270,3 +270,214 @@ get_domain_id() {
     echo "$domain_id"
 }
 
+# =============================================================================
+# SageMaker 删除函数 (从 05-user-profiles/cleanup.sh 提取)
+# =============================================================================
+
+# 删除 Space 的所有 Apps
+# 用法: delete_apps_for_space <domain_id> <space_name>
+delete_apps_for_space() {
+    local domain_id=$1
+    local space_name=$2
+    
+    log_info "Deleting Apps for Space: $space_name"
+    
+    local apps=$(aws sagemaker list-apps \
+        --domain-id "$domain_id" \
+        --space-name "$space_name" \
+        --query 'Apps[?Status!=`Deleted`].[AppType,AppName]' \
+        --output text \
+        --region "$AWS_REGION" 2>/dev/null || echo "")
+    
+    local app_count=0
+    while IFS=$'\t' read -r app_type app_name; do
+        [[ -z "$app_name" ]] && continue
+        log_info "  Deleting App: $app_type/$app_name"
+        aws sagemaker delete-app \
+            --domain-id "$domain_id" \
+            --space-name "$space_name" \
+            --app-type "$app_type" \
+            --app-name "$app_name" \
+            --region "$AWS_REGION" 2>/dev/null || true
+        ((app_count++)) || true
+    done <<< "$apps"
+    
+    # 等待 Apps 删除
+    if [[ $app_count -gt 0 ]]; then
+        log_info "  Waiting for Apps to be deleted..."
+        sleep 15
+    fi
+}
+
+# 删除 Private Space
+# 用法: delete_private_space <domain_id> <space_name>
+delete_private_space() {
+    local domain_id=$1
+    local space_name=$2
+    
+    # 检查是否存在
+    if ! aws sagemaker describe-space \
+        --domain-id "$domain_id" \
+        --space-name "$space_name" \
+        --region "$AWS_REGION" &> /dev/null; then
+        log_info "Space not found, skipping: $space_name"
+        return 0
+    fi
+    
+    # 先删除所有 Apps
+    delete_apps_for_space "$domain_id" "$space_name"
+    
+    # 删除 Space
+    log_info "Deleting Space: $space_name"
+    aws sagemaker delete-space \
+        --domain-id "$domain_id" \
+        --space-name "$space_name" \
+        --region "$AWS_REGION" 2>/dev/null || log_warn "Could not delete $space_name"
+    
+    log_success "Space deleted: $space_name"
+}
+
+# 等待 Space 完全删除
+# 用法: wait_for_space_deleted <domain_id> <space_name>
+wait_for_space_deleted() {
+    local domain_id=$1
+    local space_name=$2
+    local max_wait=${3:-120}
+    local wait_interval=5
+    local elapsed=0
+    
+    log_info "Waiting for Space to be deleted: $space_name"
+    
+    while [ $elapsed -lt $max_wait ]; do
+        if ! aws sagemaker describe-space \
+            --domain-id "$domain_id" \
+            --space-name "$space_name" \
+            --region "$AWS_REGION" &> /dev/null; then
+            log_success "Space deleted: $space_name"
+            return 0
+        fi
+        
+        echo -n "."
+        sleep $wait_interval
+        elapsed=$((elapsed + wait_interval))
+    done
+    echo ""
+    
+    log_warn "Space still exists after ${max_wait}s: $space_name"
+    return 1
+}
+
+# 删除 User Profile 的所有 Apps
+# 用法: delete_apps_for_profile <domain_id> <profile_name>
+delete_apps_for_profile() {
+    local domain_id=$1
+    local profile_name=$2
+    
+    log_info "Deleting Apps for Profile: $profile_name"
+    
+    local apps=$(aws sagemaker list-apps \
+        --domain-id "$domain_id" \
+        --user-profile-name "$profile_name" \
+        --query 'Apps[?Status!=`Deleted`].[AppType,AppName]' \
+        --output text \
+        --region "$AWS_REGION" 2>/dev/null || echo "")
+    
+    local app_count=0
+    while IFS=$'\t' read -r app_type app_name; do
+        [[ -z "$app_name" ]] && continue
+        log_info "  Deleting App: $app_type/$app_name"
+        aws sagemaker delete-app \
+            --domain-id "$domain_id" \
+            --user-profile-name "$profile_name" \
+            --app-type "$app_type" \
+            --app-name "$app_name" \
+            --region "$AWS_REGION" 2>/dev/null || true
+        ((app_count++)) || true
+    done <<< "$apps"
+    
+    # 等待 Apps 删除
+    if [[ $app_count -gt 0 ]]; then
+        log_info "  Waiting for Apps to be deleted..."
+        sleep 15
+    fi
+}
+
+# 删除 User Profile
+# 用法: delete_user_profile <domain_id> <profile_name>
+delete_sagemaker_user_profile() {
+    local domain_id=$1
+    local profile_name=$2
+    
+    # 检查是否存在
+    if ! aws sagemaker describe-user-profile \
+        --domain-id "$domain_id" \
+        --user-profile-name "$profile_name" \
+        --region "$AWS_REGION" &> /dev/null; then
+        log_info "Profile not found, skipping: $profile_name"
+        return 0
+    fi
+    
+    # 先删除所有 Apps
+    delete_apps_for_profile "$domain_id" "$profile_name"
+    
+    # 删除 Profile
+    log_info "Deleting User Profile: $profile_name"
+    aws sagemaker delete-user-profile \
+        --domain-id "$domain_id" \
+        --user-profile-name "$profile_name" \
+        --region "$AWS_REGION" 2>/dev/null || log_warn "Could not delete $profile_name"
+    
+    log_success "User Profile deleted: $profile_name"
+}
+
+# 等待 User Profile 完全删除
+# 用法: wait_for_profile_deleted <domain_id> <profile_name>
+wait_for_profile_deleted() {
+    local domain_id=$1
+    local profile_name=$2
+    local max_wait=${3:-120}
+    local wait_interval=5
+    local elapsed=0
+    
+    log_info "Waiting for User Profile to be deleted: $profile_name"
+    
+    while [ $elapsed -lt $max_wait ]; do
+        if ! aws sagemaker describe-user-profile \
+            --domain-id "$domain_id" \
+            --user-profile-name "$profile_name" \
+            --region "$AWS_REGION" &> /dev/null; then
+            log_success "User Profile deleted: $profile_name"
+            return 0
+        fi
+        
+        echo -n "."
+        sleep $wait_interval
+        elapsed=$((elapsed + wait_interval))
+    done
+    echo ""
+    
+    log_warn "User Profile still exists after ${max_wait}s: $profile_name"
+    return 1
+}
+
+# 删除用户的所有 SageMaker 资源 (Profile + Space)
+# 用法: delete_user_sagemaker_resources <domain_id> <profile_name> <space_name>
+delete_user_sagemaker_resources() {
+    local domain_id=$1
+    local profile_name=$2
+    local space_name=$3
+    
+    log_step "Deleting SageMaker resources for user..."
+    
+    # 1. 先删除 Space (必须在 Profile 之前)
+    delete_private_space "$domain_id" "$space_name"
+    
+    # 等待 Space 完全删除
+    wait_for_space_deleted "$domain_id" "$space_name" 60 || true
+    
+    # 2. 删除 User Profile
+    delete_sagemaker_user_profile "$domain_id" "$profile_name"
+    
+    log_success "User SageMaker resources deleted"
+}
+

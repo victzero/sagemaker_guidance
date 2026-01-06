@@ -10,6 +10,9 @@ source "${SCRIPT_DIR}/00-init.sh"
 
 init
 
+# 加载删除函数库 (统一实现，避免代码重复)
+source "${SCRIPTS_ROOT}/lib/s3-factory.sh"
+
 FORCE=false
 if [[ "$1" == "--force" ]]; then
     FORCE=true
@@ -47,50 +50,9 @@ if [[ "$FORCE" != "true" ]]; then
 fi
 
 # -----------------------------------------------------------------------------
-# 删除 Bucket 函数
+# 注意: 删除函数已移至 lib/s3-factory.sh 统一维护
+# 可用函数: delete_bucket, empty_bucket
 # -----------------------------------------------------------------------------
-delete_bucket() {
-    local bucket_name=$1
-    
-    log_info "Deleting bucket: $bucket_name"
-    
-    if ! aws s3api head-bucket --bucket "$bucket_name" --region "$AWS_REGION" 2>/dev/null; then
-        log_warn "Bucket $bucket_name does not exist, skipping..."
-        return 0
-    fi
-    
-    # 删除所有对象 (包括版本)
-    log_info "Deleting all objects in $bucket_name..."
-    aws s3 rm "s3://${bucket_name}" --recursive --region "$AWS_REGION" 2>/dev/null || true
-    
-    # 删除所有版本
-    log_info "Deleting all object versions..."
-    aws s3api list-object-versions --bucket "$bucket_name" --region "$AWS_REGION" \
-        --query 'Versions[].{Key:Key,VersionId:VersionId}' --output json 2>/dev/null | \
-        jq -c '.[]' 2>/dev/null | while read -r obj; do
-            key=$(echo "$obj" | jq -r '.Key')
-            version=$(echo "$obj" | jq -r '.VersionId')
-            aws s3api delete-object --bucket "$bucket_name" --key "$key" --version-id "$version" \
-                --region "$AWS_REGION" 2>/dev/null || true
-        done
-    
-    # 删除所有删除标记
-    log_info "Deleting all delete markers..."
-    aws s3api list-object-versions --bucket "$bucket_name" --region "$AWS_REGION" \
-        --query 'DeleteMarkers[].{Key:Key,VersionId:VersionId}' --output json 2>/dev/null | \
-        jq -c '.[]' 2>/dev/null | while read -r obj; do
-            key=$(echo "$obj" | jq -r '.Key')
-            version=$(echo "$obj" | jq -r '.VersionId')
-            aws s3api delete-object --bucket "$bucket_name" --key "$key" --version-id "$version" \
-                --region "$AWS_REGION" 2>/dev/null || true
-        done
-    
-    # 删除 Bucket
-    log_info "Deleting bucket..."
-    aws s3api delete-bucket --bucket "$bucket_name" --region "$AWS_REGION"
-    
-    log_success "Bucket $bucket_name deleted"
-}
 
 # -----------------------------------------------------------------------------
 # 主函数

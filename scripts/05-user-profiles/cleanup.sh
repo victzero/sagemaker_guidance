@@ -16,6 +16,9 @@ source "${SCRIPT_DIR}/00-init.sh"
 
 init
 
+# 加载删除函数库 (统一实现，避免代码重复)
+source "${SCRIPTS_ROOT}/lib/sagemaker-factory.sh"
+
 FORCE=false
 if [[ "$1" == "--force" ]]; then
     FORCE=true
@@ -69,6 +72,8 @@ fi
 
 # -----------------------------------------------------------------------------
 # 删除 Private Spaces (必须先于 User Profiles)
+# 注意: 删除函数已移至 lib/sagemaker-factory.sh 统一维护
+# 可用函数: delete_private_space, delete_sagemaker_user_profile
 # -----------------------------------------------------------------------------
 log_info "Deleting Private Spaces..."
 
@@ -81,49 +86,7 @@ for team in $TEAMS; do
         
         for user in $users; do
             space_name="space-${team}-${project_short}-${user}"
-            
-            # 检查是否存在
-            if ! aws sagemaker describe-space \
-                --domain-id "$DOMAIN_ID" \
-                --space-name "$space_name" \
-                --region "$AWS_REGION" &> /dev/null; then
-                log_info "Space not found, skipping: $space_name"
-                continue
-            fi
-            
-            # 先删除所有 Apps
-            log_info "Deleting Apps for Space: $space_name"
-            apps=$(aws sagemaker list-apps \
-                --domain-id "$DOMAIN_ID" \
-                --space-name "$space_name" \
-                --query 'Apps[?Status!=`Deleted`].[AppType,AppName]' \
-                --output text \
-                --region "$AWS_REGION" 2>/dev/null || echo "")
-            
-            while IFS=$'\t' read -r app_type app_name; do
-                [[ -z "$app_name" ]] && continue
-                log_info "  Deleting App: $app_type/$app_name"
-                aws sagemaker delete-app \
-                    --domain-id "$DOMAIN_ID" \
-                    --space-name "$space_name" \
-                    --app-type "$app_type" \
-                    --app-name "$app_name" \
-                    --region "$AWS_REGION" 2>/dev/null || true
-            done <<< "$apps"
-            
-            # 等待 Apps 删除
-            if [[ -n "$apps" ]]; then
-                log_info "  Waiting for Apps to be deleted..."
-                sleep 15
-            fi
-            
-            # 删除 Space
-            log_info "Deleting Space: $space_name"
-            aws sagemaker delete-space \
-                --domain-id "$DOMAIN_ID" \
-                --space-name "$space_name" \
-                --region "$AWS_REGION" 2>/dev/null || log_warn "Could not delete $space_name"
-            
+            delete_private_space "$DOMAIN_ID" "$space_name"
             ((space_deleted++)) || true
             sleep 2
         done
@@ -150,48 +113,7 @@ for team in $TEAMS; do
         
         for user in $users; do
             profile_name="profile-${team}-${project_short}-${user}"
-            
-            # 检查是否存在
-            if ! aws sagemaker describe-user-profile \
-                --domain-id "$DOMAIN_ID" \
-                --user-profile-name "$profile_name" \
-                --region "$AWS_REGION" &> /dev/null; then
-                log_info "Profile not found, skipping: $profile_name"
-                continue
-            fi
-            
-            # 先删除所有 Apps
-            log_info "Deleting Apps for Profile: $profile_name"
-            apps=$(aws sagemaker list-apps \
-                --domain-id "$DOMAIN_ID" \
-                --user-profile-name "$profile_name" \
-                --query 'Apps[?Status!=`Deleted`].[AppType,AppName]' \
-                --output text \
-                --region "$AWS_REGION" 2>/dev/null || echo "")
-            
-            while IFS=$'\t' read -r app_type app_name; do
-                [[ -z "$app_name" ]] && continue
-                log_info "  Deleting App: $app_type/$app_name"
-                aws sagemaker delete-app \
-                    --domain-id "$DOMAIN_ID" \
-                    --user-profile-name "$profile_name" \
-                    --app-type "$app_type" \
-                    --app-name "$app_name" \
-                    --region "$AWS_REGION" 2>/dev/null || true
-            done <<< "$apps"
-            
-            # 等待 Apps 删除
-            if [[ -n "$apps" ]]; then
-                sleep 10
-            fi
-            
-            # 删除 Profile
-            log_info "Deleting Profile: $profile_name"
-            aws sagemaker delete-user-profile \
-                --domain-id "$DOMAIN_ID" \
-                --user-profile-name "$profile_name" \
-                --region "$AWS_REGION" 2>/dev/null || log_warn "Could not delete $profile_name"
-            
+            delete_sagemaker_user_profile "$DOMAIN_ID" "$profile_name"
             ((profile_deleted++)) || true
             sleep 1
         done

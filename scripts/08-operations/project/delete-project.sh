@@ -27,6 +27,12 @@ source "${SCRIPT_DIR}/../00-init.sh"
 # 静默初始化
 init_silent
 
+# 加载工厂函数库
+POLICY_TEMPLATES_DIR="${SCRIPTS_ROOT}/01-iam/policies"
+source "${SCRIPTS_ROOT}/lib/iam-core.sh"
+source "${SCRIPTS_ROOT}/lib/sagemaker-factory.sh"
+source "${SCRIPTS_ROOT}/lib/s3-factory.sh"
+
 # =============================================================================
 # 交互式选择
 # =============================================================================
@@ -265,7 +271,7 @@ if [[ "$confirm2" != "$SELECTED_PROJECT" ]]; then
 fi
 
 # =============================================================================
-# 执行删除
+# 执行删除 (使用 lib/ 工厂函数)
 # =============================================================================
 
 echo ""
@@ -279,36 +285,7 @@ log_info "Step 1/6: 删除 Private Spaces..."
 
 for space in $PROJECT_SPACES; do
     if [[ -n "$space" ]]; then
-        log_info "  删除 Space: $space"
-        
-        # 停止运行中的 App
-        APPS=$(aws sagemaker list-apps \
-            --domain-id "$DOMAIN_ID" \
-            --space-name-equals "$space" \
-            --query 'Apps[?Status==`InService` || Status==`Pending`].[AppName,AppType]' \
-            --output text \
-            --region "$AWS_REGION" 2>/dev/null || echo "")
-        
-        if [[ -n "$APPS" ]]; then
-            while IFS=$'\t' read -r app_name app_type; do
-                if [[ -n "$app_name" ]]; then
-                    aws sagemaker delete-app \
-                        --domain-id "$DOMAIN_ID" \
-                        --space-name "$space" \
-                        --app-name "$app_name" \
-                        --app-type "$app_type" \
-                        --region "$AWS_REGION" 2>/dev/null || true
-                fi
-            done <<< "$APPS"
-            sleep 5
-        fi
-        
-        aws sagemaker delete-space \
-            --domain-id "$DOMAIN_ID" \
-            --space-name "$space" \
-            --region "$AWS_REGION" 2>/dev/null || true
-        
-        log_success "  已删除: $space"
+        delete_private_space "$DOMAIN_ID" "$space"
         sleep 2
     fi
 done
@@ -320,36 +297,7 @@ log_info "Step 2/6: 删除 User Profiles..."
 
 for profile in $PROJECT_PROFILES; do
     if [[ -n "$profile" ]]; then
-        log_info "  删除 Profile: $profile"
-        
-        # 停止运行中的 App
-        APPS=$(aws sagemaker list-apps \
-            --domain-id "$DOMAIN_ID" \
-            --user-profile-name-equals "$profile" \
-            --query 'Apps[?Status==`InService` || Status==`Pending`].[AppName,AppType]' \
-            --output text \
-            --region "$AWS_REGION" 2>/dev/null || echo "")
-        
-        if [[ -n "$APPS" ]]; then
-            while IFS=$'\t' read -r app_name app_type; do
-                if [[ -n "$app_name" ]]; then
-                    aws sagemaker delete-app \
-                        --domain-id "$DOMAIN_ID" \
-                        --user-profile-name "$profile" \
-                        --app-name "$app_name" \
-                        --app-type "$app_type" \
-                        --region "$AWS_REGION" 2>/dev/null || true
-                fi
-            done <<< "$APPS"
-            sleep 5
-        fi
-        
-        aws sagemaker delete-user-profile \
-            --domain-id "$DOMAIN_ID" \
-            --user-profile-name "$profile" \
-            --region "$AWS_REGION" 2>/dev/null || true
-        
-        log_success "  已删除: $profile"
+        delete_sagemaker_user_profile "$DOMAIN_ID" "$profile"
         sleep 2
     fi
 done
@@ -369,23 +317,12 @@ for member in $PROJECT_MEMBERS; do
     fi
 done
 
-# 分离所有策略
-ATTACHED_POLICIES=$(aws iam list-attached-group-policies \
-    --group-name "$GROUP_NAME" \
-    --query 'AttachedPolicies[].PolicyArn' \
-    --output text 2>/dev/null || echo "")
-
-for policy_arn in $ATTACHED_POLICIES; do
-    if [[ -n "$policy_arn" ]]; then
-        aws iam detach-group-policy \
-            --group-name "$GROUP_NAME" \
-            --policy-arn "$policy_arn" 2>/dev/null || true
-    fi
-done
-
-# 删除 Group
-aws iam delete-group --group-name "$GROUP_NAME" 2>/dev/null || true
-log_success "已删除 Group: $GROUP_NAME"
+# 删除 Group (包含策略分离)
+if aws iam get-group --group-name "$GROUP_NAME" &> /dev/null; then
+    delete_iam_group "$GROUP_NAME"
+else
+    log_info "Group $GROUP_NAME not found, skipping..."
+fi
 
 # -----------------------------------------------------------------------------
 # Step 4: 删除 IAM Roles
@@ -394,37 +331,7 @@ log_info "Step 4/6: 删除 IAM Roles..."
 
 for role_name in "$ROLE_EXECUTION" "$ROLE_TRAINING" "$ROLE_PROCESSING" "$ROLE_INFERENCE"; do
     if aws iam get-role --role-name "$role_name" &> /dev/null; then
-        # 分离所有托管策略
-        ROLE_POLICIES=$(aws iam list-attached-role-policies \
-            --role-name "$role_name" \
-            --query 'AttachedPolicies[].PolicyArn' \
-            --output text 2>/dev/null || echo "")
-        
-        for policy_arn in $ROLE_POLICIES; do
-            if [[ -n "$policy_arn" ]]; then
-                aws iam detach-role-policy \
-                    --role-name "$role_name" \
-                    --policy-arn "$policy_arn" 2>/dev/null || true
-            fi
-        done
-        
-        # 删除内联策略
-        INLINE_POLICIES=$(aws iam list-role-policies \
-            --role-name "$role_name" \
-            --query 'PolicyNames[]' \
-            --output text 2>/dev/null || echo "")
-        
-        for policy_name in $INLINE_POLICIES; do
-            if [[ -n "$policy_name" ]]; then
-                aws iam delete-role-policy \
-                    --role-name "$role_name" \
-                    --policy-name "$policy_name" 2>/dev/null || true
-            fi
-        done
-        
-        # 删除角色
-        aws iam delete-role --role-name "$role_name" 2>/dev/null || true
-        log_success "  已删除: $role_name"
+        delete_iam_role "$role_name"
     else
         log_warn "  跳过 (不存在): $role_name"
     fi
@@ -441,23 +348,7 @@ for policy_name in "$POLICY_ACCESS" "$POLICY_S3" "$POLICY_PASSROLE"; do
     policy_arn="${POLICY_ARN_PREFIX}${policy_name}"
     
     if aws iam get-policy --policy-arn "$policy_arn" &> /dev/null; then
-        # 删除所有非默认版本
-        VERSIONS=$(aws iam list-policy-versions \
-            --policy-arn "$policy_arn" \
-            --query 'Versions[?!IsDefaultVersion].VersionId' \
-            --output text 2>/dev/null || echo "")
-        
-        for version in $VERSIONS; do
-            if [[ -n "$version" ]]; then
-                aws iam delete-policy-version \
-                    --policy-arn "$policy_arn" \
-                    --version-id "$version" 2>/dev/null || true
-            fi
-        done
-        
-        # 删除策略
-        aws iam delete-policy --policy-arn "$policy_arn" 2>/dev/null || true
-        log_success "  已删除: $policy_name"
+        delete_iam_policy "$policy_arn"
     else
         log_warn "  跳过 (不存在): $policy_name"
     fi
@@ -468,13 +359,7 @@ done
 # -----------------------------------------------------------------------------
 if [[ "$DELETE_BUCKET" == "true" && "$BUCKET_EXISTS" == "true" ]]; then
     log_info "Step 6/6: 删除 S3 Bucket..."
-    
-    # 清空 bucket
-    aws s3 rm "s3://${BUCKET_NAME}" --recursive 2>/dev/null || true
-    
-    # 删除 bucket
-    aws s3api delete-bucket --bucket "$BUCKET_NAME" 2>/dev/null || true
-    log_success "已删除 Bucket: $BUCKET_NAME"
+    delete_bucket "$BUCKET_NAME"
 else
     log_info "Step 6/6: 跳过 S3 Bucket (保留)"
 fi

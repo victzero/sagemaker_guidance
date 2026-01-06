@@ -270,3 +270,90 @@ create_project_s3() {
     log_success "========================================"
 }
 
+# =============================================================================
+# S3 删除函数
+# =============================================================================
+
+# 清空 S3 Bucket (删除所有对象和版本)
+# 用法: empty_bucket <bucket_name>
+empty_bucket() {
+    local bucket_name=$1
+    
+    log_info "Emptying bucket: $bucket_name"
+    
+    # 删除所有对象版本
+    log_info "  Deleting all object versions..."
+    aws s3api list-object-versions \
+        --bucket "$bucket_name" \
+        --query '{Objects: Versions[].{Key:Key,VersionId:VersionId}}' \
+        --output json 2>/dev/null | \
+    jq -c 'select(.Objects != null) | .Objects[]' | \
+    while read -r obj; do
+        local key=$(echo "$obj" | jq -r '.Key')
+        local version=$(echo "$obj" | jq -r '.VersionId')
+        aws s3api delete-object \
+            --bucket "$bucket_name" \
+            --key "$key" \
+            --version-id "$version" 2>/dev/null || true
+    done
+    
+    # 删除所有删除标记
+    log_info "  Deleting all delete markers..."
+    aws s3api list-object-versions \
+        --bucket "$bucket_name" \
+        --query '{Objects: DeleteMarkers[].{Key:Key,VersionId:VersionId}}' \
+        --output json 2>/dev/null | \
+    jq -c 'select(.Objects != null) | .Objects[]' | \
+    while read -r obj; do
+        local key=$(echo "$obj" | jq -r '.Key')
+        local version=$(echo "$obj" | jq -r '.VersionId')
+        aws s3api delete-object \
+            --bucket "$bucket_name" \
+            --key "$key" \
+            --version-id "$version" 2>/dev/null || true
+    done
+    
+    log_success "Bucket emptied: $bucket_name"
+}
+
+# 删除 S3 Bucket (包含清空)
+# 用法: delete_bucket <bucket_name>
+delete_bucket() {
+    local bucket_name=$1
+    
+    # 检查是否存在
+    if ! aws s3api head-bucket --bucket "$bucket_name" 2>/dev/null; then
+        log_info "Bucket not found, skipping: $bucket_name"
+        return 0
+    fi
+    
+    log_info "Preparing to delete bucket: $bucket_name"
+    
+    # 先清空 bucket
+    empty_bucket "$bucket_name"
+    
+    # 删除 bucket
+    log_info "Deleting bucket: $bucket_name"
+    aws s3api delete-bucket --bucket "$bucket_name"
+    
+    log_success "Bucket deleted: $bucket_name"
+}
+
+# 删除项目的 S3 Bucket
+# 用法: delete_project_bucket <team> <project>
+delete_project_bucket() {
+    local team=$1
+    local project=$2
+    local bucket_name="${COMPANY}-sm-${team}-${project}"
+    
+    log_step "========================================"
+    log_step "Deleting S3 bucket for project: ${team}/${project}"
+    log_step "========================================"
+    
+    delete_bucket "$bucket_name"
+    
+    log_success "========================================"
+    log_success "Project S3 bucket deleted: ${team}/${project}"
+    log_success "========================================"
+}
+

@@ -981,6 +981,28 @@ create_project_group() {
     log_success "IAM Group created: $group_name"
 }
 
+# 创建团队 IAM Group
+# 用法: create_team_group <team>
+# 参数: team - 团队短名 (如 ds) 或全名 (如 data-science)
+create_team_group() {
+    local team=$1
+    local team_fullname=$(get_team_fullname "$team")
+    local group_name="sagemaker-${team_fullname}"
+    
+    log_info "Creating team IAM Group: $group_name"
+    
+    if aws iam get-group --group-name "$group_name" &> /dev/null; then
+        log_warn "Group $group_name already exists, skipping..."
+        return 0
+    fi
+    
+    aws iam create-group \
+        --group-name "$group_name" \
+        --path "${IAM_PATH}"
+    
+    log_success "Team IAM Group created: $group_name"
+}
+
 # =============================================================================
 # 策略绑定到 Group
 # =============================================================================
@@ -1013,6 +1035,69 @@ bind_policies_to_project_group() {
         --policy-arn "${shared_policy_prefix}SageMaker-Shared-DenyAdmin" 2>/dev/null || true
     
     log_success "Policies bound to group: $group_name"
+}
+
+# 绑定团队策略到 Group
+# 用法: bind_team_policies <team>
+# 与 01-iam/05-bind-policies.sh 逻辑一致
+bind_team_policies() {
+    local team=$1
+    local team_fullname=$(get_team_fullname "$team")
+    local team_capitalized=$(format_name "$team_fullname")
+    local group_name="sagemaker-${team_fullname}"
+    local policy_prefix="arn:aws:iam::${AWS_ACCOUNT_ID}:policy${IAM_PATH}"
+    
+    log_info "Binding policies to team group: $group_name"
+    
+    # 1. AWS 托管策略 - SageMaker 完整权限
+    aws iam attach-group-policy --group-name "$group_name" \
+        --policy-arn "arn:aws:iam::aws:policy/AmazonSageMakerFullAccess" 2>/dev/null || true
+    
+    # 2. 基础访问策略
+    aws iam attach-group-policy --group-name "$group_name" \
+        --policy-arn "${policy_prefix}SageMaker-Studio-Base-Access" 2>/dev/null || true
+    
+    # 3. 用户自服务策略 (修改密码、MFA)
+    aws iam attach-group-policy --group-name "$group_name" \
+        --policy-arn "${policy_prefix}SageMaker-User-SelfService" 2>/dev/null || true
+    
+    # 4. 团队访问策略
+    aws iam attach-group-policy --group-name "$group_name" \
+        --policy-arn "${policy_prefix}SageMaker-${team_capitalized}-Team-Access" 2>/dev/null || true
+    
+    log_success "Policies bound to team group: $group_name"
+}
+
+# =============================================================================
+# 团队 IAM 一站式创建
+# =============================================================================
+
+# 创建团队所有 IAM 资源
+# 用法: create_team_iam <team>
+# 创建: Group + Policy + 绑定
+create_team_iam() {
+    local team=$1
+    local team_fullname=$(get_team_fullname "$team")
+    local team_capitalized=$(format_name "$team_fullname")
+    
+    log_step "========================================"
+    log_step "Creating IAM resources for team: ${team_fullname}"
+    log_step "========================================"
+    
+    # 1. 创建 Group
+    create_team_group "$team"
+    
+    # 2. 创建团队策略 (使用模板)
+    local policy_name="SageMaker-${team_capitalized}-Team-Access"
+    local policy_content=$(generate_team_access_policy "$team")
+    create_or_update_policy "$policy_name" "$policy_content"
+    
+    # 3. 绑定策略到 Group
+    bind_team_policies "$team"
+    
+    log_success "========================================"
+    log_success "Team IAM resources created: ${team_fullname}"
+    log_success "========================================"
 }
 
 # =============================================================================
@@ -1124,6 +1209,322 @@ create_project_iam() {
     
     log_success "========================================"
     log_success "Project IAM resources created: ${team}/${project}"
+    log_success "========================================"
+}
+
+# =============================================================================
+# IAM 删除函数 (从 01-iam/cleanup.sh 提取)
+# =============================================================================
+
+# 移除用户的所有组关系
+# 用法: remove_user_from_groups <username>
+remove_user_from_groups() {
+    local username=$1
+    
+    local groups=$(aws iam list-groups-for-user --user-name "$username" \
+        --query 'Groups[].GroupName' --output text 2>/dev/null || echo "")
+    
+    for group in $groups; do
+        log_info "Removing $username from group $group"
+        aws iam remove-user-from-group \
+            --user-name "$username" \
+            --group-name "$group"
+    done
+}
+
+# 删除用户的登录配置
+# 用法: delete_user_login_profile <username>
+delete_user_login_profile() {
+    local username=$1
+    
+    if aws iam get-login-profile --user-name "$username" &> /dev/null; then
+        log_info "Deleting login profile for $username"
+        aws iam delete-login-profile --user-name "$username"
+    fi
+}
+
+# 删除用户的 Access Keys
+# 用法: delete_user_access_keys <username>
+delete_user_access_keys() {
+    local username=$1
+    
+    local keys=$(aws iam list-access-keys --user-name "$username" \
+        --query 'AccessKeyMetadata[].AccessKeyId' --output text 2>/dev/null || echo "")
+    
+    for key in $keys; do
+        log_info "Deleting access key $key for $username"
+        aws iam delete-access-key \
+            --user-name "$username" \
+            --access-key-id "$key"
+    done
+}
+
+# 删除用户的 Permissions Boundary
+# 用法: delete_user_boundary <username>
+delete_user_boundary() {
+    local username=$1
+    
+    log_info "Removing permissions boundary for $username"
+    aws iam delete-user-permissions-boundary \
+        --user-name "$username" 2>/dev/null || true
+}
+
+# 删除 IAM 用户 (包含所有清理步骤)
+# 用法: delete_iam_user <username>
+delete_iam_user() {
+    local username=$1
+    
+    log_info "Preparing to delete user: $username"
+    
+    # 先清理用户的所有关联
+    remove_user_from_groups "$username"
+    delete_user_login_profile "$username"
+    delete_user_access_keys "$username"
+    delete_user_boundary "$username"
+    
+    # 删除用户
+    log_info "Deleting user: $username"
+    aws iam delete-user --user-name "$username"
+    
+    log_success "User $username deleted"
+}
+
+# 分离 Group 的所有策略
+# 用法: detach_group_policies <group_name>
+detach_group_policies() {
+    local group_name=$1
+    
+    local policies=$(aws iam list-attached-group-policies --group-name "$group_name" \
+        --query 'AttachedPolicies[].PolicyArn' --output text 2>/dev/null || echo "")
+    
+    for policy_arn in $policies; do
+        log_info "Detaching policy from group $group_name"
+        aws iam detach-group-policy \
+            --group-name "$group_name" \
+            --policy-arn "$policy_arn"
+    done
+}
+
+# 删除 IAM Group (包含策略分离)
+# 用法: delete_iam_group <group_name>
+delete_iam_group() {
+    local group_name=$1
+    
+    log_info "Preparing to delete group: $group_name"
+    
+    # 先分离所有策略
+    detach_group_policies "$group_name"
+    
+    # 删除组
+    log_info "Deleting group: $group_name"
+    aws iam delete-group --group-name "$group_name"
+    
+    log_success "Group $group_name deleted"
+}
+
+# 分离 Role 的所有策略 (包含托管策略和内联策略)
+# 用法: detach_role_policies <role_name>
+detach_role_policies() {
+    local role_name=$1
+    
+    # 分离托管策略
+    local policies=$(aws iam list-attached-role-policies --role-name "$role_name" \
+        --query 'AttachedPolicies[].PolicyArn' --output text 2>/dev/null || echo "")
+    
+    for policy_arn in $policies; do
+        log_info "Detaching managed policy from role $role_name"
+        aws iam detach-role-policy \
+            --role-name "$role_name" \
+            --policy-arn "$policy_arn"
+    done
+    
+    # 删除内联策略
+    local inline_policies=$(aws iam list-role-policies --role-name "$role_name" \
+        --query 'PolicyNames[]' --output text 2>/dev/null || echo "")
+    
+    for policy_name in $inline_policies; do
+        log_info "Deleting inline policy $policy_name from role $role_name"
+        aws iam delete-role-policy \
+            --role-name "$role_name" \
+            --policy-name "$policy_name"
+    done
+}
+
+# 删除 IAM Role (包含策略分离)
+# 用法: delete_iam_role <role_name>
+delete_iam_role() {
+    local role_name=$1
+    
+    log_info "Preparing to delete role: $role_name"
+    
+    # 先分离所有策略
+    detach_role_policies "$role_name"
+    
+    # 删除角色
+    log_info "Deleting role: $role_name"
+    aws iam delete-role --role-name "$role_name"
+    
+    log_success "Role $role_name deleted"
+}
+
+# 删除策略的所有非默认版本
+# 用法: delete_policy_versions <policy_arn>
+delete_policy_versions() {
+    local policy_arn=$1
+    
+    local versions=$(aws iam list-policy-versions --policy-arn "$policy_arn" \
+        --query 'Versions[?IsDefaultVersion==`false`].VersionId' --output text 2>/dev/null || echo "")
+    
+    for version in $versions; do
+        log_info "Deleting policy version $version"
+        aws iam delete-policy-version \
+            --policy-arn "$policy_arn" \
+            --version-id "$version"
+    done
+}
+
+# 删除 IAM Policy (包含版本清理)
+# 用法: delete_iam_policy <policy_arn>
+delete_iam_policy() {
+    local policy_arn=$1
+    
+    log_info "Preparing to delete policy: $policy_arn"
+    
+    # 先删除非默认版本
+    delete_policy_versions "$policy_arn"
+    
+    # 删除策略
+    log_info "Deleting policy: $policy_arn"
+    aws iam delete-policy --policy-arn "$policy_arn"
+    
+    log_success "Policy deleted"
+}
+
+# =============================================================================
+# 项目/团队 IAM 批量删除
+# =============================================================================
+
+# 删除项目的所有 IAM Roles
+# 用法: delete_project_roles <team> <project>
+delete_project_roles() {
+    local team=$1
+    local project=$2
+    
+    local team_fullname=$(get_team_fullname "$team")
+    local team_capitalized=$(format_name "$team_fullname")
+    local project_formatted=$(format_name "$project")
+    local role_prefix="SageMaker-${team_capitalized}-${project_formatted}"
+    
+    log_info "Deleting project roles for ${team}/${project}..."
+    
+    local role_types=("ExecutionRole" "TrainingRole" "ProcessingRole" "InferenceRole")
+    
+    for role_type in "${role_types[@]}"; do
+        local role_name="${role_prefix}-${role_type}"
+        if aws iam get-role --role-name "$role_name" &> /dev/null; then
+            delete_iam_role "$role_name"
+        else
+            log_info "Role $role_name not found, skipping..."
+        fi
+    done
+    
+    log_success "Project roles deleted for ${team}/${project}"
+}
+
+# 删除项目的所有 IAM Policies
+# 用法: delete_project_policies <team> <project>
+delete_project_iam_policies() {
+    local team=$1
+    local project=$2
+    
+    local team_fullname=$(get_team_fullname "$team")
+    local team_capitalized=$(format_name "$team_fullname")
+    local project_formatted=$(format_name "$project")
+    local policy_prefix="SageMaker-${team_capitalized}-${project_formatted}"
+    local policy_arn_prefix="arn:aws:iam::${AWS_ACCOUNT_ID}:policy${IAM_PATH}"
+    
+    log_info "Deleting project policies for ${team}/${project}..."
+    
+    local policy_suffixes=(
+        "Access" "S3Access" "PassRole"
+        "ExecutionPolicy" "ExecutionJobPolicy"
+        "TrainingPolicy" "TrainingOpsPolicy"
+        "ProcessingPolicy" "ProcessingOpsPolicy"
+        "InferencePolicy" "InferenceOpsPolicy"
+    )
+    
+    for suffix in "${policy_suffixes[@]}"; do
+        local policy_name="${policy_prefix}-${suffix}"
+        local policy_arn="${policy_arn_prefix}${policy_name}"
+        if aws iam get-policy --policy-arn "$policy_arn" &> /dev/null; then
+            delete_iam_policy "$policy_arn"
+        else
+            log_info "Policy $policy_name not found, skipping..."
+        fi
+    done
+    
+    log_success "Project policies deleted for ${team}/${project}"
+}
+
+# 删除项目的所有 IAM 资源 (一站式)
+# 用法: delete_project_iam <team> <project>
+delete_project_iam() {
+    local team=$1
+    local project=$2
+    local group_name="sagemaker-${team}-${project}"
+    
+    log_step "========================================"
+    log_step "Deleting IAM resources for project: ${team}/${project}"
+    log_step "========================================"
+    
+    # 1. 删除 Group (会先分离策略)
+    if aws iam get-group --group-name "$group_name" &> /dev/null; then
+        delete_iam_group "$group_name"
+    else
+        log_info "Group $group_name not found, skipping..."
+    fi
+    
+    # 2. 删除 Roles
+    delete_project_roles "$team" "$project"
+    
+    # 3. 删除 Policies
+    delete_project_iam_policies "$team" "$project"
+    
+    log_success "========================================"
+    log_success "Project IAM resources deleted: ${team}/${project}"
+    log_success "========================================"
+}
+
+# 删除团队的所有 IAM 资源
+# 用法: delete_team_iam <team>
+delete_team_iam() {
+    local team=$1
+    local team_fullname=$(get_team_fullname "$team")
+    local team_capitalized=$(format_name "$team_fullname")
+    local group_name="sagemaker-${team_fullname}"
+    local policy_name="SageMaker-${team_capitalized}-Team-Access"
+    local policy_arn="arn:aws:iam::${AWS_ACCOUNT_ID}:policy${IAM_PATH}${policy_name}"
+    
+    log_step "========================================"
+    log_step "Deleting IAM resources for team: ${team_fullname}"
+    log_step "========================================"
+    
+    # 1. 删除 Group
+    if aws iam get-group --group-name "$group_name" &> /dev/null; then
+        delete_iam_group "$group_name"
+    else
+        log_info "Group $group_name not found, skipping..."
+    fi
+    
+    # 2. 删除团队策略
+    if aws iam get-policy --policy-arn "$policy_arn" &> /dev/null; then
+        delete_iam_policy "$policy_arn"
+    else
+        log_info "Policy $policy_name not found, skipping..."
+    fi
+    
+    log_success "========================================"
+    log_success "Team IAM resources deleted: ${team_fullname}"
     log_success "========================================"
 }
 

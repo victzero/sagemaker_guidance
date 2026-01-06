@@ -25,6 +25,11 @@ source "${SCRIPT_DIR}/../00-init.sh"
 # 静默初始化
 init_silent
 
+# 加载工厂函数库
+POLICY_TEMPLATES_DIR="${SCRIPTS_ROOT}/01-iam/policies"
+source "${SCRIPTS_ROOT}/lib/iam-core.sh"
+source "${SCRIPTS_ROOT}/lib/sagemaker-factory.sh"
+
 # =============================================================================
 # 交互式选择
 # =============================================================================
@@ -195,7 +200,7 @@ if [[ "$confirm_username" != "$IAM_USERNAME" ]]; then
 fi
 
 # =============================================================================
-# 执行删除
+# 执行删除 (使用 lib/ 工厂函数)
 # =============================================================================
 
 echo ""
@@ -209,36 +214,7 @@ log_info "Step 1/4: 删除 Private Spaces..."
 
 for space in $USER_SPACES; do
     if [[ -n "$space" ]]; then
-        log_info "  删除 Space: $space"
-        
-        # 检查并停止运行中的 App
-        APPS=$(aws sagemaker list-apps \
-            --domain-id "$DOMAIN_ID" \
-            --space-name-equals "$space" \
-            --query 'Apps[?Status==`InService` || Status==`Pending`].[AppName,AppType]' \
-            --output text \
-            --region "$AWS_REGION" 2>/dev/null || echo "")
-        
-        if [[ -n "$APPS" ]]; then
-            while IFS=$'\t' read -r app_name app_type; do
-                if [[ -n "$app_name" ]]; then
-                    aws sagemaker delete-app \
-                        --domain-id "$DOMAIN_ID" \
-                        --space-name "$space" \
-                        --app-name "$app_name" \
-                        --app-type "$app_type" \
-                        --region "$AWS_REGION" 2>/dev/null || true
-                fi
-            done <<< "$APPS"
-            sleep 5
-        fi
-        
-        aws sagemaker delete-space \
-            --domain-id "$DOMAIN_ID" \
-            --space-name "$space" \
-            --region "$AWS_REGION" 2>/dev/null || true
-        
-        log_success "  已删除: $space"
+        delete_private_space "$DOMAIN_ID" "$space"
         sleep 2
     fi
 done
@@ -250,36 +226,7 @@ log_info "Step 2/4: 删除 User Profiles..."
 
 for profile in $USER_PROFILES; do
     if [[ -n "$profile" ]]; then
-        log_info "  删除 Profile: $profile"
-        
-        # 检查并停止运行中的 App
-        APPS=$(aws sagemaker list-apps \
-            --domain-id "$DOMAIN_ID" \
-            --user-profile-name-equals "$profile" \
-            --query 'Apps[?Status==`InService` || Status==`Pending`].[AppName,AppType]' \
-            --output text \
-            --region "$AWS_REGION" 2>/dev/null || echo "")
-        
-        if [[ -n "$APPS" ]]; then
-            while IFS=$'\t' read -r app_name app_type; do
-                if [[ -n "$app_name" ]]; then
-                    aws sagemaker delete-app \
-                        --domain-id "$DOMAIN_ID" \
-                        --user-profile-name "$profile" \
-                        --app-name "$app_name" \
-                        --app-type "$app_type" \
-                        --region "$AWS_REGION" 2>/dev/null || true
-                fi
-            done <<< "$APPS"
-            sleep 5
-        fi
-        
-        aws sagemaker delete-user-profile \
-            --domain-id "$DOMAIN_ID" \
-            --user-profile-name "$profile" \
-            --region "$AWS_REGION" 2>/dev/null || true
-        
-        log_success "  已删除: $profile"
+        delete_sagemaker_user_profile "$DOMAIN_ID" "$profile"
         sleep 2
     fi
 done
@@ -289,31 +236,14 @@ done
 # -----------------------------------------------------------------------------
 log_info "Step 3/4: 从 IAM Groups 移除..."
 
-for group in $USER_GROUPS; do
-    if [[ -n "$group" ]]; then
-        aws iam remove-user-from-group \
-            --user-name "$IAM_USERNAME" \
-            --group-name "$group" 2>/dev/null || true
-        log_success "  已从 $group 移除"
-    fi
-done
+remove_user_from_groups "$IAM_USERNAME"
 
 # -----------------------------------------------------------------------------
-# Step 4: 删除 IAM User
+# Step 4: 删除 IAM User (包含所有清理步骤)
 # -----------------------------------------------------------------------------
 log_info "Step 4/4: 删除 IAM User..."
 
-# 删除 Access Keys
-for key in $ACCESS_KEYS; do
-    if [[ -n "$key" ]]; then
-        aws iam delete-access-key \
-            --user-name "$IAM_USERNAME" \
-            --access-key-id "$key"
-        log_success "  已删除 Access Key: $key"
-    fi
-done
-
-# 删除 MFA 设备
+# 删除 MFA 设备 (需要单独处理，因为 delete_iam_user 不包含 MFA)
 for mfa in $MFA_DEVICES; do
     if [[ -n "$mfa" ]]; then
         aws iam deactivate-mfa-device \
@@ -325,15 +255,10 @@ for mfa in $MFA_DEVICES; do
     fi
 done
 
-# 删除 Login Profile
-if [[ "$HAS_LOGIN_PROFILE" == "true" ]]; then
-    aws iam delete-login-profile --user-name "$IAM_USERNAME"
-    log_success "  已删除 Login Profile"
-fi
-
-# 删除 Permissions Boundary (如果有)
-aws iam delete-user-permissions-boundary \
-    --user-name "$IAM_USERNAME" 2>/dev/null || true
+# 删除 IAM User (包含 Access Keys, Login Profile, Boundary)
+delete_user_access_keys "$IAM_USERNAME"
+delete_user_login_profile "$IAM_USERNAME"
+delete_user_boundary "$IAM_USERNAME"
 
 # 删除用户
 aws iam delete-user --user-name "$IAM_USERNAME"

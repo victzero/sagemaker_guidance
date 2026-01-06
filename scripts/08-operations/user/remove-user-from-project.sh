@@ -24,6 +24,9 @@ source "${SCRIPT_DIR}/../00-init.sh"
 # 静默初始化
 init_silent
 
+# 加载工厂函数库
+source "${SCRIPTS_ROOT}/lib/sagemaker-factory.sh"
+
 # =============================================================================
 # 交互式选择
 # =============================================================================
@@ -187,7 +190,7 @@ if ! print_confirm_prompt; then
 fi
 
 # =============================================================================
-# 执行删除
+# 执行删除 (使用 lib/ 工厂函数)
 # =============================================================================
 
 echo ""
@@ -199,45 +202,7 @@ echo ""
 # -----------------------------------------------------------------------------
 if [[ "$SPACE_EXISTS" == "true" ]]; then
     log_info "Step 1/3: 删除 Private Space..."
-    
-    # 检查是否有运行中的 App
-    APPS=$(aws sagemaker list-apps \
-        --domain-id "$DOMAIN_ID" \
-        --space-name-equals "$SPACE_NAME" \
-        --query 'Apps[?Status==`InService` || Status==`Pending`].[AppName,AppType]' \
-        --output text \
-        --region "$AWS_REGION" 2>/dev/null || echo "")
-    
-    if [[ -n "$APPS" ]]; then
-        log_warn "发现运行中的 App，正在停止..."
-        
-        while IFS=$'\t' read -r app_name app_type; do
-            if [[ -n "$app_name" ]]; then
-                log_info "  停止 App: $app_name ($app_type)"
-                aws sagemaker delete-app \
-                    --domain-id "$DOMAIN_ID" \
-                    --space-name "$SPACE_NAME" \
-                    --app-name "$app_name" \
-                    --app-type "$app_type" \
-                    --region "$AWS_REGION" 2>/dev/null || true
-            fi
-        done <<< "$APPS"
-        
-        # 等待 App 停止
-        log_info "  等待 App 停止..."
-        sleep 10
-    fi
-    
-    # 删除 Space
-    aws sagemaker delete-space \
-        --domain-id "$DOMAIN_ID" \
-        --space-name "$SPACE_NAME" \
-        --region "$AWS_REGION"
-    
-    log_success "Private Space 已删除: $SPACE_NAME"
-    
-    # 等待 Space 删除完成
-    sleep 3
+    delete_private_space "$DOMAIN_ID" "$SPACE_NAME"
 else
     log_info "Step 1/3: 跳过 (Space 不存在)"
 fi
@@ -247,39 +212,7 @@ fi
 # -----------------------------------------------------------------------------
 if [[ "$PROFILE_EXISTS" == "true" ]]; then
     log_info "Step 2/3: 删除 User Profile..."
-    
-    # 检查是否有运行中的 App
-    APPS=$(aws sagemaker list-apps \
-        --domain-id "$DOMAIN_ID" \
-        --user-profile-name-equals "$PROFILE_NAME" \
-        --query 'Apps[?Status==`InService` || Status==`Pending`].[AppName,AppType]' \
-        --output text \
-        --region "$AWS_REGION" 2>/dev/null || echo "")
-    
-    if [[ -n "$APPS" ]]; then
-        log_warn "发现运行中的 App，正在停止..."
-        
-        while IFS=$'\t' read -r app_name app_type; do
-            if [[ -n "$app_name" ]]; then
-                log_info "  停止 App: $app_name ($app_type)"
-                aws sagemaker delete-app \
-                    --domain-id "$DOMAIN_ID" \
-                    --user-profile-name "$PROFILE_NAME" \
-                    --app-name "$app_name" \
-                    --app-type "$app_type" \
-                    --region "$AWS_REGION" 2>/dev/null || true
-            fi
-        done <<< "$APPS"
-        
-        sleep 10
-    fi
-    
-    aws sagemaker delete-user-profile \
-        --domain-id "$DOMAIN_ID" \
-        --user-profile-name "$PROFILE_NAME" \
-        --region "$AWS_REGION"
-    
-    log_success "User Profile 已删除: $PROFILE_NAME"
+    delete_sagemaker_user_profile "$DOMAIN_ID" "$PROFILE_NAME"
 else
     log_info "Step 2/3: 跳过 (Profile 不存在)"
 fi

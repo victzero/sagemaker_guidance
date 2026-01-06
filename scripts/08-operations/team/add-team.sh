@@ -25,6 +25,10 @@ source "${SCRIPT_DIR}/../00-init.sh"
 # 静默初始化
 init_silent
 
+# 加载工厂函数库
+POLICY_TEMPLATES_DIR="${SCRIPTS_ROOT}/01-iam/policies"
+source "${SCRIPTS_ROOT}/lib/iam-core.sh"
+
 # =============================================================================
 # 交互式输入
 # =============================================================================
@@ -138,123 +142,20 @@ if ! print_confirm_prompt; then
 fi
 
 # =============================================================================
-# 执行创建
+# 执行创建 (使用 lib/iam-core.sh 工厂函数)
 # =============================================================================
 
 echo ""
 log_step "开始创建资源..."
 echo ""
 
-# -----------------------------------------------------------------------------
-# Step 1: 创建 IAM Group
-# -----------------------------------------------------------------------------
-log_info "Step 1/3: 创建 IAM Group..."
+# 设置临时环境变量，供 get_team_fullname() 使用
+# (新团队尚未添加到 .env.shared)
+export "TEAM_${TEAM_ID^^}_FULLNAME=${TEAM_FULLNAME}"
 
-aws iam create-group \
-    --group-name "$GROUP_NAME" \
-    --path "${IAM_PATH}"
-
-log_success "IAM Group 创建完成: $GROUP_NAME"
-
-# -----------------------------------------------------------------------------
-# Step 2: 创建团队 Policy
-# -----------------------------------------------------------------------------
-log_info "Step 2/3: 创建 IAM Policy..."
-
-# 创建临时目录
-TEMP_DIR=$(mktemp -d)
-trap "rm -rf $TEMP_DIR" EXIT
-
-# 生成团队访问策略
-cat > "${TEMP_DIR}/team-policy.json" <<EOF
-{
-    "Version": "2012-10-17",
-    "Statement": [
-        {
-            "Sid": "AllowTeamDescribe",
-            "Effect": "Allow",
-            "Action": [
-                "sagemaker:Describe*",
-                "sagemaker:List*"
-            ],
-            "Resource": "*",
-            "Condition": {
-                "StringEquals": {
-                    "aws:ResourceTag/Team": "${TEAM_FULLNAME}"
-                }
-            }
-        },
-        {
-            "Sid": "AllowTeamS3List",
-            "Effect": "Allow",
-            "Action": [
-                "s3:ListBucket",
-                "s3:GetBucketLocation"
-            ],
-            "Resource": "arn:aws:s3:::${COMPANY}-sm-${TEAM_ID}-*"
-        },
-        {
-            "Sid": "AllowTeamS3Objects",
-            "Effect": "Allow",
-            "Action": [
-                "s3:GetObject",
-                "s3:PutObject",
-                "s3:DeleteObject"
-            ],
-            "Resource": "arn:aws:s3:::${COMPANY}-sm-${TEAM_ID}-*/*"
-        }
-    ]
-}
-EOF
-
-POLICY_ARN="arn:aws:iam::${AWS_ACCOUNT_ID}:policy${IAM_PATH}${POLICY_NAME}"
-
-if aws iam get-policy --policy-arn "$POLICY_ARN" &> /dev/null; then
-    log_warn "Policy $POLICY_NAME 已存在，创建新版本..."
-    aws iam create-policy-version \
-        --policy-arn "$POLICY_ARN" \
-        --policy-document "file://${TEMP_DIR}/team-policy.json" \
-        --set-as-default
-else
-    aws iam create-policy \
-        --policy-name "$POLICY_NAME" \
-        --path "${IAM_PATH}" \
-        --policy-document "file://${TEMP_DIR}/team-policy.json"
-    log_success "Policy created: $POLICY_NAME"
-fi
-
-# -----------------------------------------------------------------------------
-# Step 3: 绑定策略到 Group
-# -----------------------------------------------------------------------------
-log_info "Step 3/3: 绑定策略到 Group..."
-
-POLICY_ARN_PREFIX="arn:aws:iam::${AWS_ACCOUNT_ID}:policy${IAM_PATH}"
-
-# 绑定 AWS 托管策略
-aws iam attach-group-policy \
-    --group-name "$GROUP_NAME" \
-    --policy-arn "arn:aws:iam::aws:policy/AmazonSageMakerFullAccess"
-
-# 绑定基础访问策略
-if aws iam get-policy --policy-arn "${POLICY_ARN_PREFIX}SageMaker-Studio-Base-Access" &> /dev/null; then
-    aws iam attach-group-policy \
-        --group-name "$GROUP_NAME" \
-        --policy-arn "${POLICY_ARN_PREFIX}SageMaker-Studio-Base-Access"
-fi
-
-# 绑定自服务策略
-if aws iam get-policy --policy-arn "${POLICY_ARN_PREFIX}SageMaker-User-SelfService" &> /dev/null; then
-    aws iam attach-group-policy \
-        --group-name "$GROUP_NAME" \
-        --policy-arn "${POLICY_ARN_PREFIX}SageMaker-User-SelfService"
-fi
-
-# 绑定团队访问策略
-aws iam attach-group-policy \
-    --group-name "$GROUP_NAME" \
-    --policy-arn "${POLICY_ARN_PREFIX}${POLICY_NAME}"
-
-log_success "策略绑定完成"
+# 使用一站式函数创建团队 IAM 资源
+# 包含: Group 创建 + Policy 创建 + 策略绑定
+create_team_iam "$TEAM_ID"
 
 # =============================================================================
 # 完成信息

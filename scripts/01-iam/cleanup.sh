@@ -12,6 +12,10 @@ source "${SCRIPT_DIR}/00-init.sh"
 
 init
 
+# 加载删除函数库 (统一实现，避免代码重复)
+POLICY_TEMPLATES_DIR="${SCRIPT_DIR}/policies"
+source "${SCRIPTS_ROOT}/lib/iam-core.sh"
+
 # 检查 force 参数
 FORCE=false
 if [[ "$1" == "--force" ]]; then
@@ -41,169 +45,9 @@ if [[ "$FORCE" != "true" ]]; then
 fi
 
 # -----------------------------------------------------------------------------
-# 清理函数
+# 注意: 删除函数已移至 lib/iam-core.sh 统一维护
+# 可用函数: delete_iam_user, delete_iam_group, delete_iam_role, delete_iam_policy
 # -----------------------------------------------------------------------------
-
-# 移除用户的所有组关系
-remove_user_from_groups() {
-    local username=$1
-    
-    local groups=$(aws iam list-groups-for-user --user-name "$username" \
-        --query 'Groups[].GroupName' --output text 2>/dev/null || echo "")
-    
-    for group in $groups; do
-        log_info "Removing $username from group $group"
-        aws iam remove-user-from-group \
-            --user-name "$username" \
-            --group-name "$group"
-    done
-}
-
-# 删除用户的登录配置
-delete_user_login_profile() {
-    local username=$1
-    
-    if aws iam get-login-profile --user-name "$username" &> /dev/null; then
-        log_info "Deleting login profile for $username"
-        aws iam delete-login-profile --user-name "$username"
-    fi
-}
-
-# 删除用户的 Access Keys
-delete_user_access_keys() {
-    local username=$1
-    
-    local keys=$(aws iam list-access-keys --user-name "$username" \
-        --query 'AccessKeyMetadata[].AccessKeyId' --output text 2>/dev/null || echo "")
-    
-    for key in $keys; do
-        log_info "Deleting access key $key for $username"
-        aws iam delete-access-key \
-            --user-name "$username" \
-            --access-key-id "$key"
-    done
-}
-
-# 删除用户的 Permissions Boundary
-delete_user_boundary() {
-    local username=$1
-    
-    log_info "Removing permissions boundary for $username"
-    aws iam delete-user-permissions-boundary \
-        --user-name "$username" 2>/dev/null || true
-}
-
-# 删除用户
-delete_user() {
-    local username=$1
-    
-    log_info "Preparing to delete user: $username"
-    
-    # 先清理用户的所有关联
-    remove_user_from_groups "$username"
-    delete_user_login_profile "$username"
-    delete_user_access_keys "$username"
-    delete_user_boundary "$username"
-    
-    # 删除用户
-    log_info "Deleting user: $username"
-    aws iam delete-user --user-name "$username"
-    
-    log_success "User $username deleted"
-}
-
-# 分离组的所有策略
-detach_group_policies() {
-    local group_name=$1
-    
-    local policies=$(aws iam list-attached-group-policies --group-name "$group_name" \
-        --query 'AttachedPolicies[].PolicyArn' --output text 2>/dev/null || echo "")
-    
-    for policy_arn in $policies; do
-        log_info "Detaching policy from group $group_name"
-        aws iam detach-group-policy \
-            --group-name "$group_name" \
-            --policy-arn "$policy_arn"
-    done
-}
-
-# 删除组
-delete_group() {
-    local group_name=$1
-    
-    log_info "Preparing to delete group: $group_name"
-    
-    # 先分离所有策略
-    detach_group_policies "$group_name"
-    
-    # 删除组
-    log_info "Deleting group: $group_name"
-    aws iam delete-group --group-name "$group_name"
-    
-    log_success "Group $group_name deleted"
-}
-
-# 分离角色的所有策略
-detach_role_policies() {
-    local role_name=$1
-    
-    local policies=$(aws iam list-attached-role-policies --role-name "$role_name" \
-        --query 'AttachedPolicies[].PolicyArn' --output text 2>/dev/null || echo "")
-    
-    for policy_arn in $policies; do
-        log_info "Detaching policy from role $role_name"
-        aws iam detach-role-policy \
-            --role-name "$role_name" \
-            --policy-arn "$policy_arn"
-    done
-}
-
-# 删除角色
-delete_role() {
-    local role_name=$1
-    
-    log_info "Preparing to delete role: $role_name"
-    
-    # 先分离所有策略
-    detach_role_policies "$role_name"
-    
-    # 删除角色
-    log_info "Deleting role: $role_name"
-    aws iam delete-role --role-name "$role_name"
-    
-    log_success "Role $role_name deleted"
-}
-
-# 删除策略的所有版本
-delete_policy_versions() {
-    local policy_arn=$1
-    
-    local versions=$(aws iam list-policy-versions --policy-arn "$policy_arn" \
-        --query 'Versions[?IsDefaultVersion==`false`].VersionId' --output text 2>/dev/null || echo "")
-    
-    for version in $versions; do
-        log_info "Deleting policy version $version"
-        aws iam delete-policy-version \
-            --policy-arn "$policy_arn" \
-            --version-id "$version"
-    done
-}
-
-# 删除策略
-delete_policy() {
-    local policy_arn=$1
-    
-    log_info "Preparing to delete policy: $policy_arn"
-    
-    # 先删除非默认版本
-    delete_policy_versions "$policy_arn"
-    
-    # 删除策略
-    log_info "Deleting policy: $policy_arn"
-    aws iam delete-policy --policy-arn "$policy_arn"
-    
-    log_success "Policy deleted"
-}
 
 # -----------------------------------------------------------------------------
 # 主函数
@@ -218,7 +62,7 @@ main() {
         --query 'Users[].UserName' --output text 2>/dev/null || echo "")
     
     for user in $users; do
-        delete_user "$user"
+        delete_iam_user "$user"
     done
     
     # 2. 删除组
@@ -227,7 +71,7 @@ main() {
         --query 'Groups[].GroupName' --output text 2>/dev/null || echo "")
     
     for group in $groups; do
-        delete_group "$group"
+        delete_iam_group "$group"
     done
     
     # 3. 删除角色（不使用 path，通过名称前缀筛选）
@@ -240,7 +84,7 @@ main() {
         --output text 2>/dev/null || echo "")
     
     for role in $exec_roles; do
-        delete_role "$role"
+        delete_iam_role "$role"
     done
     
     # 删除 Training Roles
@@ -250,7 +94,7 @@ main() {
         --output text 2>/dev/null || echo "")
     
     for role in $training_roles; do
-        delete_role "$role"
+        delete_iam_role "$role"
     done
     
     # 删除 Processing Roles
@@ -260,7 +104,7 @@ main() {
         --output text 2>/dev/null || echo "")
     
     for role in $processing_roles; do
-        delete_role "$role"
+        delete_iam_role "$role"
     done
     
     # 删除 Inference Roles
@@ -270,7 +114,7 @@ main() {
         --output text 2>/dev/null || echo "")
     
     for role in $inference_roles; do
-        delete_role "$role"
+        delete_iam_role "$role"
     done
     
     # 4. 删除策略
@@ -279,7 +123,7 @@ main() {
         --query 'Policies[].Arn' --output text 2>/dev/null || echo "")
     
     for policy in $policies; do
-        delete_policy "$policy"
+        delete_iam_policy "$policy"
     done
     
     echo ""
