@@ -110,11 +110,14 @@ for user in $USERS; do
     
     # 获取用户所属的项目 Groups
     log_info "DEBUG: Step 3 - Getting groups for $user with TEAM=$TEAM"
-    # 使用双引号 + 转义反引号，避免 bash 解释问题
+    # 临时禁用 set -e，避免命令替换中的退出问题
+    set +e
     GROUPS=$(aws iam list-groups-for-user --user-name "$user" \
         --query "Groups[?starts_with(GroupName, \`sagemaker-${TEAM}-\`)].GroupName" \
-        --output text 2>/dev/null || echo "")
-    log_info "DEBUG: Step 3 done - GROUPS=[$GROUPS]"
+        --output text 2>/dev/null)
+    GROUPS_EXIT_CODE=$?
+    set -e
+    log_info "DEBUG: Step 3 done - exit_code=$GROUPS_EXIT_CODE, GROUPS=[$GROUPS]"
     
     # 简化 Group 显示
     GROUP_DISPLAY=""
