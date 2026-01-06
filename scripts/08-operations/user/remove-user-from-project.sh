@@ -218,15 +218,11 @@ else
 fi
 
 # -----------------------------------------------------------------------------
-# Step 3: 从项目组移除
+# Step 3: 从项目组移除 (使用 lib/iam-core.sh)
 # -----------------------------------------------------------------------------
 log_info "Step 3/3: 从项目组移除..."
 
-aws iam remove-user-from-group \
-    --user-name "$IAM_USERNAME" \
-    --group-name "$PROJECT_GROUP"
-
-log_success "已从项目组移除: $PROJECT_GROUP"
+remove_user_from_group "$IAM_USERNAME" "$PROJECT_GROUP"
 
 # =============================================================================
 # 完成信息

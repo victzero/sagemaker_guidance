@@ -304,22 +304,19 @@ for profile in $PROJECT_PROFILES; do
 done
 
 # -----------------------------------------------------------------------------
-# Step 3: 从 Group 移除所有成员并删除 Group
+# Step 3: 从 Group 移除所有成员并删除 Group (使用 lib/iam-core.sh)
 # -----------------------------------------------------------------------------
 log_info "Step 3/6: 删除 IAM Group..."
 
 # 移除所有成员
 for member in $PROJECT_MEMBERS; do
     if [[ -n "$member" ]]; then
-        aws iam remove-user-from-group \
-            --user-name "$member" \
-            --group-name "$GROUP_NAME" 2>/dev/null || true
-        log_info "  已移除成员: $member"
+        remove_user_from_group "$member" "$GROUP_NAME" 2>/dev/null || true
     fi
 done
 
 # 删除 Group (包含策略分离)
-if aws iam get-group --group-name "$GROUP_NAME" &> /dev/null; then
+if iam_group_exists "$GROUP_NAME"; then
     delete_iam_group "$GROUP_NAME"
 else
     log_info "Group $GROUP_NAME not found, skipping..."

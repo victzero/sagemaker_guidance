@@ -88,8 +88,8 @@ while true; do
         continue
     fi
     
-    # 检查 Group 是否已存在
-    if aws iam get-group --group-name "sagemaker-${TEAM_FULLNAME}" &> /dev/null; then
+    # 检查 Group 是否已存在 (使用 lib/iam-core.sh)
+    if iam_group_exists "sagemaker-${TEAM_FULLNAME}"; then
         log_error "团队 Group 'sagemaker-${TEAM_FULLNAME}' 已存在"
         continue
     fi

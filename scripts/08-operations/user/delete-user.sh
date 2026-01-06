@@ -239,23 +239,15 @@ log_info "Step 3/4: 从 IAM Groups 移除..."
 remove_user_from_groups "$IAM_USERNAME"
 
 # -----------------------------------------------------------------------------
-# Step 4: 删除 IAM User (包含所有清理步骤)
+# Step 4: 删除 IAM User (使用 lib/iam-core.sh)
+# 注意: delete_iam_user 会处理所有清理步骤 (Access Keys, Login Profile, MFA, Boundary)
 # -----------------------------------------------------------------------------
 log_info "Step 4/4: 删除 IAM User..."
 
-# 删除 MFA 设备 (需要单独处理，因为 delete_iam_user 不包含 MFA)
-for mfa in $MFA_DEVICES; do
-    if [[ -n "$mfa" ]]; then
-        aws iam deactivate-mfa-device \
-            --user-name "$IAM_USERNAME" \
-            --serial-number "$mfa" 2>/dev/null || true
-        aws iam delete-virtual-mfa-device \
-            --serial-number "$mfa" 2>/dev/null || true
-        log_success "  已删除 MFA: $mfa"
-    fi
-done
+# 删除 MFA 设备
+delete_user_mfa_devices "$IAM_USERNAME"
 
-# 删除 IAM User (包含 Access Keys, Login Profile, Boundary)
+# 删除 Access Keys, Login Profile, Boundary
 delete_user_access_keys "$IAM_USERNAME"
 delete_user_login_profile "$IAM_USERNAME"
 delete_user_boundary "$IAM_USERNAME"

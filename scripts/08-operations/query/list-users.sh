@@ -119,13 +119,15 @@ for user in $USERS; do
     fi
     
     # 获取 Profile 数量
+    # 注意: 使用 ends_with 避免误匹配 (如 alice 匹配到 alicesmith)
+    # Profile 格式: profile-{team}-{project_short}-{username}
     PROFILE_COUNT=0
     if [[ "$TEAM" != "admin" ]]; then
         # 从用户名提取用户标识
         USER_IDENT="${user#sm-${TEAM}-}"
         PROFILE_COUNT=$(aws sagemaker list-user-profiles \
             --domain-id "$DOMAIN_ID" \
-            --query "UserProfiles[?contains(UserProfileName, '${USER_IDENT}')].UserProfileName" \
+            --query "UserProfiles[?ends_with(UserProfileName, '-${USER_IDENT}')].UserProfileName" \
             --output text \
             --region "$AWS_REGION" 2>/dev/null | wc -w | tr -d ' ')
     fi
@@ -137,7 +139,7 @@ for user in $USERS; do
         USER_IDENT="${user#sm-${TEAM}-}"
         PROFILES=$(aws sagemaker list-user-profiles \
             --domain-id "$DOMAIN_ID" \
-            --query "UserProfiles[?contains(UserProfileName, '${USER_IDENT}')].UserProfileName" \
+            --query "UserProfiles[?ends_with(UserProfileName, '-${USER_IDENT}')].UserProfileName" \
             --output text \
             --region "$AWS_REGION" 2>/dev/null || echo "")
         

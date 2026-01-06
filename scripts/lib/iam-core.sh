@@ -1498,6 +1498,19 @@ remove_user_from_groups() {
     done
 }
 
+# 移除用户的单个组关系
+# 用法: remove_user_from_group <username> <group_name>
+remove_user_from_group() {
+    local username=$1
+    local group_name=$2
+    
+    log_info "Removing $username from group $group_name"
+    aws iam remove-user-from-group \
+        --user-name "$username" \
+        --group-name "$group_name"
+    log_success "User $username removed from group $group_name"
+}
+
 # 删除用户的登录配置
 # 用法: delete_user_login_profile <username>
 delete_user_login_profile() {
@@ -1525,6 +1538,31 @@ delete_user_access_keys() {
     done
 }
 
+# 删除用户的 MFA 设备
+# 用法: delete_user_mfa_devices <username>
+delete_user_mfa_devices() {
+    local username=$1
+    
+    local mfa_devices=$(aws iam list-mfa-devices --user-name "$username" \
+        --query 'MFADevices[].SerialNumber' --output text 2>/dev/null || echo "")
+    
+    for mfa in $mfa_devices; do
+        if [[ -n "$mfa" ]]; then
+            log_info "Deactivating MFA device $mfa for $username"
+            aws iam deactivate-mfa-device \
+                --user-name "$username" \
+                --serial-number "$mfa" 2>/dev/null || true
+            
+            # 删除虚拟 MFA 设备 (物理设备无法删除)
+            if [[ "$mfa" == *"mfa/"* ]]; then
+                log_info "Deleting virtual MFA device $mfa"
+                aws iam delete-virtual-mfa-device \
+                    --serial-number "$mfa" 2>/dev/null || true
+            fi
+        fi
+    done
+}
+
 # 删除用户的 Permissions Boundary
 # 用法: delete_user_boundary <username>
 delete_user_boundary() {
@@ -1537,6 +1575,7 @@ delete_user_boundary() {
 
 # 删除 IAM 用户 (包含所有清理步骤)
 # 用法: delete_iam_user <username>
+# 注意: 会清理用户的所有关联资源 (Groups, LoginProfile, AccessKeys, MFA, Boundary)
 delete_iam_user() {
     local username=$1
     
@@ -1546,6 +1585,7 @@ delete_iam_user() {
     remove_user_from_groups "$username"
     delete_user_login_profile "$username"
     delete_user_access_keys "$username"
+    delete_user_mfa_devices "$username"
     delete_user_boundary "$username"
     
     # 删除用户

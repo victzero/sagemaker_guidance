@@ -216,9 +216,9 @@ TEAM_FORMATTED=$(format_name "$SELECTED_TEAM")
 POLICY_NAME="SageMaker-${TEAM_FORMATTED}-Team-Access"
 POLICY_ARN="arn:aws:iam::${AWS_ACCOUNT_ID}:policy${IAM_PATH}${POLICY_NAME}"
 
-# 检查策略是否存在
+# 检查策略是否存在 (使用 lib/iam-core.sh)
 POLICY_EXISTS=false
-if aws iam get-policy --policy-arn "$POLICY_ARN" &> /dev/null; then
+if iam_policy_exists "$POLICY_ARN"; then
     POLICY_EXISTS=true
 fi
 

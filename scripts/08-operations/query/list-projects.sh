@@ -128,11 +128,11 @@ for group in "${PROJECT_GROUPS[@]}"; do
         BUCKET_STATUS="❌ 不存在"
     fi
     
-    # 检查 Roles
+    # 检查 Roles (使用 lib/iam-core.sh)
     ROLE_PREFIX="SageMaker-${TEAM_FORMATTED}-${PROJECT_FORMATTED}"
     ROLE_COUNT=0
     for role_suffix in "ExecutionRole" "TrainingRole" "ProcessingRole" "InferenceRole"; do
-        if aws iam get-role --role-name "${ROLE_PREFIX}-${role_suffix}" &> /dev/null; then
+        if iam_role_exists "${ROLE_PREFIX}-${role_suffix}"; then
             ((ROLE_COUNT++)) || true
         fi
     done
@@ -152,11 +152,11 @@ for group in "${PROJECT_GROUPS[@]}"; do
             done
         fi
         
-        # 列出 Roles
+        # 列出 Roles (使用 lib/iam-core.sh)
         echo "    Roles:"
         for role_suffix in "ExecutionRole" "TrainingRole" "ProcessingRole" "InferenceRole"; do
             role_name="${ROLE_PREFIX}-${role_suffix}"
-            if aws iam get-role --role-name "$role_name" &> /dev/null; then
+            if iam_role_exists "$role_name"; then
                 echo "      └─ ✅ $role_name"
             else
                 echo "      └─ ❌ $role_name (不存在)"
