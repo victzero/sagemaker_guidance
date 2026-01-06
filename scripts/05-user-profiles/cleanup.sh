@@ -43,8 +43,8 @@ for team in $TEAMS; do
     projects=$(get_projects_for_team "$team")
     for project in $projects; do
         users=$(get_users_for_project "$team" "$project")
-        # 简化项目名用于命名
-        project_short=$(echo "$project" | cut -d'-' -f1)
+        # 简化项目名用于命名 (使用 lib 函数)
+        project_short=$(get_project_short "$project")
         
         for user in $users; do
             profile_name="profile-${team}-${project_short}-${user}"
@@ -82,7 +82,7 @@ for team in $TEAMS; do
     projects=$(get_projects_for_team "$team")
     for project in $projects; do
         users=$(get_users_for_project "$team" "$project")
-        project_short=$(echo "$project" | cut -d'-' -f1)
+        project_short=$(get_project_short "$project")
         
         for user in $users; do
             space_name="space-${team}-${project_short}-${user}"
@@ -109,7 +109,7 @@ for team in $TEAMS; do
     projects=$(get_projects_for_team "$team")
     for project in $projects; do
         users=$(get_users_for_project "$team" "$project")
-        project_short=$(echo "$project" | cut -d'-' -f1)
+        project_short=$(get_project_short "$project")
         
         for user in $users; do
             profile_name="profile-${team}-${project_short}-${user}"

@@ -72,11 +72,11 @@
 
 ### s3-factory.sh
 
-| 函数 | 说明 |
-|------|------|
-| `create_project_s3 <team> <project> [--with-lifecycle]` | 创建项目 S3 Bucket |
-| `delete_project_bucket <team> <project>` | 删除项目 S3 Bucket |
-| `delete_bucket <bucket_name>` | 删除 Bucket (含清空) |
+| 函数                                                    | 说明                 |
+| ------------------------------------------------------- | -------------------- |
+| `create_project_s3 <team> <project> [--with-lifecycle]` | 创建项目 S3 Bucket   |
+| `delete_project_bucket <team> <project>`                | 删除项目 S3 Bucket   |
+| `delete_bucket <bucket_name>`                           | 删除 Bucket (含清空) |
 
 ---
 
@@ -120,21 +120,23 @@ lib/*.sh
 
 ## 模块使用情况
 
-| 模块              | iam-core | discovery | s3-factory | sagemaker-factory |
-| ----------------- | :------: | :-------: | :--------: | :---------------: |
-| 01-iam/cleanup    |    ✅    |     -     |     -      |         -         |
-| 03-s3/cleanup     |    -     |     -     |     ✅     |         -         |
-| 05-user-profiles  |    -     |     -     |     -      |        ✅         |
-| 08-operations     |    ✅    |    ✅     |     ✅     |        ✅         |
+| 模块             | iam-core | discovery | s3-factory | sagemaker-factory |
+| ---------------- | :------: | :-------: | :--------: | :---------------: |
+| 01-iam/cleanup   |    ✅    |     -     |     -      |         -         |
+| 03-s3/cleanup    |    -     |     -     |     ✅     |         -         |
+| 05-user-profiles |    -     |     -     |     -      |        ✅         |
+| 08-operations    |    ✅    |    ✅     |     ✅     |        ✅         |
 
 ### 复用的函数
 
 **05-user-profiles:**
+
 - `create_user_profile()` - 由 01-create-user-profiles.sh 调用
 - `create_private_space()` - 由 02-create-private-spaces.sh 调用
 - `get_studio_sg()` / `get_studio_security_group()` - 获取安全组
-- `get_project_short()` - 获取项目短名
+- `get_project_short()` - 由全部脚本调用 (setup-all, create, cleanup, verify)
 - `delete_private_space()` / `delete_sagemaker_user_profile()` - 由 cleanup.sh 调用
 
 **08-operations:**
+
 - 使用全部 lib 函数（创建/删除 IAM、S3、SageMaker 资源）

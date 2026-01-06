@@ -59,8 +59,8 @@ for team in $TEAMS; do
         expected_role="SageMaker-${team_formatted}-${project_formatted}-ExecutionRole"
         users=$(get_users_for_project "$team" "$project")
         
-        # 简化项目名用于命名
-        project_short=$(echo "$project" | cut -d'-' -f1)
+        # 简化项目名用于命名 (使用 lib 函数)
+        project_short=$(get_project_short "$project")
         
         echo "  Project [$project]:"
         
@@ -116,7 +116,7 @@ for team in $TEAMS; do
     
     for project in $projects; do
         users=$(get_users_for_project "$team" "$project")
-        project_short=$(echo "$project" | cut -d'-' -f1)
+        project_short=$(get_project_short "$project")
         
         echo "  Project [$project]:"
         

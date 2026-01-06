@@ -30,6 +30,9 @@ validate_base_env
 validate_team_env
 check_aws_cli
 
+# 加载核心函数库 (复用 lib/ 中的工具函数)
+source "${SCRIPTS_ROOT}/lib/sagemaker-factory.sh"
+
 # 设置配置
 export TAG_PREFIX="${TAG_PREFIX:-${COMPANY}-sagemaker}"
 export DOMAIN_NAME="${DOMAIN_NAME:-${COMPANY}-ml-platform}"
@@ -79,8 +82,8 @@ for team in $TEAMS; do
         execution_role="SageMaker-${team_formatted}-${project_formatted}-ExecutionRole"
         users=$(get_users_for_project "$team" "$project")
         
-        # 简化项目名用于命名
-        project_short=$(echo "$project" | cut -d'-' -f1)
+        # 简化项目名用于命名 (使用 lib 函数)
+        project_short=$(get_project_short "$project")
         
         if [[ -n "$users" ]]; then
             echo ""
