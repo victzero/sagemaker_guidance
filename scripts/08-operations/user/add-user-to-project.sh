@@ -26,6 +26,7 @@ init_silent
 # 加载工厂函数库
 source "${SCRIPTS_ROOT}/lib/discovery.sh"
 source "${SCRIPTS_ROOT}/lib/sagemaker-factory.sh"
+source "${SCRIPTS_ROOT}/lib/iam-core.sh"
 
 # =============================================================================
 # 交互式选择
@@ -206,18 +207,14 @@ log_step "开始创建资源..."
 echo ""
 
 # -----------------------------------------------------------------------------
-# Step 1: 添加到项目 Group
+# Step 1: 添加到项目 Group (使用 lib/iam-core.sh)
 # -----------------------------------------------------------------------------
 log_info "Step 1/2: 添加到项目 Group..."
 
-aws iam add-user-to-group \
-    --user-name "$IAM_USERNAME" \
-    --group-name "$PROJECT_GROUP"
-
-log_success "已加入项目组: $PROJECT_GROUP"
+add_user_to_group "$IAM_USERNAME" "$PROJECT_GROUP"
 
 # -----------------------------------------------------------------------------
-# Step 2: 创建 User Profile 和 Private Space (使用 sagemaker-factory)
+# Step 2: 创建 User Profile 和 Private Space (使用 lib/sagemaker-factory.sh)
 # -----------------------------------------------------------------------------
 log_info "Step 2/2: 创建 User Profile 和 Private Space..."
 

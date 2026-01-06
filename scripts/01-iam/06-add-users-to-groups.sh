@@ -12,31 +12,17 @@ source "${SCRIPT_DIR}/00-init.sh"
 
 init
 
+# 策略模板目录 (lib/iam-core.sh 依赖)
+POLICY_TEMPLATES_DIR="${SCRIPT_DIR}/policies"
+
 # -----------------------------------------------------------------------------
-# 添加用户到 Group 函数
+# 加载核心函数库 (复用 lib/ 中的 add_user_to_group 函数)
 # -----------------------------------------------------------------------------
-add_user_to_group() {
-    local username=$1
-    local group_name=$2
-    
-    log_info "Adding user $username to group $group_name"
-    
-    # 检查用户是否已在组中
-    local in_group=$(aws iam get-group --group-name "$group_name" \
-        --query "Users[?UserName=='${username}'].UserName" \
-        --output text 2>/dev/null || echo "")
-    
-    if [[ -n "$in_group" ]]; then
-        log_warn "User $username already in group $group_name, skipping..."
-        return 0
-    fi
-    
-    aws iam add-user-to-group \
-        --user-name "$username" \
-        --group-name "$group_name"
-    
-    log_success "User $username added to group $group_name"
-}
+source "${SCRIPTS_ROOT}/lib/iam-core.sh"
+
+# -----------------------------------------------------------------------------
+# 注意: add_user_to_group() 已移至 lib/iam-core.sh 统一维护
+# -----------------------------------------------------------------------------
 
 # -----------------------------------------------------------------------------
 # 主函数

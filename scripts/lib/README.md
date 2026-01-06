@@ -25,13 +25,29 @@
 
 ### iam-core.sh
 
-**创建函数:**
+**Group 创建函数:**
+| 函数 | 说明 |
+|------|------|
+| `create_iam_group <group_name>` | 创建 IAM Group (通用) |
+| `create_team_group <team>` | 创建团队 Group |
+| `create_project_group <team> <project>` | 创建项目 Group |
+
+**User 创建函数:**
+| 函数 | 说明 |
+|------|------|
+| `create_iam_user <username> <team> [enable_console] [project]` | 创建 IAM User (含 Boundary, 可选 Project tag) |
+| `create_admin_user <admin_name> [enable_console]` | 创建管理员用户 |
+| `add_user_to_group <username> <group_name>` | 添加用户到 Group (幂等, 已存在则跳过) |
+
+**一站式创建函数:**
 | 函数 | 说明 |
 |------|------|
 | `create_team_iam <team>` | 一站式创建团队 IAM (Group + Policy + 绑定) |
 | `create_project_iam <team> <project>` | 一站式创建项目 IAM (Group + Policies + Roles + 绑定) |
-| `create_team_group <team>` | 创建团队 Group |
-| `create_project_group <team> <project>` | 创建项目 Group |
+
+**策略绑定函数:**
+| 函数 | 说明 |
+|------|------|
 | `bind_team_policies <team>` | 绑定团队策略到 Group |
 | `bind_policies_to_project_group <team> <project>` | 绑定项目策略到 Group |
 
@@ -120,26 +136,29 @@ lib/*.sh
 
 ## 模块使用情况
 
-| 模块                    | iam-core | discovery | s3-factory | sagemaker-factory |
-| ----------------------- | :------: | :-------: | :--------: | :---------------: |
-| 01-iam/01-create-policy |    ✅    |     -     |     -      |         -         |
-| 01-iam/04-create-roles  |    ✅    |     -     |     -      |         -         |
-| 01-iam/cleanup          |    ✅    |     -     |     -      |         -         |
-| 03-s3/cleanup           |    -     |     -     |     ✅     |         -         |
-| 05-user-profiles        |    -     |     -     |     -      |        ✅         |
-| 08-operations           |    ✅    |    ✅     |     ✅     |        ✅         |
+| 模块                       | iam-core | discovery | s3-factory | sagemaker-factory |
+| -------------------------- | :------: | :-------: | :--------: | :---------------: |
+| 01-iam/01-create-policies  |    ✅    |     -     |     -      |         -         |
+| 01-iam/02-create-groups    |    ✅    |     -     |     -      |         -         |
+| 01-iam/03-create-users     |    ✅    |     -     |     -      |         -         |
+| 01-iam/04-create-roles     |    ✅    |     -     |     -      |         -         |
+| 01-iam/06-add-users-groups |    ✅    |     -     |     -      |         -         |
+| 01-iam/cleanup             |    ✅    |     -     |     -      |         -         |
+| 03-s3/cleanup              |    -     |     -     |     ✅     |         -         |
+| 05-user-profiles           |    -     |     -     |     -      |        ✅         |
+| 08-operations              |    ✅    |    ✅     |     ✅     |        ✅         |
 
 ### 复用的函数
 
 **01-iam:**
 
 - `create_policy()` - 由 01-create-policies.sh 调用
+- `create_iam_group()` / `create_team_group()` / `create_project_group()` - 由 02-create-groups.sh 调用
+- `create_iam_user()` / `create_admin_user()` - 由 03-create-users.sh 调用
 - `create_domain_default_role()` - 由 04-create-roles.sh 调用
-- `create_execution_role()` - 由 04-create-roles.sh 调用
-- `create_training_role()` - 由 04-create-roles.sh 调用
-- `create_processing_role()` - 由 04-create-roles.sh 调用
-- `create_inference_role()` - 由 04-create-roles.sh 调用
+- `create_execution_role()` / `create_training_role()` / `create_processing_role()` / `create_inference_role()` - 由 04-create-roles.sh 调用
 - `attach_canvas_policies()` / `attach_studio_app_permissions()` / `attach_mlflow_app_access()` - 由 04-create-roles.sh 调用
+- `add_user_to_group()` - 由 06-add-users-to-groups.sh 调用
 - `delete_iam_*()` - 由 cleanup.sh 调用
 
 **05-user-profiles:**

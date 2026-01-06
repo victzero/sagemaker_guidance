@@ -28,6 +28,7 @@ init_silent
 # 加载工厂函数库
 source "${SCRIPTS_ROOT}/lib/discovery.sh"
 source "${SCRIPTS_ROOT}/lib/sagemaker-factory.sh"
+source "${SCRIPTS_ROOT}/lib/iam-core.sh"
 
 # =============================================================================
 # 交互式选择
@@ -199,69 +200,32 @@ log_step "开始创建资源..."
 echo ""
 
 # -----------------------------------------------------------------------------
-# Step 1: 创建 IAM User
+# Step 1: 创建 IAM User (使用 lib/iam-core.sh)
+# 包含: 创建用户 + 设置 Permissions Boundary + Console Login (可选)
 # -----------------------------------------------------------------------------
-log_info "Step 1/5: 创建 IAM User..."
+log_info "Step 1/3: 创建 IAM User..."
 
-aws iam create-user \
-    --user-name "$IAM_USERNAME" \
-    --path "${IAM_PATH}" \
-    --tags \
-        "Key=Team,Value=${SELECTED_TEAM_FULLNAME}" \
-        "Key=Project,Value=${SELECTED_PROJECT}" \
-        "Key=ManagedBy,Value=${COMPANY}-sagemaker" \
-        "Key=Owner,Value=${IAM_USERNAME}"
-
-log_success "IAM User 创建完成: $IAM_USERNAME"
-
-# -----------------------------------------------------------------------------
-# Step 2: 设置 Permissions Boundary
-# -----------------------------------------------------------------------------
-log_info "Step 2/5: 设置 Permissions Boundary..."
-
-aws iam put-user-permissions-boundary \
-    --user-name "$IAM_USERNAME" \
-    --permissions-boundary "$BOUNDARY_POLICY"
-
-log_success "Permissions Boundary 已绑定"
-
-# -----------------------------------------------------------------------------
-# Step 3: 创建 Console Login (可选)
-# -----------------------------------------------------------------------------
-if [[ "$ENABLE_CONSOLE" == "true" ]]; then
-    log_info "Step 3/5: 创建 Console Login..."
-    
-    aws iam create-login-profile \
-        --user-name "$IAM_USERNAME" \
-        --password "$INITIAL_PASSWORD" \
-        --password-reset-required
-    
-    log_success "Console Login 已启用"
-else
-    log_info "Step 3/5: 跳过 Console Login (已禁用)"
+# lib 函数返回密码（如果启用 console login）
+RETURNED_PASSWORD=$(create_iam_user "$IAM_USERNAME" "$SELECTED_TEAM_FULLNAME" "$ENABLE_CONSOLE" "$SELECTED_PROJECT")
+if [[ -n "$RETURNED_PASSWORD" && "$ENABLE_CONSOLE" == "true" ]]; then
+    INITIAL_PASSWORD="$RETURNED_PASSWORD"
 fi
 
 # -----------------------------------------------------------------------------
-# Step 4: 添加到 Groups
+# Step 2: 添加到 Groups (使用 lib/iam-core.sh)
 # -----------------------------------------------------------------------------
-log_info "Step 4/5: 添加到 IAM Groups..."
+log_info "Step 2/3: 添加到 IAM Groups..."
 
 # 添加到团队组
-aws iam add-user-to-group \
-    --user-name "$IAM_USERNAME" \
-    --group-name "$TEAM_GROUP"
-log_success "已加入团队组: $TEAM_GROUP"
+add_user_to_group "$IAM_USERNAME" "$TEAM_GROUP"
 
 # 添加到项目组
-aws iam add-user-to-group \
-    --user-name "$IAM_USERNAME" \
-    --group-name "$PROJECT_GROUP"
-log_success "已加入项目组: $PROJECT_GROUP"
+add_user_to_group "$IAM_USERNAME" "$PROJECT_GROUP"
 
 # -----------------------------------------------------------------------------
-# Step 5: 创建 User Profile 和 Private Space (使用 sagemaker-factory)
+# Step 3: 创建 User Profile 和 Private Space (使用 lib/sagemaker-factory.sh)
 # -----------------------------------------------------------------------------
-log_info "Step 5/5: 创建 User Profile 和 Private Space..."
+log_info "Step 3/3: 创建 User Profile 和 Private Space..."
 
 SG_ID=$(get_studio_security_group)
 

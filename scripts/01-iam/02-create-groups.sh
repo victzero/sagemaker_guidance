@@ -12,26 +12,18 @@ source "${SCRIPT_DIR}/00-init.sh"
 
 init
 
+# 策略模板目录 (lib/iam-core.sh 依赖)
+POLICY_TEMPLATES_DIR="${SCRIPT_DIR}/policies"
+
 # -----------------------------------------------------------------------------
-# 创建 Group 函数
+# 加载核心函数库 (复用 lib/ 中的 Group 创建函数)
 # -----------------------------------------------------------------------------
-create_group() {
-    local group_name=$1
-    
-    log_info "Creating group: $group_name"
-    
-    # 检查 Group 是否已存在
-    if aws iam get-group --group-name "$group_name" &> /dev/null; then
-        log_warn "Group $group_name already exists, skipping..."
-        return 0
-    fi
-    
-    aws iam create-group \
-        --group-name "$group_name" \
-        --path "${IAM_PATH}"
-    
-    log_success "Group $group_name created"
-}
+source "${SCRIPTS_ROOT}/lib/iam-core.sh"
+
+# -----------------------------------------------------------------------------
+# 注意: create_iam_group(), create_team_group(), create_project_group()
+# 已移至 lib/iam-core.sh 统一维护
+# -----------------------------------------------------------------------------
 
 # -----------------------------------------------------------------------------
 # 主函数
@@ -45,14 +37,13 @@ main() {
     
     # 1. 创建平台级 Groups
     log_info "Creating platform-level groups..."
-    create_group "sagemaker-admins"
-    create_group "sagemaker-readonly"
+    create_iam_group "sagemaker-admins"
+    create_iam_group "sagemaker-readonly"
     
     # 2. 创建团队级 Groups
     log_info "Creating team-level groups..."
     for team in $TEAMS; do
-        local team_fullname=$(get_team_fullname "$team")
-        create_group "sagemaker-${team_fullname}"
+        create_team_group "$team"
     done
     
     # 3. 创建项目级 Groups
@@ -60,7 +51,7 @@ main() {
     for team in $TEAMS; do
         local projects=$(get_projects_for_team "$team")
         for project in $projects; do
-            create_group "sagemaker-${team}-${project}"
+            create_project_group "$team" "$project"
         done
     done
     

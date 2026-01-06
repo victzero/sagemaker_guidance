@@ -960,6 +960,25 @@ create_inference_role() {
 # IAM Group 创建
 # =============================================================================
 
+# 创建 IAM Group (通用函数)
+# 用法: create_iam_group <group_name>
+create_iam_group() {
+    local group_name=$1
+    
+    log_info "Creating IAM Group: $group_name"
+    
+    if aws iam get-group --group-name "$group_name" &> /dev/null; then
+        log_warn "Group $group_name already exists, skipping..."
+        return 0
+    fi
+    
+    aws iam create-group \
+        --group-name "$group_name" \
+        --path "${IAM_PATH}"
+    
+    log_success "IAM Group created: $group_name"
+}
+
 # 创建项目 IAM Group
 # 用法: create_project_group <team> <project>
 create_project_group() {
@@ -1066,6 +1085,171 @@ bind_team_policies() {
         --policy-arn "${policy_prefix}SageMaker-${team_capitalized}-Team-Access" 2>/dev/null || true
     
     log_success "Policies bound to team group: $group_name"
+}
+
+# =============================================================================
+# IAM User 创建
+# =============================================================================
+
+# 创建 IAM User (通用函数)
+# 用法: create_iam_user <username> <team> [enable_console] [project]
+# 参数:
+#   username - IAM 用户名 (如 sm-ds-alice)
+#   team - 团队名称 (用于标签，可传短名或全称)
+#   enable_console - 是否启用 Console 登录 (true/false，默认 false)
+#   project - 可选，项目名称 (用于 Project tag)
+# 依赖: PASSWORD_PREFIX, PASSWORD_SUFFIX, IAM_PATH, AWS_ACCOUNT_ID, COMPANY
+create_iam_user() {
+    local username=$1
+    local team=$2
+    local enable_console=${3:-false}
+    local project=${4:-}
+    local user_exists=false
+    local managed_by="${COMPANY:-sagemaker}-iam-script"
+    
+    log_info "Creating IAM User: $username"
+    
+    # 检查 User 是否已存在
+    if aws iam get-user --user-name "$username" &> /dev/null; then
+        log_warn "User $username already exists"
+        user_exists=true
+    else
+        # 构建 tags 参数
+        local tag_args=(
+            "Key=Team,Value=${team}"
+            "Key=ManagedBy,Value=${managed_by}"
+            "Key=Owner,Value=${username}"
+        )
+        
+        # 如果有 project 参数，添加 Project tag
+        if [[ -n "$project" ]]; then
+            tag_args+=("Key=Project,Value=${project}")
+        fi
+        
+        # 创建用户
+        aws iam create-user \
+            --user-name "$username" \
+            --path "${IAM_PATH}" \
+            --tags "${tag_args[@]}"
+        log_success "User $username created"
+    fi
+    
+    # 根据 enable_console 决定是否创建 LoginProfile
+    if [[ "$enable_console" == "true" ]]; then
+        local initial_password="${PASSWORD_PREFIX}${username##*-}${PASSWORD_SUFFIX}"
+        
+        if ! aws iam get-login-profile --user-name "$username" &> /dev/null; then
+            aws iam create-login-profile \
+                --user-name "$username" \
+                --password "$initial_password" \
+                --password-reset-required
+            log_success "LoginProfile created for $username (Console login enabled)"
+            
+            # 返回密码供调用方保存
+            echo "$initial_password"
+        else
+            if [[ "$user_exists" == "true" ]]; then
+                log_warn "LoginProfile already exists for $username"
+            fi
+        fi
+    else
+        if aws iam get-login-profile --user-name "$username" &> /dev/null; then
+            log_warn "User $username has LoginProfile (Console access)"
+        fi
+    fi
+    
+    # 检查/应用 Permissions Boundary
+    local current_boundary=$(aws iam get-user --user-name "$username" \
+        --query 'User.PermissionsBoundary.PermissionsBoundaryArn' --output text 2>/dev/null || echo "None")
+    local expected_boundary="arn:aws:iam::${AWS_ACCOUNT_ID}:policy${IAM_PATH}SageMaker-User-Boundary"
+    
+    if [[ "$current_boundary" != "$expected_boundary" ]]; then
+        aws iam put-user-permissions-boundary \
+            --user-name "$username" \
+            --permissions-boundary "$expected_boundary"
+        log_success "Permissions Boundary applied to $username"
+    else
+        if [[ "$user_exists" == "true" ]]; then
+            log_warn "Permissions Boundary already applied to $username"
+        fi
+    fi
+}
+
+# 创建管理员用户
+# 用法: create_admin_user <admin_name> [enable_console]
+# 参数:
+#   admin_name - 管理员短名 (如 jason)，会生成 sm-admin-jason
+#   enable_console - 是否启用 Console 登录 (true/false，默认 false)
+create_admin_user() {
+    local admin_name=$1
+    local enable_console=${2:-false}
+    local username="sm-admin-${admin_name}"
+    local user_exists=false
+    
+    log_info "Creating admin user: $username"
+    
+    # 检查 User 是否已存在
+    if aws iam get-user --user-name "$username" &> /dev/null; then
+        log_warn "User $username already exists"
+        user_exists=true
+    else
+        aws iam create-user \
+            --user-name "$username" \
+            --path "${IAM_PATH}" \
+            --tags \
+                "Key=Role,Value=admin" \
+                "Key=ManagedBy,Value=sagemaker-iam-script"
+        log_success "Admin user $username created"
+    fi
+    
+    # 管理员用户：根据 enable_console 决定是否创建 LoginProfile
+    if [[ "$enable_console" == "true" ]]; then
+        local initial_password="${PASSWORD_PREFIX}${admin_name}${PASSWORD_SUFFIX}"
+        
+        if ! aws iam get-login-profile --user-name "$username" &> /dev/null; then
+            aws iam create-login-profile \
+                --user-name "$username" \
+                --password "$initial_password" \
+                --password-reset-required
+            log_success "LoginProfile created for $username (Console login enabled)"
+            
+            # 返回密码供调用方保存
+            echo "$initial_password"
+        else
+            if [[ "$user_exists" == "true" ]]; then
+                log_warn "LoginProfile already exists for $username"
+            fi
+        fi
+    else
+        if aws iam get-login-profile --user-name "$username" &> /dev/null; then
+            log_warn "Admin $username has LoginProfile (Console access)"
+        fi
+    fi
+}
+
+# 添加用户到 Group
+# 用法: add_user_to_group <username> <group_name>
+add_user_to_group() {
+    local username=$1
+    local group_name=$2
+    
+    log_info "Adding user $username to group $group_name"
+    
+    # 检查用户是否已在组中
+    local in_group=$(aws iam get-group --group-name "$group_name" \
+        --query "Users[?UserName=='${username}'].UserName" \
+        --output text 2>/dev/null || echo "")
+    
+    if [[ -n "$in_group" ]]; then
+        log_warn "User $username already in group $group_name, skipping..."
+        return 0
+    fi
+    
+    aws iam add-user-to-group \
+        --user-name "$username" \
+        --group-name "$group_name"
+    
+    log_success "User $username added to group $group_name"
 }
 
 # =============================================================================
