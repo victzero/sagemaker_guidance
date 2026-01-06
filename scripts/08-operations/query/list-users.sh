@@ -116,14 +116,20 @@ for user in $USERS; do
     log_info "DEBUG: Step 3a - ALL_USER_GROUPS=[$ALL_USER_GROUPS]"
     
     # 在 bash 中过滤匹配 sagemaker-${TEAM}- 前缀的 groups
+    log_info "DEBUG: Step 3b - Starting filter loop"
     GROUPS=""
     for g in $ALL_USER_GROUPS; do
+        log_info "DEBUG: Step 3c - Checking group: $g against pattern sagemaker-${TEAM}-*"
         if [[ "$g" == sagemaker-${TEAM}-* ]]; then
             GROUPS="$GROUPS $g"
+            log_info "DEBUG: Step 3d - Matched! GROUPS now: [$GROUPS]"
         fi
     done
-    GROUPS=$(echo "$GROUPS" | xargs)  # trim whitespace
-    log_info "DEBUG: Step 3b - Filtered GROUPS=[$GROUPS]"
+    log_info "DEBUG: Step 3e - Loop done, GROUPS before trim: [$GROUPS]"
+    # trim whitespace safely (avoid xargs issues with empty input)
+    GROUPS="${GROUPS## }"
+    GROUPS="${GROUPS%% }"
+    log_info "DEBUG: Step 3f - Filtered GROUPS=[$GROUPS]"
     
     # 简化 Group 显示
     GROUP_DISPLAY=""
