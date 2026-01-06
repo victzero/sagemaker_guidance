@@ -68,31 +68,39 @@ verify_resource() {
 count_actual_resources() {
     echo -e "${BLUE}Counting actual resources in AWS...${NC}"
     
+    # 使用 head -1 和 tr 确保只获取单个数字，避免多行输出导致算术错误
     ACTUAL_POLICIES=$(aws iam list-policies --scope Local --path-prefix "${IAM_PATH}" \
-        --query 'length(Policies)' --output text 2>/dev/null || echo "0")
+        --query 'length(Policies)' --output text 2>/dev/null | head -1 | tr -d '[:space:]')
+    ACTUAL_POLICIES=${ACTUAL_POLICIES:-0}
     
     ACTUAL_GROUPS=$(aws iam list-groups --path-prefix "${IAM_PATH}" \
-        --query 'length(Groups)' --output text 2>/dev/null || echo "0")
+        --query 'length(Groups)' --output text 2>/dev/null | head -1 | tr -d '[:space:]')
+    ACTUAL_GROUPS=${ACTUAL_GROUPS:-0}
     
     ACTUAL_USERS=$(aws iam list-users --path-prefix "${IAM_PATH}" \
-        --query 'length(Users)' --output text 2>/dev/null || echo "0")
+        --query 'length(Users)' --output text 2>/dev/null | head -1 | tr -d '[:space:]')
+    ACTUAL_USERS=${ACTUAL_USERS:-0}
     
     # Roles 不使用 path，通过名称前缀筛选
     ACTUAL_EXEC_ROLES=$(aws iam list-roles \
         --query 'length(Roles[?starts_with(RoleName, `SageMaker-`) && contains(RoleName, `ExecutionRole`)])' \
-        --output text 2>/dev/null || echo "0")
+        --output text 2>/dev/null | head -1 | tr -d '[:space:]')
+    ACTUAL_EXEC_ROLES=${ACTUAL_EXEC_ROLES:-0}
     
     ACTUAL_TRAINING_ROLES=$(aws iam list-roles \
         --query 'length(Roles[?starts_with(RoleName, `SageMaker-`) && contains(RoleName, `TrainingRole`)])' \
-        --output text 2>/dev/null || echo "0")
+        --output text 2>/dev/null | head -1 | tr -d '[:space:]')
+    ACTUAL_TRAINING_ROLES=${ACTUAL_TRAINING_ROLES:-0}
     
     ACTUAL_PROCESSING_ROLES=$(aws iam list-roles \
         --query 'length(Roles[?starts_with(RoleName, `SageMaker-`) && contains(RoleName, `ProcessingRole`)])' \
-        --output text 2>/dev/null || echo "0")
+        --output text 2>/dev/null | head -1 | tr -d '[:space:]')
+    ACTUAL_PROCESSING_ROLES=${ACTUAL_PROCESSING_ROLES:-0}
     
     ACTUAL_INFERENCE_ROLES=$(aws iam list-roles \
         --query 'length(Roles[?starts_with(RoleName, `SageMaker-`) && contains(RoleName, `InferenceRole`)])' \
-        --output text 2>/dev/null || echo "0")
+        --output text 2>/dev/null | head -1 | tr -d '[:space:]')
+    ACTUAL_INFERENCE_ROLES=${ACTUAL_INFERENCE_ROLES:-0}
     
     ACTUAL_ROLES=$((ACTUAL_EXEC_ROLES + ACTUAL_TRAINING_ROLES + ACTUAL_PROCESSING_ROLES + ACTUAL_INFERENCE_ROLES))
     
