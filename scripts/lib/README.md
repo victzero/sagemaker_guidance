@@ -48,8 +48,9 @@
 **策略绑定函数:**
 | 函数 | 说明 |
 |------|------|
-| `bind_team_policies <team>` | 绑定团队策略到 Group |
-| `bind_policies_to_project_group <team> <project>` | 绑定项目策略到 Group |
+| `attach_policy_to_group <group_name> <policy_arn>` | 绑定单个策略到 Group (幂等，已绑定则跳过) |
+| `bind_team_policies <team>` | 绑定团队策略到 Group (4 个策略) |
+| `bind_policies_to_project_group <team> <project>` | 绑定项目策略到 Group (4 个策略) |
 
 **删除函数:**
 | 函数 | 说明 |
@@ -88,11 +89,27 @@
 
 ### s3-factory.sh
 
-| 函数                                                    | 说明                 |
-| ------------------------------------------------------- | -------------------- |
-| `create_project_s3 <team> <project> [--with-lifecycle]` | 创建项目 S3 Bucket   |
-| `delete_project_bucket <team> <project>`                | 删除项目 S3 Bucket   |
-| `delete_bucket <bucket_name>`                           | 删除 Bucket (含清空) |
+**创建函数:**
+| 函数 | 说明 |
+|------|------|
+| `create_s3_bucket <bucket> <team> <project> [options]` | 通用 Bucket 创建 (含加密、Tags) |
+| `create_directory_structure <bucket> [--shared]` | 创建目录结构 (项目/共享) |
+| `create_project_bucket <team> <project>` | 创建项目 Bucket (简化接口) |
+| `create_shared_bucket` | 创建共享 Bucket |
+| `create_project_s3 <team> <project> [--with-lifecycle]` | 一站式创建项目 S3 资源 |
+
+**配置函数:**
+| 函数 | 说明 |
+|------|------|
+| `configure_bucket_policy <team> <project>` | 配置 Bucket 访问策略 |
+| `configure_bucket_lifecycle <team> <project>` | 配置生命周期规则 |
+
+**删除函数:**
+| 函数 | 说明 |
+|------|------|
+| `delete_project_bucket <team> <project>` | 删除项目 S3 Bucket |
+| `delete_bucket <bucket_name>` | 删除 Bucket (含清空) |
+| `empty_bucket <bucket_name>` | 清空 Bucket |
 
 ---
 
@@ -124,14 +141,14 @@ delete_project_bucket "ds" "fraud-detection"
 
 所有 IAM 资源使用统一的 Tag 规范：
 
-| Tag Key | 值 | 说明 |
-|---------|-----|------|
-| `ManagedBy` | `${COMPANY}-sagemaker` | 统一标识，用于资源筛选和清理 |
-| `Company` | `${COMPANY}` | 公司标识 |
-| `Team` | `${team_fullname}` | 团队全称 (如 `data-science`)，人类可读 |
-| `Project` | `${project}` | 项目名称 (如 `fraud-detection`) |
-| `Owner` | `${username}` | 资源拥有者 (用于 Users) |
-| `Purpose` | `Training/Processing/Inference` | Role 用途 (仅 Role) |
+| Tag Key     | 值                              | 说明                                   |
+| ----------- | ------------------------------- | -------------------------------------- |
+| `ManagedBy` | `${COMPANY}-sagemaker`          | 统一标识，用于资源筛选和清理           |
+| `Company`   | `${COMPANY}`                    | 公司标识                               |
+| `Team`      | `${team_fullname}`              | 团队全称 (如 `data-science`)，人类可读 |
+| `Project`   | `${project}`                    | 项目名称 (如 `fraud-detection`)        |
+| `Owner`     | `${username}`                   | 资源拥有者 (用于 Users)                |
+| `Purpose`   | `Training/Processing/Inference` | Role 用途 (仅 Role)                    |
 
 **示例:**
 
@@ -175,8 +192,10 @@ lib/*.sh
 | 01-iam/02-create-groups    |    ✅    |     -     |     -      |         -         |
 | 01-iam/03-create-users     |    ✅    |     -     |     -      |         -         |
 | 01-iam/04-create-roles     |    ✅    |     -     |     -      |         -         |
+| 01-iam/05-bind-policies    |    ✅    |     -     |     -      |         -         |
 | 01-iam/06-add-users-groups |    ✅    |     -     |     -      |         -         |
 | 01-iam/cleanup             |    ✅    |     -     |     -      |         -         |
+| 03-s3/01-create-buckets    |    -     |     -     |     ✅     |         -         |
 | 03-s3/cleanup              |    -     |     -     |     ✅     |         -         |
 | 05-user-profiles           |    -     |     -     |     -      |        ✅         |
 | 08-operations              |    ✅    |    ✅     |     ✅     |        ✅         |
@@ -191,6 +210,7 @@ lib/*.sh
 - `create_domain_default_role()` - 由 04-create-roles.sh 调用
 - `create_execution_role()` / `create_training_role()` / `create_processing_role()` / `create_inference_role()` - 由 04-create-roles.sh 调用
 - `attach_canvas_policies()` / `attach_studio_app_permissions()` / `attach_mlflow_app_access()` - 由 04-create-roles.sh 调用
+- `attach_policy_to_group()` / `bind_team_policies()` / `bind_policies_to_project_group()` - 由 05-bind-policies.sh 调用
 - `add_user_to_group()` - 由 06-add-users-to-groups.sh 调用
 - `delete_iam_*()` - 由 cleanup.sh 调用
 

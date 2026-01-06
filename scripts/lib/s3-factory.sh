@@ -17,72 +17,235 @@ if [[ -z "$_SAGEMAKER_COMMON_LOADED" ]]; then
 fi
 
 # =============================================================================
-# S3 Bucket 创建
+# S3 Bucket 创建 (通用函数)
 # =============================================================================
 
-# 创建项目 S3 Bucket
+# 创建 S3 Bucket (通用函数，带完整配置)
+# 用法: create_s3_bucket <bucket_name> <team> <project> [options]
+# 选项:
+#   --enable-versioning    启用版本控制 (默认: true)
+#   --encryption-type TYPE SSE-AES 或 SSE-KMS (默认: SSE-AES)
+#   --kms-key-id KEY_ID    KMS Key ID (仅 SSE-KMS 时使用)
+#   --environment ENV      环境标签 (默认: production)
+#   --cost-center CENTER   成本中心标签 (可选)
+# 依赖: AWS_REGION, COMPANY
+create_s3_bucket() {
+    local bucket_name=$1
+    local team=$2
+    local project=$3
+    shift 3
+    
+    # 默认选项
+    local enable_versioning=true
+    local encryption_type="SSE-AES"
+    local kms_key_id=""
+    local environment="${ENVIRONMENT:-production}"
+    local cost_center="${COST_CENTER:-}"
+    
+    # 解析选项
+    while [[ $# -gt 0 ]]; do
+        case $1 in
+            --enable-versioning)
+                enable_versioning=true
+                shift
+                ;;
+            --no-versioning)
+                enable_versioning=false
+                shift
+                ;;
+            --encryption-type)
+                encryption_type="$2"
+                shift 2
+                ;;
+            --kms-key-id)
+                kms_key_id="$2"
+                shift 2
+                ;;
+            --environment)
+                environment="$2"
+                shift 2
+                ;;
+            --cost-center)
+                cost_center="$2"
+                shift 2
+                ;;
+            *)
+                shift
+                ;;
+        esac
+    done
+    
+    log_info "Creating S3 bucket: $bucket_name"
+    
+    # 检查是否已存在
+    if aws s3api head-bucket --bucket "$bucket_name" --region "$AWS_REGION" 2>/dev/null; then
+        log_warn "Bucket $bucket_name already exists, skipping creation..."
+        return 0
+    fi
+    
+    # 创建 bucket (注意: us-east-1 不需要 LocationConstraint)
+    if [[ "$AWS_REGION" == "us-east-1" ]]; then
+        aws s3api create-bucket \
+            --bucket "$bucket_name" \
+            --region "$AWS_REGION"
+    else
+        aws s3api create-bucket \
+            --bucket "$bucket_name" \
+            --region "$AWS_REGION" \
+            --create-bucket-configuration LocationConstraint="$AWS_REGION"
+    fi
+    
+    log_success "Bucket $bucket_name created"
+    
+    # 添加标签
+    log_info "Adding tags to $bucket_name"
+    local tag_set="[{\"Key\":\"Team\",\"Value\":\"${team}\"},{\"Key\":\"Project\",\"Value\":\"${project}\"},{\"Key\":\"Environment\",\"Value\":\"${environment}\"},{\"Key\":\"ManagedBy\",\"Value\":\"${COMPANY}-sagemaker\"}"
+    if [[ -n "$cost_center" ]]; then
+        tag_set="${tag_set},{\"Key\":\"CostCenter\",\"Value\":\"${cost_center}\"}"
+    fi
+    tag_set="${tag_set}]"
+    
+    aws s3api put-bucket-tagging \
+        --bucket "$bucket_name" \
+        --tagging "{\"TagSet\":${tag_set}}" \
+        --region "$AWS_REGION"
+    
+    # 阻止公开访问
+    log_info "Blocking public access for $bucket_name"
+    aws s3api put-public-access-block \
+        --bucket "$bucket_name" \
+        --public-access-block-configuration \
+            "BlockPublicAcls=true,IgnorePublicAcls=true,BlockPublicPolicy=true,RestrictPublicBuckets=true" \
+        --region "$AWS_REGION"
+    
+    # 启用版本控制 (可选)
+    if [[ "$enable_versioning" == "true" ]]; then
+        log_info "Enabling versioning for $bucket_name"
+        aws s3api put-bucket-versioning \
+            --bucket "$bucket_name" \
+            --versioning-configuration Status=Enabled \
+            --region "$AWS_REGION"
+    fi
+    
+    # 配置加密
+    log_info "Configuring encryption for $bucket_name"
+    if [[ "$encryption_type" == "SSE-KMS" && -n "$kms_key_id" ]]; then
+        aws s3api put-bucket-encryption \
+            --bucket "$bucket_name" \
+            --server-side-encryption-configuration '{
+                "Rules": [{
+                    "ApplyServerSideEncryptionByDefault": {
+                        "SSEAlgorithm": "aws:kms",
+                        "KMSMasterKeyID": "'"${kms_key_id}"'"
+                    },
+                    "BucketKeyEnabled": true
+                }]
+            }' \
+            --region "$AWS_REGION"
+    else
+        aws s3api put-bucket-encryption \
+            --bucket "$bucket_name" \
+            --server-side-encryption-configuration '{
+                "Rules": [{
+                    "ApplyServerSideEncryptionByDefault": {
+                        "SSEAlgorithm": "AES256"
+                    }
+                }]
+            }' \
+            --region "$AWS_REGION"
+    fi
+    
+    log_success "Bucket $bucket_name configured"
+}
+
+# 创建目录结构
+# 用法: create_directory_structure <bucket_name> [--shared]
+create_directory_structure() {
+    local bucket_name=$1
+    local is_shared=false
+    
+    if [[ "$2" == "--shared" ]]; then
+        is_shared=true
+    fi
+    
+    log_info "Creating directory structure for $bucket_name"
+    
+    local directories
+    if [[ "$is_shared" == "true" ]]; then
+        # 共享 Bucket 结构
+        directories=(
+            "scripts/preprocessing/"
+            "scripts/utils/"
+            "containers/dockerfiles/"
+            "datasets/reference/"
+            "documentation/"
+        )
+    else
+        # 项目 Bucket 结构
+        directories=(
+            "raw/uploads/"
+            "raw/external/"
+            "processed/cleaned/"
+            "processed/transformed/"
+            "features/v1/"
+            "models/training/"
+            "models/artifacts/"
+            "models/registry/"
+            "notebooks/archived/"
+            "outputs/reports/"
+            "outputs/predictions/"
+            "temp/"
+            "logs/"
+            "checkpoints/"
+        )
+    fi
+    
+    for dir in "${directories[@]}"; do
+        aws s3api put-object \
+            --bucket "$bucket_name" \
+            --key "$dir" \
+            --region "$AWS_REGION" 2>/dev/null || true
+    done
+    
+    log_success "Directory structure created for $bucket_name"
+}
+
+# 创建项目 S3 Bucket (简化接口)
 # 用法: create_project_bucket <team> <project>
+# 与 03-s3/01-create-buckets.sh 逻辑一致
 create_project_bucket() {
     local team=$1
     local project=$2
     local bucket_name="${COMPANY}-sm-${team}-${project}"
     local team_fullname=$(get_team_fullname "$team")
     
-    log_info "Creating S3 bucket: $bucket_name"
+    # 使用通用函数创建 bucket
+    create_s3_bucket "$bucket_name" "$team_fullname" "$project" \
+        --enable-versioning \
+        --encryption-type "${ENCRYPTION_TYPE:-SSE-AES}" \
+        ${KMS_KEY_ID:+--kms-key-id "$KMS_KEY_ID"}
     
-    # 检查是否已存在
-    if aws s3api head-bucket --bucket "$bucket_name" 2>/dev/null; then
-        log_warn "Bucket $bucket_name already exists, skipping creation..."
-        return 0
-    fi
+    # 创建项目目录结构
+    create_directory_structure "$bucket_name"
+}
+
+# 创建共享 S3 Bucket
+# 用法: create_shared_bucket
+create_shared_bucket() {
+    local bucket_name="${COMPANY}-sm-shared-assets"
     
-    # 创建 bucket
-    if [[ "$AWS_REGION" == "us-east-1" ]]; then
-        aws s3api create-bucket --bucket "$bucket_name"
-    else
-        aws s3api create-bucket \
-            --bucket "$bucket_name" \
-            --create-bucket-configuration LocationConstraint="$AWS_REGION"
-    fi
+    log_step "Creating shared assets bucket: $bucket_name"
     
-    # 启用版本控制
-    aws s3api put-bucket-versioning \
-        --bucket "$bucket_name" \
-        --versioning-configuration Status=Enabled
+    # 使用通用函数创建 bucket
+    create_s3_bucket "$bucket_name" "shared" "shared" \
+        --enable-versioning \
+        --encryption-type "${ENCRYPTION_TYPE:-SSE-AES}" \
+        ${KMS_KEY_ID:+--kms-key-id "$KMS_KEY_ID"}
     
-    # 阻止公共访问
-    aws s3api put-public-access-block \
-        --bucket "$bucket_name" \
-        --public-access-block-configuration \
-            "BlockPublicAcls=true,IgnorePublicAcls=true,BlockPublicPolicy=true,RestrictPublicBuckets=true"
+    # 创建共享目录结构
+    create_directory_structure "$bucket_name" --shared
     
-    # 创建标准目录结构
-    local directories=(
-        "data/"
-        "raw/"
-        "processed/"
-        "features/"
-        "datasets/"
-        "models/"
-        "training-output/"
-        "checkpoints/"
-        "inference/"
-        "inference/output/"
-        "batch-transform/"
-        "notebooks/"
-        "logs/"
-    )
-    
-    for dir in "${directories[@]}"; do
-        aws s3api put-object --bucket "$bucket_name" --key "$dir"
-    done
-    
-    # 添加标签
-    aws s3api put-bucket-tagging \
-        --bucket "$bucket_name" \
-        --tagging "TagSet=[{Key=Team,Value=${team_fullname}},{Key=Project,Value=${project}},{Key=ManagedBy,Value=${COMPANY}-sagemaker}]"
-    
-    log_success "S3 Bucket created: $bucket_name"
+    log_success "Shared bucket created: $bucket_name"
 }
 
 # 配置 Bucket 策略 (限制只有项目角色可访问)
