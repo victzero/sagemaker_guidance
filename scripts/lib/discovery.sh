@@ -26,9 +26,17 @@ discover_projects_for_team() {
     
     # 从 IAM Groups 中查找该团队的项目
     # 注意: JMESPath 使用反引号 ` 表示字符串字面量
-    local groups=$(aws iam list-groups --path-prefix "$iam_path" \
-        --query 'Groups[?starts_with(GroupName, `sagemaker-'"${team}"'-`)].GroupName' \
+    # 先获取所有 groups 再过滤，避免 JMESPath 变量问题
+    local all_groups=$(aws iam list-groups --path-prefix "$iam_path" \
+        --query 'Groups[].GroupName' \
         --output text 2>/dev/null || echo "")
+        
+    local groups=""
+    for g in $all_groups; do
+        if [[ "$g" == sagemaker-${team}-* ]]; then
+            groups="$groups $g"
+        fi
+    done
     
     local projects=()
     for group in $groups; do

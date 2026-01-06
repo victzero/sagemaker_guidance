@@ -76,9 +76,21 @@ echo ""
 echo "查询团队项目..."
 
 # 从 IAM Groups 获取项目列表
-ALL_GROUPS=$(aws iam list-groups --path-prefix "${IAM_PATH}" \
-    --query 'Groups[?starts_with(GroupName, `sagemaker-'"${SELECTED_TEAM}"'-`)].GroupName' \
+ALL_RAW_GROUPS=$(aws iam list-groups --path-prefix "${IAM_PATH}" \
+    --query 'Groups[].GroupName' \
     --output text 2>/dev/null || echo "")
+
+# 在 bash 中过滤
+ALL_GROUPS=""
+for g in $ALL_RAW_GROUPS; do
+    if [[ "$g" == sagemaker-${SELECTED_TEAM}-* ]]; then
+        if [[ -n "$ALL_GROUPS" ]]; then
+            ALL_GROUPS="$ALL_GROUPS $g"
+        else
+            ALL_GROUPS="$g"
+        fi
+    fi
+done
 
 PROJECT_GROUPS=()
 for group in $ALL_GROUPS; do

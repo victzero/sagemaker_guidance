@@ -85,10 +85,17 @@ for i in "${!TEAM_GROUPS[@]}"; do
     member_count=$(aws iam get-group --group-name "$group" \
         --query 'Users | length(@)' --output text 2>/dev/null || echo "0")
     
-    # 检查是否有关联项目
-    project_count=$(aws iam list-groups --path-prefix "${IAM_PATH}" \
-        --query 'Groups[?starts_with(GroupName, `sagemaker-`) && contains(GroupName, `-'"${team_name}"'-`)].GroupName | length(@)' \
-        --output text 2>/dev/null || echo "0")
+    # 检查是否有关联项目 (bash 过滤)
+    ALL_GROUPS_FOR_CHECK=$(aws iam list-groups --path-prefix "${IAM_PATH}" \
+        --query 'Groups[?starts_with(GroupName, `sagemaker-`)].GroupName' \
+        --output text 2>/dev/null || echo "")
+        
+    project_count=0
+    for g in $ALL_GROUPS_FOR_CHECK; do
+        if [[ "$g" == *"-${team_name}-"* ]]; then
+            ((project_count++))
+        fi
+    done
     
     echo "  [$((i+1))] $team_name (成员: $member_count, 项目: $project_count)"
 done
@@ -155,10 +162,17 @@ done
 for team in $TEAMS; do
     team_fullname=$(get_team_fullname "$team")
     if [[ "$SELECTED_TEAM" == "$team_fullname" ]]; then
-        # 找到团队 ID，查找其项目
-        PROJECTS=$(aws iam list-groups --path-prefix "${IAM_PATH}" \
-            --query 'Groups[?starts_with(GroupName, `sagemaker-'"${team}"'-`)].GroupName' \
+        # 找到团队 ID，查找其项目 (bash 过滤)
+        ALL_GROUPS_FOR_PROJECTS=$(aws iam list-groups --path-prefix "${IAM_PATH}" \
+            --query 'Groups[].GroupName' \
             --output text 2>/dev/null || echo "")
+            
+        PROJECTS=""
+        for g in $ALL_GROUPS_FOR_PROJECTS; do
+            if [[ "$g" == sagemaker-${team}-* ]]; then
+                PROJECTS="$PROJECTS $g"
+            fi
+        done
         
         for proj_group in $PROJECTS; do
             project="${proj_group#sagemaker-${team}-}"

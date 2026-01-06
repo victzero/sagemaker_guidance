@@ -245,8 +245,19 @@ echo ""
 
 # 显示用户剩余的项目
 echo "用户 $IAM_USERNAME 剩余的项目组:"
-aws iam list-groups-for-user --user-name "$IAM_USERNAME" \
-    --query 'Groups[?starts_with(GroupName, `sagemaker-'"${USER_TEAM}"'-`)].GroupName' \
-    --output table 2>/dev/null || echo "  (无)"
+ALL_USER_GROUPS=$(aws iam list-groups-for-user --user-name "$IAM_USERNAME" \
+    --query 'Groups[].GroupName' --output text 2>/dev/null || echo "")
+
+FOUND_GROUPS=false
+for g in $ALL_USER_GROUPS; do
+    if [[ "$g" == sagemaker-${USER_TEAM}-* ]]; then
+        echo "  - $g"
+        FOUND_GROUPS=true
+    fi
+done
+
+if [[ "$FOUND_GROUPS" == "false" ]]; then
+    echo "  (无)"
+fi
 echo ""
 
