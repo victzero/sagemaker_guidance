@@ -82,7 +82,8 @@ main() {
     
     # 2. 创建团队用户
     for team in $TEAMS; do
-        log_info "Creating users for team: $team"
+        local team_fullname=$(get_team_fullname "$team")
+        log_info "Creating users for team: $team ($team_fullname)"
         
         local projects=$(get_projects_for_team "$team")
         for project in $projects; do
@@ -91,7 +92,8 @@ main() {
             local users=$(get_users_for_project "$team" "$project")
             for user in $users; do
                 local username="sm-${team}-${user}"
-                local password=$(create_iam_user "$username" "$team" "$ENABLE_CONSOLE")
+                # 传入 team_fullname 和 project 用于 Tags
+                local password=$(create_iam_user "$username" "$team_fullname" "$ENABLE_CONSOLE" "$project")
                 
                 # 保存凭证（如果启用了 Console 登录）
                 if [[ "$ENABLE_CONSOLE" == "true" && -n "$password" ]]; then

@@ -120,6 +120,39 @@ delete_project_bucket "ds" "fraud-detection"
 
 ---
 
+## Tags 标准
+
+所有 IAM 资源使用统一的 Tag 规范：
+
+| Tag Key | 值 | 说明 |
+|---------|-----|------|
+| `ManagedBy` | `${COMPANY}-sagemaker` | 统一标识，用于资源筛选和清理 |
+| `Company` | `${COMPANY}` | 公司标识 |
+| `Team` | `${team_fullname}` | 团队全称 (如 `data-science`)，人类可读 |
+| `Project` | `${project}` | 项目名称 (如 `fraud-detection`) |
+| `Owner` | `${username}` | 资源拥有者 (用于 Users) |
+| `Purpose` | `Training/Processing/Inference` | Role 用途 (仅 Role) |
+
+**示例:**
+
+```bash
+# User Tags
+Key=Team,Value=data-science
+Key=Project,Value=fraud-detection
+Key=ManagedBy,Value=acme-sagemaker
+Key=Company,Value=acme
+Key=Owner,Value=sm-ds-alice
+
+# Role Tags
+Key=Team,Value=data-science
+Key=Project,Value=fraud-detection
+Key=Purpose,Value=Training
+Key=ManagedBy,Value=acme-sagemaker
+Key=Company,Value=acme
+```
+
+---
+
 ## 依赖关系
 
 ```

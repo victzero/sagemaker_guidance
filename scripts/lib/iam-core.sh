@@ -542,7 +542,7 @@ create_domain_default_role() {
             --description "Default execution role for SageMaker Domain" \
             --tags \
                 "Key=Purpose,Value=DomainDefault" \
-                "Key=ManagedBy,Value=sagemaker-iam-script" \
+                "Key=ManagedBy,Value=${COMPANY}-sagemaker" \
                 "Key=Company,Value=${COMPANY}"
         
         log_success "Role $role_name created"
@@ -639,11 +639,11 @@ create_execution_role() {
         aws iam create-role \
             --role-name "$role_name" \
             --assume-role-policy-document "file://${trust_policy_file}" \
-            --description "SageMaker Execution Role for ${team}/${project}" \
+            --description "SageMaker Execution Role for ${team_fullname}/${project}" \
             --tags \
-                "Key=Team,Value=${team}" \
+                "Key=Team,Value=${team_fullname}" \
                 "Key=Project,Value=${project}" \
-                "Key=ManagedBy,Value=sagemaker-iam-script" \
+                "Key=ManagedBy,Value=${COMPANY}-sagemaker" \
                 "Key=Company,Value=${COMPANY}"
         
         log_success "Role $role_name created"
@@ -764,12 +764,12 @@ create_training_role() {
         aws iam create-role \
             --role-name "$role_name" \
             --assume-role-policy-document "file://${trust_policy_file}" \
-            --description "SageMaker Training Role for ${team}/${project}" \
+            --description "SageMaker Training Role for ${team_fullname}/${project}" \
             --tags \
-                "Key=Team,Value=${team}" \
+                "Key=Team,Value=${team_fullname}" \
                 "Key=Project,Value=${project}" \
                 "Key=Purpose,Value=Training" \
-                "Key=ManagedBy,Value=sagemaker-iam-script" \
+                "Key=ManagedBy,Value=${COMPANY}-sagemaker" \
                 "Key=Company,Value=${COMPANY}"
         
         log_success "Role $role_name created"
@@ -840,12 +840,12 @@ create_processing_role() {
         aws iam create-role \
             --role-name "$role_name" \
             --assume-role-policy-document "file://${trust_policy_file}" \
-            --description "SageMaker Processing Role for ${team}/${project}" \
+            --description "SageMaker Processing Role for ${team_fullname}/${project}" \
             --tags \
-                "Key=Team,Value=${team}" \
+                "Key=Team,Value=${team_fullname}" \
                 "Key=Project,Value=${project}" \
                 "Key=Purpose,Value=Processing" \
-                "Key=ManagedBy,Value=sagemaker-iam-script" \
+                "Key=ManagedBy,Value=${COMPANY}-sagemaker" \
                 "Key=Company,Value=${COMPANY}"
         
         log_success "Role $role_name created"
@@ -916,12 +916,12 @@ create_inference_role() {
         aws iam create-role \
             --role-name "$role_name" \
             --assume-role-policy-document "file://${trust_policy_file}" \
-            --description "SageMaker Inference Role for ${team}/${project} (minimal permissions)" \
+            --description "SageMaker Inference Role for ${team_fullname}/${project} (minimal permissions)" \
             --tags \
-                "Key=Team,Value=${team}" \
+                "Key=Team,Value=${team_fullname}" \
                 "Key=Project,Value=${project}" \
                 "Key=Purpose,Value=Inference" \
-                "Key=ManagedBy,Value=sagemaker-iam-script" \
+                "Key=ManagedBy,Value=${COMPANY}-sagemaker" \
                 "Key=Company,Value=${COMPANY}"
         
         log_success "Role $role_name created"
@@ -1105,7 +1105,6 @@ create_iam_user() {
     local enable_console=${3:-false}
     local project=${4:-}
     local user_exists=false
-    local managed_by="${COMPANY:-sagemaker}-iam-script"
     
     log_info "Creating IAM User: $username"
     
@@ -1114,11 +1113,12 @@ create_iam_user() {
         log_warn "User $username already exists"
         user_exists=true
     else
-        # 构建 tags 参数
+        # 构建 tags 参数 (统一使用 ${COMPANY}-sagemaker 格式)
         local tag_args=(
             "Key=Team,Value=${team}"
-            "Key=ManagedBy,Value=${managed_by}"
+            "Key=ManagedBy,Value=${COMPANY}-sagemaker"
             "Key=Owner,Value=${username}"
+            "Key=Company,Value=${COMPANY}"
         )
         
         # 如果有 project 参数，添加 Project tag
@@ -1198,7 +1198,9 @@ create_admin_user() {
             --path "${IAM_PATH}" \
             --tags \
                 "Key=Role,Value=admin" \
-                "Key=ManagedBy,Value=sagemaker-iam-script"
+                "Key=ManagedBy,Value=${COMPANY}-sagemaker" \
+                "Key=Company,Value=${COMPANY}" \
+                "Key=Owner,Value=${username}"
         log_success "Admin user $username created"
     fi
     
