@@ -48,12 +48,20 @@
 
 ### sagemaker-factory.sh
 
+**资源发现函数:**
+| 函数 | 说明 |
+|------|------|
+| `get_domain_id` | 获取 Domain ID (带缓存) |
+| `get_studio_security_group` | 获取 Studio Security Group ID |
+| `get_studio_sg` | `get_studio_security_group` 的别名 |
+| `get_project_short <project>` | 获取项目短名 (fraud-detection → fraud) |
+
 **创建函数:**
 | 函数 | 说明 |
 |------|------|
 | `create_user_profile_and_space <...>` | 一站式创建 Profile + Space |
-| `create_user_profile <...>` | 创建 User Profile |
-| `create_private_space <...>` | 创建 Private Space |
+| `create_user_profile <domain_id> <profile_name> <role_arn> <sg_id> <team> <project> <username>` | 创建 User Profile |
+| `create_private_space <domain_id> <space_name> <profile_name> <team> <project> <username> [ebs_gb]` | 创建 Private Space |
 
 **删除函数:**
 | 函数 | 说明 |
@@ -112,7 +120,21 @@ lib/*.sh
 
 ## 模块使用情况
 
-| 模块             | iam-core | discovery | s3-factory | sagemaker-factory |
-| ---------------- | :------: | :-------: | :--------: | :---------------: |
-| 01-iam           |    ✅    |     -     |     -      |         -         |
-| 08-operations    |    ✅    |    ✅     |     ✅     |        ✅         |
+| 模块              | iam-core | discovery | s3-factory | sagemaker-factory |
+| ----------------- | :------: | :-------: | :--------: | :---------------: |
+| 01-iam/cleanup    |    ✅    |     -     |     -      |         -         |
+| 03-s3/cleanup     |    -     |     -     |     ✅     |         -         |
+| 05-user-profiles  |    -     |     -     |     -      |        ✅         |
+| 08-operations     |    ✅    |    ✅     |     ✅     |        ✅         |
+
+### 复用的函数
+
+**05-user-profiles:**
+- `create_user_profile()` - 由 01-create-user-profiles.sh 调用
+- `create_private_space()` - 由 02-create-private-spaces.sh 调用
+- `get_studio_sg()` / `get_studio_security_group()` - 获取安全组
+- `get_project_short()` - 获取项目短名
+- `delete_private_space()` / `delete_sagemaker_user_profile()` - 由 cleanup.sh 调用
+
+**08-operations:**
+- 使用全部 lib 函数（创建/删除 IAM、S3、SageMaker 资源）

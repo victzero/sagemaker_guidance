@@ -84,61 +84,9 @@ setup_operations_defaults() {
 }
 
 # -----------------------------------------------------------------------------
-# 获取 Domain ID
+# 注意: get_domain_id() 和 get_studio_sg() 已移至 lib/sagemaker-factory.sh
+# 这里的函数现在直接使用 lib 版本
 # -----------------------------------------------------------------------------
-get_domain_id() {
-    if [[ -n "$DOMAIN_ID" ]]; then
-        echo "$DOMAIN_ID"
-        return 0
-    fi
-    
-    # 尝试从 SageMaker 获取 Domain ID
-    local domain_id=$(aws sagemaker list-domains \
-        --query "Domains[?DomainName=='${DOMAIN_NAME:-sagemaker-domain}'].DomainId" \
-        --output text \
-        --region "$AWS_REGION" 2>/dev/null || echo "")
-    
-    if [[ -z "$domain_id" || "$domain_id" == "None" ]]; then
-        # 尝试获取任意 Domain
-        domain_id=$(aws sagemaker list-domains \
-            --query "Domains[0].DomainId" \
-            --output text \
-            --region "$AWS_REGION" 2>/dev/null || echo "")
-    fi
-    
-    if [[ -z "$domain_id" || "$domain_id" == "None" ]]; then
-        log_error "No SageMaker Domain found. Please create a domain first."
-        exit 1
-    fi
-    
-    DOMAIN_ID="$domain_id"
-    export DOMAIN_ID
-    echo "$domain_id"
-}
-
-# -----------------------------------------------------------------------------
-# 获取 Studio Security Group ID
-# -----------------------------------------------------------------------------
-get_studio_sg() {
-    local sg_name="${TAG_PREFIX}-studio"
-    local sg_id=$(aws ec2 describe-security-groups \
-        --filters "Name=group-name,Values=${sg_name}" \
-        --query 'SecurityGroups[0].GroupId' \
-        --output text \
-        --region "$AWS_REGION" 2>/dev/null || echo "")
-    
-    if [[ -z "$sg_id" || "$sg_id" == "None" ]]; then
-        log_error "Security group not found: $sg_name"
-        exit 1
-    fi
-    
-    echo "$sg_id"
-}
-
-# Alias for sagemaker-factory.sh compatibility
-get_studio_security_group() {
-    get_studio_sg
-}
 
 # -----------------------------------------------------------------------------
 # 获取团队列表
@@ -221,12 +169,8 @@ user_in_group() {
 }
 
 # -----------------------------------------------------------------------------
-# 简化项目名 (fraud-detection -> fraud)
+# 注意: get_project_short() 已移至 lib/sagemaker-factory.sh
 # -----------------------------------------------------------------------------
-get_project_short() {
-    local project=$1
-    echo "$project" | cut -d'-' -f1
-}
 
 # -----------------------------------------------------------------------------
 # 打印分隔线

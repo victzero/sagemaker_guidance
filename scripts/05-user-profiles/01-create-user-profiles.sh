@@ -25,78 +25,12 @@ source "${SCRIPT_DIR}/00-init.sh"
 init
 
 # -----------------------------------------------------------------------------
-# 获取 Security Group ID
+# 注意: get_studio_sg() 和 create_user_profile() 已移至 lib/sagemaker-factory.sh
+# 本脚本复用 lib 版本，保持逻辑一致
 # -----------------------------------------------------------------------------
-get_studio_sg() {
-    local sg_name="${TAG_PREFIX}-studio"
-    local sg_id=$(aws ec2 describe-security-groups \
-        --filters "Name=group-name,Values=${sg_name}" \
-        --query 'SecurityGroups[0].GroupId' \
-        --output text \
-        --region "$AWS_REGION" 2>/dev/null || echo "")
-    
-    if [[ -z "$sg_id" || "$sg_id" == "None" ]]; then
-        log_error "Security group not found: $sg_name"
-        exit 1
-    fi
-    
-    echo "$sg_id"
-}
 
 # -----------------------------------------------------------------------------
-# 创建 User Profile
-# -----------------------------------------------------------------------------
-create_user_profile() {
-    local profile_name=$1
-    local iam_user=$2
-    local team=$3
-    local team_fullname=$4
-    local project=$5
-    local execution_role=$6
-    local sg_id=$7
-    
-    # 检查是否已存在
-    if aws sagemaker describe-user-profile \
-        --domain-id "$DOMAIN_ID" \
-        --user-profile-name "$profile_name" \
-        --region "$AWS_REGION" &> /dev/null; then
-        log_warn "Profile already exists: $profile_name"
-        return 0
-    fi
-    
-    log_info "Creating User Profile: $profile_name"
-    log_info "  IAM User: $iam_user"
-    log_info "  Project:  $project"
-    log_info "  Role:     $execution_role"
-    
-    local user_settings=$(cat <<EOF
-{
-    "ExecutionRole": "arn:aws:iam::${AWS_ACCOUNT_ID}:role/${execution_role}",
-    "SecurityGroups": ["${sg_id}"]
-}
-EOF
-)
-    
-    aws sagemaker create-user-profile \
-        --domain-id "$DOMAIN_ID" \
-        --user-profile-name "$profile_name" \
-        --user-settings "$user_settings" \
-        --tags \
-            Key=Team,Value="$team_fullname" \
-            Key=Project,Value="$project" \
-            Key=Owner,Value="$iam_user" \
-            Key=Environment,Value=production \
-            Key=ManagedBy,Value="${TAG_PREFIX}" \
-        --region "$AWS_REGION"
-    
-    log_success "Created: $profile_name"
-    
-    # 避免 API 限流
-    sleep 1
-}
-
-# -----------------------------------------------------------------------------
-# 主函数
+# 主函数 (使用 lib/sagemaker-factory.sh 中的 create_user_profile)
 # -----------------------------------------------------------------------------
 main() {
     echo ""
@@ -107,6 +41,7 @@ main() {
     echo "Naming format: profile-{team}-{project}-{user}"
     echo ""
     
+    # 使用 lib 函数获取 Security Group
     local sg_id=$(get_studio_sg)
     log_info "Using Security Group: $sg_id"
     
@@ -122,11 +57,12 @@ main() {
         
         for project in $projects; do
             local project_formatted=$(format_name "$project")
-            local execution_role="SageMaker-${team_formatted}-${project_formatted}-ExecutionRole"
+            local execution_role_name="SageMaker-${team_formatted}-${project_formatted}-ExecutionRole"
+            local execution_role_arn="arn:aws:iam::${AWS_ACCOUNT_ID}:role/${execution_role_name}"
             local users=$(get_users_for_project "$team" "$project")
             
             # 简化项目名用于 Profile 命名 (fraud-detection -> fraud)
-            local project_short=$(echo "$project" | cut -d'-' -f1)
+            local project_short=$(get_project_short "$project")
             
             for user in $users; do
                 # 新命名格式: profile-{team}-{project}-{user}
@@ -140,18 +76,20 @@ main() {
                     ((skipped++)) || true
                     log_warn "Skipping existing: $profile_name"
                 else
+                    # 使用 lib/sagemaker-factory.sh 中的 create_user_profile
+                    # 参数顺序: domain_id, profile_name, execution_role_arn, sg_id, team, project, iam_username
                     create_user_profile \
+                        "$DOMAIN_ID" \
                         "$profile_name" \
-                        "$iam_user" \
+                        "$execution_role_arn" \
+                        "$sg_id" \
                         "$team" \
-                        "$team_fullname" \
                         "$project" \
-                        "$execution_role" \
-                        "$sg_id"
+                        "$iam_user"
                     ((created++)) || true
                 fi
                 
-                profile_list+="${profile_name},${iam_user},${team_fullname},${project},${execution_role}\n"
+                profile_list+="${profile_name},${iam_user},${team_fullname},${project},${execution_role_name}\n"
             done
         done
     done

@@ -23,25 +23,20 @@ init
 SPACE_EBS_SIZE_GB=${SPACE_EBS_SIZE_GB:-50}
 
 # -----------------------------------------------------------------------------
-# 创建 Private Space
+# 注意: create_private_space() 已移至 lib/sagemaker-factory.sh
+# 本脚本复用 lib 版本，保持逻辑一致
 # -----------------------------------------------------------------------------
-create_private_space() {
+
+# 本地包装函数：检查 Profile 存在性后调用 lib 版本
+create_private_space_with_check() {
     local space_name=$1
     local profile_name=$2
-    local team_fullname=$3
+    local team=$3
     local project=$4
     local user=$5
+    local ebs_size=${6:-$SPACE_EBS_SIZE_GB}
     
-    # 检查是否已存在
-    if aws sagemaker describe-space \
-        --domain-id "$DOMAIN_ID" \
-        --space-name "$space_name" \
-        --region "$AWS_REGION" &> /dev/null; then
-        log_warn "Space already exists: $space_name"
-        return 0
-    fi
-    
-    # 检查 User Profile 是否存在
+    # 检查 User Profile 是否存在 (lib 版本不含此检查)
     if ! aws sagemaker describe-user-profile \
         --domain-id "$DOMAIN_ID" \
         --user-profile-name "$profile_name" \
@@ -51,45 +46,20 @@ create_private_space() {
         return 1
     fi
     
-    log_info "Creating Private Space: $space_name"
-    log_info "  Owner Profile: $profile_name"
-    
-    # Space 设置（Idle Shutdown 自动继承 Domain 配置）
-    local space_settings=$(cat <<EOF
-{
-    "AppType": "JupyterLab",
-    "SpaceStorageSettings": {
-        "EbsStorageSettings": {
-            "EbsVolumeSizeInGb": ${SPACE_EBS_SIZE_GB}
-        }
-    }
-}
-EOF
-)
-    
-    aws sagemaker create-space \
-        --domain-id "$DOMAIN_ID" \
-        --space-name "$space_name" \
-        --space-sharing-settings '{"SharingType": "Private"}' \
-        --ownership-settings "{\"OwnerUserProfileName\": \"${profile_name}\"}" \
-        --space-settings "$space_settings" \
-        --tags \
-            Key=Team,Value="$team_fullname" \
-            Key=Project,Value="$project" \
-            Key=Owner,Value="$user" \
-            Key=SpaceType,Value="private" \
-            Key=Environment,Value=production \
-            Key=ManagedBy,Value="${TAG_PREFIX}" \
-        --region "$AWS_REGION"
-    
-    log_success "Created: $space_name"
-    
-    # 避免 API 限流
-    sleep 2
+    # 调用 lib/sagemaker-factory.sh 中的 create_private_space
+    # 参数顺序: domain_id, space_name, owner_profile_name, team, project, username, ebs_size_gb
+    create_private_space \
+        "$DOMAIN_ID" \
+        "$space_name" \
+        "$profile_name" \
+        "$team" \
+        "$project" \
+        "$user" \
+        "$ebs_size"
 }
 
 # -----------------------------------------------------------------------------
-# 主函数
+# 主函数 (使用 lib/sagemaker-factory.sh 中的 create_private_space)
 # -----------------------------------------------------------------------------
 main() {
     echo ""
@@ -114,8 +84,8 @@ main() {
         for project in $projects; do
             local users=$(get_users_for_project "$team" "$project")
             
-            # 简化项目名用于命名 (fraud-detection -> fraud)
-            local project_short=$(echo "$project" | cut -d'-' -f1)
+            # 简化项目名用于命名 (使用 lib 函数)
+            local project_short=$(get_project_short "$project")
             
             for user in $users; do
                 # 命名格式: space-{team}-{project}-{user}
@@ -129,10 +99,11 @@ main() {
                     ((skipped++)) || true
                     log_warn "Skipping existing: $space_name"
                 else
-                    create_private_space \
+                    # 使用包装函数 (含 Profile 检查 + 调用 lib 版本)
+                    create_private_space_with_check \
                         "$space_name" \
                         "$profile_name" \
-                        "$team_fullname" \
+                        "$team" \
                         "$project" \
                         "$user"
                     ((created++)) || true

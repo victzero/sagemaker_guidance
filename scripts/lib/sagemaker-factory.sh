@@ -226,8 +226,11 @@ get_project_short() {
 }
 
 # 获取 Studio Security Group ID
+# 支持 TAG_PREFIX 变量（兼容 08-operations）或使用 COMPANY 构建
+# 用法: get_studio_security_group
 get_studio_security_group() {
-    local tag_prefix="${COMPANY:-company}-sagemaker"
+    # 优先使用 TAG_PREFIX，否则使用 COMPANY 构建
+    local tag_prefix="${TAG_PREFIX:-${COMPANY:-company}-sagemaker}"
     local sg_name="${tag_prefix}-studio"
     
     local sg_id=$(aws ec2 describe-security-groups \
@@ -244,8 +247,21 @@ get_studio_security_group() {
     echo "$sg_id"
 }
 
-# 获取 Domain ID
+# 别名 (兼容 05-user-profiles 和 08-operations)
+get_studio_sg() {
+    get_studio_security_group "$@"
+}
+
+# 获取 Domain ID (带缓存)
+# 支持已设置的 DOMAIN_ID 变量，或自动从 AWS 查询
+# 用法: get_domain_id
 get_domain_id() {
+    # 如果已有缓存，直接返回
+    if [[ -n "$DOMAIN_ID" ]]; then
+        echo "$DOMAIN_ID"
+        return 0
+    fi
+    
     local domain_name="${DOMAIN_NAME:-sagemaker-domain}"
     
     # 先尝试用名称查找
@@ -267,6 +283,9 @@ get_domain_id() {
         return 1
     fi
     
+    # 缓存并导出
+    DOMAIN_ID="$domain_id"
+    export DOMAIN_ID
     echo "$domain_id"
 }
 
