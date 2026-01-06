@@ -86,14 +86,14 @@ USER_GROUPS=$(aws iam list-groups-for-user --user-name "$IAM_USERNAME" \
 # 查询 User Profiles
 USER_PROFILES=$(aws sagemaker list-user-profiles \
     --domain-id "$DOMAIN_ID" \
-    --query "UserProfiles[?contains(UserProfileName, '${USER_NAME}')].UserProfileName" \
+    --query 'UserProfiles[?contains(UserProfileName, `'"${USER_NAME}"'`)].UserProfileName' \
     --output text \
     --region "$AWS_REGION" 2>/dev/null || echo "")
 
 # 查询 Private Spaces
 USER_SPACES=$(aws sagemaker list-spaces \
     --domain-id "$DOMAIN_ID" \
-    --query "Spaces[?contains(SpaceName, '${USER_NAME}')].SpaceName" \
+    --query 'Spaces[?contains(SpaceName, `'"${USER_NAME}"'`)].SpaceName' \
     --output text \
     --region "$AWS_REGION" 2>/dev/null || echo "")
 

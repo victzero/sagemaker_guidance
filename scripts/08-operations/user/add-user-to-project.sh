@@ -247,7 +247,7 @@ echo ""
 echo "用户当前可访问的项目 Profiles:"
 aws sagemaker list-user-profiles \
     --domain-id "$DOMAIN_ID" \
-    --query "UserProfiles[?contains(UserProfileName, '${USER_NAME}')].UserProfileName" \
+    --query 'UserProfiles[?contains(UserProfileName, `'"${USER_NAME}"'`)].UserProfileName' \
     --output table \
     --region "$AWS_REGION" 2>/dev/null || true
 echo ""

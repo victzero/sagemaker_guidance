@@ -310,7 +310,7 @@ check_iam_roles() {
         # 检查是否附加了 AmazonSageMakerFullAccess
         local has_policy=$(aws iam list-attached-role-policies \
             --role-name "$default_role_name" \
-            --query "AttachedPolicies[?PolicyName=='AmazonSageMakerFullAccess'].PolicyName" \
+            --query 'AttachedPolicies[?PolicyName==`AmazonSageMakerFullAccess`].PolicyName' \
             --output text 2>/dev/null || echo "")
         
         if [[ -n "$has_policy" ]]; then

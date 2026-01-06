@@ -263,12 +263,13 @@ main() {
     verify_section "Execution Roles - Trust Policy"
     
     # 检查所有 Execution Roles 的 trust policy（不使用 path，通过名称筛选）
+    # 注意: JMESPath 使用反引号 ` 表示字符串字面量
     local all_roles=$(aws iam list-roles \
-        --query "Roles[?starts_with(RoleName, 'SageMaker-') && contains(RoleName, 'ExecutionRole')].RoleName" --output text)
+        --query 'Roles[?starts_with(RoleName, `SageMaker-`) && contains(RoleName, `ExecutionRole`)].RoleName' --output text)
     
     for role_name in $all_roles; do
         local trust_has_sagemaker=$(aws iam get-role --role-name "$role_name" \
-            --query "Role.AssumeRolePolicyDocument.Statement[?Principal.Service=='sagemaker.amazonaws.com']" \
+            --query 'Role.AssumeRolePolicyDocument.Statement[?Principal.Service==`sagemaker.amazonaws.com`]' \
             --output text 2>/dev/null || echo "")
         
         if [[ -n "$trust_has_sagemaker" ]]; then
@@ -286,7 +287,7 @@ main() {
     # Domain 默认角色
     local domain_sm_policy=$(aws iam list-attached-role-policies \
         --role-name "SageMaker-Domain-DefaultExecutionRole" \
-        --query "AttachedPolicies[?PolicyName=='AmazonSageMakerFullAccess'].PolicyName" \
+        --query 'AttachedPolicies[?PolicyName==`AmazonSageMakerFullAccess`].PolicyName' \
         --output text 2>/dev/null || echo "")
     
     if [[ -n "$domain_sm_policy" ]]; then
@@ -308,7 +309,7 @@ main() {
             
             local sm_policy=$(aws iam list-attached-role-policies \
                 --role-name "$role_name" \
-                --query "AttachedPolicies[?PolicyName=='AmazonSageMakerFullAccess'].PolicyName" \
+                --query 'AttachedPolicies[?PolicyName==`AmazonSageMakerFullAccess`].PolicyName' \
                 --output text 2>/dev/null || echo "")
             
             if [[ -n "$sm_policy" ]]; then
@@ -337,7 +338,7 @@ main() {
                 ((training_role_count++)) || true
                 
                 local train_trust=$(aws iam get-role --role-name "$train_role_name" \
-                    --query "Role.AssumeRolePolicyDocument.Statement[?Principal.Service=='sagemaker.amazonaws.com']" \
+                    --query 'Role.AssumeRolePolicyDocument.Statement[?Principal.Service==`sagemaker.amazonaws.com`]' \
                     --output text 2>/dev/null || echo "")
                 
                 if [[ -n "$train_trust" ]]; then
@@ -373,7 +374,7 @@ main() {
                 ((processing_role_count++)) || true
                 
                 local proc_trust=$(aws iam get-role --role-name "$proc_role_name" \
-                    --query "Role.AssumeRolePolicyDocument.Statement[?Principal.Service=='sagemaker.amazonaws.com']" \
+                    --query 'Role.AssumeRolePolicyDocument.Statement[?Principal.Service==`sagemaker.amazonaws.com`]' \
                     --output text 2>/dev/null || echo "")
                 
                 if [[ -n "$proc_trust" ]]; then
@@ -411,7 +412,7 @@ main() {
                 
                 # 检查 Trust Policy
                 local inf_trust=$(aws iam get-role --role-name "$inf_role_name" \
-                    --query "Role.AssumeRolePolicyDocument.Statement[?Principal.Service=='sagemaker.amazonaws.com']" \
+                    --query 'Role.AssumeRolePolicyDocument.Statement[?Principal.Service==`sagemaker.amazonaws.com`]' \
                     --output text 2>/dev/null || echo "")
                 
                 if [[ -n "$inf_trust" ]]; then
@@ -444,11 +445,11 @@ main() {
                 
                 # 检查团队组
                 local in_team=$(aws iam get-group --group-name "sagemaker-${team_fullname}" \
-                    --query "Users[?UserName=='${username}'].UserName" --output text 2>/dev/null || echo "")
+                    --query 'Users[?UserName==`'"${username}"'`].UserName' --output text 2>/dev/null || echo "")
                 
                 # 检查项目组
                 local in_project=$(aws iam get-group --group-name "sagemaker-${team}-${project}" \
-                    --query "Users[?UserName=='${username}'].UserName" --output text 2>/dev/null || echo "")
+                    --query 'Users[?UserName==`'"${username}"'`].UserName' --output text 2>/dev/null || echo "")
                 
                 if [[ -n "$in_team" && -n "$in_project" ]]; then
                     echo -e "  ${GREEN}✓${NC} $username → team + project groups"
@@ -464,7 +465,7 @@ main() {
     for admin in $ADMIN_USERS; do
         local username="sm-admin-${admin}"
         local in_admin=$(aws iam get-group --group-name "sagemaker-admins" \
-            --query "Users[?UserName=='${username}'].UserName" --output text 2>/dev/null || echo "")
+            --query 'Users[?UserName==`'"${username}"'`].UserName' --output text 2>/dev/null || echo "")
         
         if [[ -n "$in_admin" ]]; then
             echo -e "  ${GREEN}✓${NC} $username → admin group"
@@ -479,7 +480,7 @@ main() {
     
     # 检查管理员组绑定
     local admin_policy=$(aws iam list-attached-group-policies --group-name "sagemaker-admins" \
-        --query "AttachedPolicies[?PolicyName=='AmazonSageMakerFullAccess'].PolicyName" --output text 2>/dev/null || echo "")
+        --query 'AttachedPolicies[?PolicyName==`AmazonSageMakerFullAccess`].PolicyName' --output text 2>/dev/null || echo "")
     
     if [[ -n "$admin_policy" ]]; then
         echo -e "  ${GREEN}✓${NC} sagemaker-admins → AmazonSageMakerFullAccess"

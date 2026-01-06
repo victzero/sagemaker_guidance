@@ -603,7 +603,7 @@ create_domain_default_role() {
     
     local attached=$(aws iam list-attached-role-policies \
         --role-name "$role_name" \
-        --query "AttachedPolicies[?PolicyName=='AmazonSageMakerFullAccess'].PolicyName" \
+        --query 'AttachedPolicies[?PolicyName==`AmazonSageMakerFullAccess`].PolicyName' \
         --output text 2>/dev/null || echo "")
     
     if [[ -n "$attached" ]]; then
@@ -706,7 +706,7 @@ create_execution_role() {
     
     local sm_attached=$(aws iam list-attached-role-policies \
         --role-name "$role_name" \
-        --query "AttachedPolicies[?PolicyName=='AmazonSageMakerFullAccess'].PolicyName" \
+        --query 'AttachedPolicies[?PolicyName==`AmazonSageMakerFullAccess`].PolicyName' \
         --output text 2>/dev/null || echo "")
     
     if [[ -n "$sm_attached" ]]; then

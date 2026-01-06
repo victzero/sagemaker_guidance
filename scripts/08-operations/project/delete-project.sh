@@ -77,7 +77,7 @@ echo "查询团队项目..."
 
 # 从 IAM Groups 获取项目列表
 ALL_GROUPS=$(aws iam list-groups --path-prefix "${IAM_PATH}" \
-    --query "Groups[?starts_with(GroupName, 'sagemaker-${SELECTED_TEAM}-')].GroupName" \
+    --query 'Groups[?starts_with(GroupName, `sagemaker-'"${SELECTED_TEAM}"'-`)].GroupName' \
     --output text 2>/dev/null || echo "")
 
 PROJECT_GROUPS=()
@@ -144,14 +144,14 @@ PROJECT_MEMBERS=$(aws iam get-group --group-name "$GROUP_NAME" \
 # 查询 User Profiles
 PROJECT_PROFILES=$(aws sagemaker list-user-profiles \
     --domain-id "$DOMAIN_ID" \
-    --query "UserProfiles[?contains(UserProfileName, '-${PROJECT_SHORT}-')].UserProfileName" \
+    --query 'UserProfiles[?contains(UserProfileName, `-'"${PROJECT_SHORT}"'-`)].UserProfileName' \
     --output text \
     --region "$AWS_REGION" 2>/dev/null || echo "")
 
 # 查询 Private Spaces
 PROJECT_SPACES=$(aws sagemaker list-spaces \
     --domain-id "$DOMAIN_ID" \
-    --query "Spaces[?contains(SpaceName, '-${PROJECT_SHORT}-')].SpaceName" \
+    --query 'Spaces[?contains(SpaceName, `-'"${PROJECT_SHORT}"'-`)].SpaceName' \
     --output text \
     --region "$AWS_REGION" 2>/dev/null || echo "")
 

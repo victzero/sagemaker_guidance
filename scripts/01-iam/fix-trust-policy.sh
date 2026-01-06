@@ -45,9 +45,10 @@ echo "=============================================="
 echo ""
 
 # 获取所有 SageMaker Execution Roles（不使用 path，通过名称前缀筛选）
+# 注意: JMESPath 使用反引号 ` 表示字符串字面量
 log_info "Finding all SageMaker Execution Roles..."
 
-roles=$(aws iam list-roles --query "Roles[?starts_with(RoleName, 'SageMaker-') && contains(RoleName, 'ExecutionRole')].RoleName" --output text)
+roles=$(aws iam list-roles --query 'Roles[?starts_with(RoleName, `SageMaker-`) && contains(RoleName, `ExecutionRole`)].RoleName' --output text)
 
 if [ -z "$roles" ]; then
     log_error "No execution roles found matching pattern SageMaker-*-ExecutionRole"

@@ -88,8 +88,9 @@ echo ""
 log_info "Step 1: Finding all SageMaker Execution Roles..."
 
 # 搜索所有可能的位置（带路径和不带路径）
+# 注意: JMESPath 使用反引号 ` 表示字符串字面量
 roles_without_path=$(aws iam list-roles \
-    --query "Roles[?starts_with(RoleName, 'SageMaker-') && contains(RoleName, 'ExecutionRole')].{Name:RoleName,Path:Path,Arn:Arn}" \
+    --query 'Roles[?starts_with(RoleName, `SageMaker-`) && contains(RoleName, `ExecutionRole`)].{Name:RoleName,Path:Path,Arn:Arn}' \
     --output json 2>/dev/null || echo "[]")
 
 echo ""
@@ -183,7 +184,7 @@ for role_name in $role_names; do
     
     sm_attached=$(aws iam list-attached-role-policies \
         --role-name "$role_name" \
-        --query "AttachedPolicies[?PolicyName=='AmazonSageMakerFullAccess'].PolicyName" \
+        --query 'AttachedPolicies[?PolicyName==`AmazonSageMakerFullAccess`].PolicyName' \
         --output text 2>/dev/null || echo "")
     
     if [[ -n "$sm_attached" ]]; then

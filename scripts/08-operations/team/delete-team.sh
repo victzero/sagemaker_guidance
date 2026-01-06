@@ -50,7 +50,7 @@ echo "查询可删除的团队..."
 
 # 获取所有 sagemaker-* Groups
 ALL_GROUPS=$(aws iam list-groups --path-prefix "${IAM_PATH}" \
-    --query "Groups[?starts_with(GroupName, 'sagemaker-')].GroupName" \
+    --query 'Groups[?starts_with(GroupName, `sagemaker-`)].GroupName' \
     --output text 2>/dev/null || echo "")
 
 # 筛选团队级 Groups (排除 admins, readonly, 和项目级 groups)
@@ -87,7 +87,7 @@ for i in "${!TEAM_GROUPS[@]}"; do
     
     # 检查是否有关联项目
     project_count=$(aws iam list-groups --path-prefix "${IAM_PATH}" \
-        --query "Groups[?starts_with(GroupName, 'sagemaker-') && contains(GroupName, '-${team_name}-')].GroupName | length(@)" \
+        --query 'Groups[?starts_with(GroupName, `sagemaker-`) && contains(GroupName, `-'"${team_name}"'-`)].GroupName | length(@)' \
         --output text 2>/dev/null || echo "0")
     
     echo "  [$((i+1))] $team_name (成员: $member_count, 项目: $project_count)"
@@ -123,7 +123,7 @@ MEMBER_COUNT=$(echo "$TEAM_MEMBERS" | wc -w | tr -d ' ')
 
 # 检查关联项目
 PROJECT_GROUPS=$(aws iam list-groups --path-prefix "${IAM_PATH}" \
-    --query "Groups[?starts_with(GroupName, 'sagemaker-') && contains(GroupName, '-')].GroupName" \
+    --query 'Groups[?starts_with(GroupName, `sagemaker-`) && contains(GroupName, `-`)].GroupName' \
     --output text 2>/dev/null || echo "")
 
 TEAM_PROJECTS=()
@@ -157,7 +157,7 @@ for team in $TEAMS; do
     if [[ "$SELECTED_TEAM" == "$team_fullname" ]]; then
         # 找到团队 ID，查找其项目
         PROJECTS=$(aws iam list-groups --path-prefix "${IAM_PATH}" \
-            --query "Groups[?starts_with(GroupName, 'sagemaker-${team}-')].GroupName" \
+            --query 'Groups[?starts_with(GroupName, `sagemaker-'"${team}"'-`)].GroupName' \
             --output text 2>/dev/null || echo "")
         
         for proj_group in $PROJECTS; do

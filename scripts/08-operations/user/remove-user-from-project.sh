@@ -246,7 +246,7 @@ echo ""
 # 显示用户剩余的项目
 echo "用户 $IAM_USERNAME 剩余的项目组:"
 aws iam list-groups-for-user --user-name "$IAM_USERNAME" \
-    --query "Groups[?starts_with(GroupName, 'sagemaker-${USER_TEAM}-')].GroupName" \
+    --query 'Groups[?starts_with(GroupName, `sagemaker-'"${USER_TEAM}"'-`)].GroupName' \
     --output table 2>/dev/null || echo "  (无)"
 echo ""
 

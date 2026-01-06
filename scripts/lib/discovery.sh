@@ -25,8 +25,9 @@ discover_projects_for_team() {
     local iam_path="${IAM_PATH:-/}"
     
     # 从 IAM Groups 中查找该团队的项目
+    # 注意: JMESPath 使用反引号 ` 表示字符串字面量
     local groups=$(aws iam list-groups --path-prefix "$iam_path" \
-        --query "Groups[?starts_with(GroupName, 'sagemaker-${team}-')].GroupName" \
+        --query 'Groups[?starts_with(GroupName, `sagemaker-'"${team}"'-`)].GroupName' \
         --output text 2>/dev/null || echo "")
     
     local projects=()
@@ -86,8 +87,9 @@ discover_teams() {
     local iam_path="${IAM_PATH:-/}"
     
     # 从 IAM Groups 中查找团队级 Groups
+    # 注意: JMESPath 使用反引号 ` 表示字符串字面量
     local groups=$(aws iam list-groups --path-prefix "$iam_path" \
-        --query "Groups[?starts_with(GroupName, 'sagemaker-')].GroupName" \
+        --query 'Groups[?starts_with(GroupName, `sagemaker-`)].GroupName' \
         --output text 2>/dev/null || echo "")
     
     local teams=()

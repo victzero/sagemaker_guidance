@@ -61,7 +61,7 @@ echo ""
 # 获取所有项目级 Groups (sagemaker-{team}-{project})
 # 排除团队级 Groups (sagemaker-risk-control 等)
 ALL_GROUPS=$(aws iam list-groups --path-prefix "${IAM_PATH}" \
-    --query "Groups[?starts_with(GroupName, 'sagemaker-')].GroupName" \
+    --query 'Groups[?starts_with(GroupName, `sagemaker-`)].GroupName' \
     --output text 2>/dev/null || echo "")
 
 # 筛选项目 Groups

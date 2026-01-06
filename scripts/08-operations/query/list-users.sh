@@ -58,14 +58,15 @@ echo "=============================================="
 echo ""
 
 # 获取所有 IAM Users
+# 注意: JMESPath 使用反引号 ` 表示字符串字面量，不是单引号 '
 if [[ -n "$FILTER_TEAM" ]]; then
     log_info "筛选团队: $FILTER_TEAM"
     USERS=$(aws iam list-users --path-prefix "${IAM_PATH}" \
-        --query "Users[?contains(UserName, 'sm-${FILTER_TEAM}-')].UserName" \
+        --query 'Users[?contains(UserName, `sm-'"${FILTER_TEAM}"'-`)].UserName' \
         --output text 2>/dev/null || echo "")
 else
     USERS=$(aws iam list-users --path-prefix "${IAM_PATH}" \
-        --query "Users[?starts_with(UserName, 'sm-')].UserName" \
+        --query 'Users[?starts_with(UserName, `sm-`)].UserName' \
         --output text 2>/dev/null || echo "")
 fi
 
@@ -99,7 +100,7 @@ for user in $USERS; do
     
     # 获取用户所属的项目 Groups
     GROUPS=$(aws iam list-groups-for-user --user-name "$user" \
-        --query "Groups[?starts_with(GroupName, 'sagemaker-${TEAM}-')].GroupName" \
+        --query 'Groups[?starts_with(GroupName, `sagemaker-'"${TEAM}"'-`)].GroupName' \
         --output text 2>/dev/null || echo "")
     
     # 简化 Group 显示
@@ -127,7 +128,7 @@ for user in $USERS; do
         USER_IDENT="${user#sm-${TEAM}-}"
         PROFILE_COUNT=$(aws sagemaker list-user-profiles \
             --domain-id "$DOMAIN_ID" \
-            --query "UserProfiles[?ends_with(UserProfileName, '-${USER_IDENT}')].UserProfileName" \
+            --query 'UserProfiles[?ends_with(UserProfileName, `-'"${USER_IDENT}"'`)].UserProfileName' \
             --output text \
             --region "$AWS_REGION" 2>/dev/null | wc -w | tr -d ' ')
     fi
@@ -139,7 +140,7 @@ for user in $USERS; do
         USER_IDENT="${user#sm-${TEAM}-}"
         PROFILES=$(aws sagemaker list-user-profiles \
             --domain-id "$DOMAIN_ID" \
-            --query "UserProfiles[?ends_with(UserProfileName, '-${USER_IDENT}')].UserProfileName" \
+            --query 'UserProfiles[?ends_with(UserProfileName, `-'"${USER_IDENT}"'`)].UserProfileName' \
             --output text \
             --region "$AWS_REGION" 2>/dev/null || echo "")
         
