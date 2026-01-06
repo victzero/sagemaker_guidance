@@ -25,7 +25,12 @@ scripts/
 │   ─────── Phase 2: 工作负载资源 ───────
 ├── 06-ecr/              # ECR 仓库 (可选，自定义镜像需要) ✅
 ├── 07-model-registry/   # Model Registry (模型版本管理) ✅
-├── 08-monitoring/       # 日志与监控配置 (待实现)
+│
+│   ─────── 运维操作脚本 ───────
+├── 08-operations/       # 增量变更操作 (新增用户/项目等) ✅
+│   ├── user/            # 用户管理 (add-user, add-user-to-project)
+│   ├── project/         # 项目管理 (待实现)
+│   └── team/            # 团队管理 (待实现)
 │
 ├── common.sh            # 共享函数库
 ├── .env.shared.example  # 共享配置模板
@@ -393,3 +398,32 @@ cd ../01-iam && ./cleanup.sh
 7. 在 JupyterLab 中可以访问项目 S3 桶
 
 > **多项目用户**：如果参与多个项目，需要切换 Profile 来访问不同项目的资源。
+
+## 运维操作
+
+平台部署完成后，日常运维操作使用 `08-operations/` 目录下的脚本：
+
+### 用户管理
+
+```bash
+cd 08-operations
+
+# 场景 1: 新增用户到项目（新员工入职）
+./user/add-user.sh
+
+# 场景 2: 已有用户加入新项目（跨项目协作）
+./user/add-user-to-project.sh
+```
+
+### 支持的操作
+
+| 场景 | 脚本 | 状态 |
+|------|------|------|
+| 新增用户到已有项目 | `user/add-user.sh` | ✅ |
+| 将已有用户添加到新项目 | `user/add-user-to-project.sh` | ✅ |
+| 从项目移除用户 | `user/remove-user-from-project.sh` | ⏳ |
+| 完全删除用户 | `user/delete-user.sh` | ⏳ |
+| 新增项目 | `project/add-project.sh` | ⏳ |
+| 删除项目 | `project/delete-project.sh` | ⏳ |
+
+详见 [08-operations/README.md](./08-operations/README.md)
