@@ -59,21 +59,26 @@ echo ""
 
 # 获取所有 IAM Users
 # 注意: JMESPath 使用反引号 ` 表示字符串字面量，不是单引号 '
+log_info "DEBUG: IAM_PATH=${IAM_PATH}"
 if [[ -n "$FILTER_TEAM" ]]; then
     log_info "筛选团队: $FILTER_TEAM"
     USERS=$(aws iam list-users --path-prefix "${IAM_PATH}" \
         --query 'Users[?contains(UserName, `sm-'"${FILTER_TEAM}"'-`)].UserName' \
         --output text 2>/dev/null || echo "")
 else
+    log_info "DEBUG: Running query..."
     USERS=$(aws iam list-users --path-prefix "${IAM_PATH}" \
         --query 'Users[?starts_with(UserName, `sm-`)].UserName' \
         --output text 2>/dev/null || echo "")
+    log_info "DEBUG: Query completed, USERS=[$USERS]"
 fi
 
 if [[ -z "$USERS" ]]; then
     log_warn "未找到用户"
     exit 0
 fi
+
+log_info "DEBUG: Found users, continuing..."
 
 # 统计
 TOTAL_USERS=0
@@ -84,7 +89,9 @@ echo ""
 printf "%-25s %-15s %-30s %s\n" "IAM User" "团队" "所属项目 Groups" "Profiles"
 echo "────────────────────────────────────────────────────────────────────────────────────────"
 
+log_info "DEBUG: Starting for loop with USERS=[$USERS]"
 for user in $USERS; do
+    log_info "DEBUG: Processing user: $user"
     ((TOTAL_USERS++)) || true
     
     # 解析用户类型
