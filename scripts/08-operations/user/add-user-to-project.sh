@@ -5,7 +5,7 @@
 #
 # 场景: 员工跨项目协作，需要访问另一个项目
 #
-# 涉及资源:
+# 涉及资源 (通过 lib/ 工厂函数):
 #   - IAM User: 已存在，不变更
 #   - IAM Group: 加入新项目组
 #   - User Profile: 创建新项目的 profile-{team}-{project}-{user}
@@ -22,6 +22,10 @@ source "${SCRIPT_DIR}/../00-init.sh"
 
 # 静默初始化
 init_silent
+
+# 加载工厂函数库
+source "${SCRIPTS_ROOT}/lib/discovery.sh"
+source "${SCRIPTS_ROOT}/lib/sagemaker-factory.sh"
 
 # =============================================================================
 # 交互式选择
@@ -90,14 +94,16 @@ done
 echo ""
 
 # -----------------------------------------------------------------------------
-# 3. 选择要加入的项目
+# 3. 选择要加入的项目 (使用动态发现)
 # -----------------------------------------------------------------------------
 echo "可加入的项目 (团队 $USER_TEAM):"
 
-projects=($(get_project_list "$USER_TEAM"))
+# 使用动态发现获取项目列表
+projects=($(get_project_list_dynamic "$USER_TEAM"))
 
 if [[ ${#projects[@]} -eq 0 ]]; then
-    log_error "团队 $USER_TEAM 没有配置项目"
+    log_error "团队 $USER_TEAM 没有可用项目"
+    log_info "请先使用 project/add-project.sh 创建项目"
     exit 1
 fi
 
@@ -202,7 +208,7 @@ echo ""
 # -----------------------------------------------------------------------------
 # Step 1: 添加到项目 Group
 # -----------------------------------------------------------------------------
-log_info "Step 1/3: 添加到项目 Group..."
+log_info "Step 1/2: 添加到项目 Group..."
 
 aws iam add-user-to-group \
     --user-name "$IAM_USERNAME" \
@@ -211,98 +217,20 @@ aws iam add-user-to-group \
 log_success "已加入项目组: $PROJECT_GROUP"
 
 # -----------------------------------------------------------------------------
-# Step 2: 创建 User Profile
+# Step 2: 创建 User Profile 和 Private Space (使用 sagemaker-factory)
 # -----------------------------------------------------------------------------
-log_info "Step 2/3: 创建 SageMaker User Profile..."
+log_info "Step 2/2: 创建 User Profile 和 Private Space..."
 
-SG_ID=$(get_studio_sg)
+SG_ID=$(get_studio_security_group)
 
-USER_SETTINGS=$(cat <<EOF
-{
-    "ExecutionRole": "arn:aws:iam::${AWS_ACCOUNT_ID}:role/${EXECUTION_ROLE}",
-    "SecurityGroups": ["${SG_ID}"]
-}
-EOF
-)
-
-aws sagemaker create-user-profile \
-    --domain-id "$DOMAIN_ID" \
-    --user-profile-name "$PROFILE_NAME" \
-    --user-settings "$USER_SETTINGS" \
-    --tags \
-        Key=Team,Value="$USER_TEAM_FULLNAME" \
-        Key=Project,Value="$SELECTED_PROJECT" \
-        Key=Owner,Value="$IAM_USERNAME" \
-        Key=Environment,Value=production \
-        Key=ManagedBy,Value="${TAG_PREFIX}" \
-    --region "$AWS_REGION"
-
-log_success "User Profile 创建完成: $PROFILE_NAME"
-
-# 等待 Profile 状态变为 InService
-log_info "等待 User Profile 状态变为 InService..."
-MAX_WAIT=120
-WAIT_INTERVAL=5
-ELAPSED=0
-
-while [ $ELAPSED -lt $MAX_WAIT ]; do
-    PROFILE_STATUS=$(aws sagemaker describe-user-profile \
-        --domain-id "$DOMAIN_ID" \
-        --user-profile-name "$PROFILE_NAME" \
-        --query 'Status' \
-        --output text \
-        --region "$AWS_REGION" 2>/dev/null || echo "Unknown")
-    
-    if [ "$PROFILE_STATUS" == "InService" ]; then
-        log_success "User Profile 状态: InService"
-        break
-    fi
-    
-    echo -n "."
-    sleep $WAIT_INTERVAL
-    ELAPSED=$((ELAPSED + WAIT_INTERVAL))
-done
-echo ""
-
-if [ "$PROFILE_STATUS" != "InService" ]; then
-    log_error "User Profile 未能在 ${MAX_WAIT}s 内变为 InService (当前状态: $PROFILE_STATUS)"
-    log_error "请稍后手动创建 Private Space"
-    exit 1
-fi
-
-# -----------------------------------------------------------------------------
-# Step 3: 创建 Private Space
-# -----------------------------------------------------------------------------
-log_info "Step 3/3: 创建 Private Space..."
-
-SPACE_SETTINGS=$(cat <<EOF
-{
-    "AppType": "JupyterLab",
-    "SpaceStorageSettings": {
-        "EbsStorageSettings": {
-            "EbsVolumeSizeInGb": ${SPACE_EBS_SIZE_GB}
-        }
-    }
-}
-EOF
-)
-
-aws sagemaker create-space \
-    --domain-id "$DOMAIN_ID" \
-    --space-name "$SPACE_NAME" \
-    --space-sharing-settings '{"SharingType": "Private"}' \
-    --ownership-settings "{\"OwnerUserProfileName\": \"${PROFILE_NAME}\"}" \
-    --space-settings "$SPACE_SETTINGS" \
-    --tags \
-        Key=Team,Value="$USER_TEAM_FULLNAME" \
-        Key=Project,Value="$SELECTED_PROJECT" \
-        Key=Owner,Value="$USER_NAME" \
-        Key=SpaceType,Value="private" \
-        Key=Environment,Value=production \
-        Key=ManagedBy,Value="${TAG_PREFIX}" \
-    --region "$AWS_REGION"
-
-log_success "Private Space 创建完成: $SPACE_NAME"
+create_user_profile_and_space \
+    "$DOMAIN_ID" \
+    "$USER_TEAM" \
+    "$SELECTED_PROJECT" \
+    "$USER_NAME" \
+    "$IAM_USERNAME" \
+    "$SG_ID" \
+    "${SPACE_EBS_SIZE_GB}"
 
 # =============================================================================
 # 完成信息
@@ -337,4 +265,3 @@ echo "验证命令:"
 echo "  aws sagemaker describe-user-profile --domain-id $DOMAIN_ID --user-profile-name $PROFILE_NAME"
 echo "  aws sagemaker describe-space --domain-id $DOMAIN_ID --space-name $SPACE_NAME"
 echo ""
-

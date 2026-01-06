@@ -21,6 +21,13 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # 加载共享函数库
 source "${SCRIPT_DIR}/../common.sh"
 
+# 加载核心函数库
+POLICY_TEMPLATES_DIR="${SCRIPTS_ROOT}/01-iam/policies"  # iam-core.sh 依赖
+source "${SCRIPTS_ROOT}/lib/iam-core.sh"
+source "${SCRIPTS_ROOT}/lib/discovery.sh"
+source "${SCRIPTS_ROOT}/lib/s3-factory.sh"
+source "${SCRIPTS_ROOT}/lib/sagemaker-factory.sh"
+
 # -----------------------------------------------------------------------------
 # 加载相关模块的配置（复用已有配置）
 # -----------------------------------------------------------------------------
@@ -128,6 +135,11 @@ get_studio_sg() {
     echo "$sg_id"
 }
 
+# Alias for sagemaker-factory.sh compatibility
+get_studio_security_group() {
+    get_studio_sg
+}
+
 # -----------------------------------------------------------------------------
 # 获取团队列表
 # -----------------------------------------------------------------------------
@@ -136,11 +148,11 @@ get_team_list() {
 }
 
 # -----------------------------------------------------------------------------
-# 获取团队的项目列表
+# 获取团队的项目列表 (使用 lib/discovery.sh)
 # -----------------------------------------------------------------------------
 get_project_list() {
     local team=$1
-    get_projects_for_team "$team"
+    get_project_list_dynamic "$team"
 }
 
 # -----------------------------------------------------------------------------
