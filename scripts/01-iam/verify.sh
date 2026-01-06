@@ -82,25 +82,17 @@ count_actual_resources() {
     ACTUAL_USERS=${ACTUAL_USERS:-0}
     
     # Roles 不使用 path，通过名称前缀筛选
-    ACTUAL_EXEC_ROLES=$(aws iam list-roles \
-        --query 'length(Roles[?starts_with(RoleName, `SageMaker-`) && contains(RoleName, `ExecutionRole`)])' \
-        --output text 2>/dev/null | head -1 | tr -d '[:space:]')
-    ACTUAL_EXEC_ROLES=${ACTUAL_EXEC_ROLES:-0}
+    # 优化：只调用一次 API 获取所有 SageMaker 角色，避免重复调用导致限流
+    echo -e "${BLUE}Fetching SageMaker roles...${NC}"
+    ALL_SM_ROLES=$(aws iam list-roles \
+        --query 'Roles[?starts_with(RoleName, `SageMaker-`)].RoleName' \
+        --output text 2>/dev/null || echo "")
     
-    ACTUAL_TRAINING_ROLES=$(aws iam list-roles \
-        --query 'length(Roles[?starts_with(RoleName, `SageMaker-`) && contains(RoleName, `TrainingRole`)])' \
-        --output text 2>/dev/null | head -1 | tr -d '[:space:]')
-    ACTUAL_TRAINING_ROLES=${ACTUAL_TRAINING_ROLES:-0}
-    
-    ACTUAL_PROCESSING_ROLES=$(aws iam list-roles \
-        --query 'length(Roles[?starts_with(RoleName, `SageMaker-`) && contains(RoleName, `ProcessingRole`)])' \
-        --output text 2>/dev/null | head -1 | tr -d '[:space:]')
-    ACTUAL_PROCESSING_ROLES=${ACTUAL_PROCESSING_ROLES:-0}
-    
-    ACTUAL_INFERENCE_ROLES=$(aws iam list-roles \
-        --query 'length(Roles[?starts_with(RoleName, `SageMaker-`) && contains(RoleName, `InferenceRole`)])' \
-        --output text 2>/dev/null | head -1 | tr -d '[:space:]')
-    ACTUAL_INFERENCE_ROLES=${ACTUAL_INFERENCE_ROLES:-0}
+    # 本地统计
+    ACTUAL_EXEC_ROLES=$(echo "$ALL_SM_ROLES" | grep -o "ExecutionRole" | wc -l | tr -d '[:space:]')
+    ACTUAL_TRAINING_ROLES=$(echo "$ALL_SM_ROLES" | grep -o "TrainingRole" | wc -l | tr -d '[:space:]')
+    ACTUAL_PROCESSING_ROLES=$(echo "$ALL_SM_ROLES" | grep -o "ProcessingRole" | wc -l | tr -d '[:space:]')
+    ACTUAL_INFERENCE_ROLES=$(echo "$ALL_SM_ROLES" | grep -o "InferenceRole" | wc -l | tr -d '[:space:]')
     
     ACTUAL_ROLES=$((ACTUAL_EXEC_ROLES + ACTUAL_TRAINING_ROLES + ACTUAL_PROCESSING_ROLES + ACTUAL_INFERENCE_ROLES))
     
