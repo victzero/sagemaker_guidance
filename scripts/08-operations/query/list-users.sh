@@ -63,7 +63,7 @@ log_info "DEBUG: IAM_PATH=${IAM_PATH}"
 if [[ -n "$FILTER_TEAM" ]]; then
     log_info "筛选团队: $FILTER_TEAM"
     USERS=$(aws iam list-users --path-prefix "${IAM_PATH}" \
-        --query 'Users[?contains(UserName, `sm-'"${FILTER_TEAM}"'-`)].UserName' \
+        --query "Users[?contains(UserName, \`sm-${FILTER_TEAM}-\`)].UserName" \
         --output text 2>/dev/null || echo "")
 else
     log_info "DEBUG: Running query..."
@@ -110,8 +110,9 @@ for user in $USERS; do
     
     # 获取用户所属的项目 Groups
     log_info "DEBUG: Step 3 - Getting groups for $user with TEAM=$TEAM"
+    # 使用双引号 + 转义反引号，避免 bash 解释问题
     GROUPS=$(aws iam list-groups-for-user --user-name "$user" \
-        --query 'Groups[?starts_with(GroupName, `sagemaker-'"${TEAM}"'-`)].GroupName' \
+        --query "Groups[?starts_with(GroupName, \`sagemaker-${TEAM}-\`)].GroupName" \
         --output text 2>/dev/null || echo "")
     log_info "DEBUG: Step 3 done - GROUPS=[$GROUPS]"
     
@@ -142,7 +143,7 @@ for user in $USERS; do
         log_info "DEBUG: Step 5 - Getting profiles, DOMAIN_ID=$DOMAIN_ID, USER_IDENT=$USER_IDENT"
         PROFILE_COUNT=$(aws sagemaker list-user-profiles \
             --domain-id "$DOMAIN_ID" \
-            --query 'UserProfiles[?ends_with(UserProfileName, `-'"${USER_IDENT}"'`)].UserProfileName' \
+            --query "UserProfiles[?ends_with(UserProfileName, \`-${USER_IDENT}\`)].UserProfileName" \
             --output text \
             --region "$AWS_REGION" 2>/dev/null | wc -w | tr -d ' ')
     fi
@@ -156,7 +157,7 @@ for user in $USERS; do
         USER_IDENT="${user#sm-${TEAM}-}"
         PROFILES=$(aws sagemaker list-user-profiles \
             --domain-id "$DOMAIN_ID" \
-            --query 'UserProfiles[?ends_with(UserProfileName, `-'"${USER_IDENT}"'`)].UserProfileName' \
+            --query "UserProfiles[?ends_with(UserProfileName, \`-${USER_IDENT}\`)].UserProfileName" \
             --output text \
             --region "$AWS_REGION" 2>/dev/null || echo "")
         
