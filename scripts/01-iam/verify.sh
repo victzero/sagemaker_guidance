@@ -444,12 +444,22 @@ main() {
                 local username="sm-${team}-${user}"
                 
                 # 检查团队组
-                local in_team=$(aws iam get-group --group-name "sagemaker-${team_fullname}" \
-                    --query 'Users[?UserName==`'"${username}"'`].UserName' --output text 2>/dev/null || echo "")
+                local team_group_members=$(aws iam get-group --group-name "sagemaker-${team_fullname}" \
+                    --query 'Users[].UserName' --output text 2>/dev/null || echo "")
+                
+                local in_team=""
+                if [[ " $team_group_members " =~ " ${username} " ]]; then
+                    in_team="$username"
+                fi
                 
                 # 检查项目组
-                local in_project=$(aws iam get-group --group-name "sagemaker-${team}-${project}" \
-                    --query 'Users[?UserName==`'"${username}"'`].UserName' --output text 2>/dev/null || echo "")
+                local project_group_members=$(aws iam get-group --group-name "sagemaker-${team}-${project}" \
+                    --query 'Users[].UserName' --output text 2>/dev/null || echo "")
+                
+                local in_project=""
+                if [[ " $project_group_members " =~ " ${username} " ]]; then
+                    in_project="$username"
+                fi
                 
                 if [[ -n "$in_team" && -n "$in_project" ]]; then
                     echo -e "  ${GREEN}✓${NC} $username → team + project groups"
@@ -464,8 +474,13 @@ main() {
     # 验证管理员组成员
     for admin in $ADMIN_USERS; do
         local username="sm-admin-${admin}"
-        local in_admin=$(aws iam get-group --group-name "sagemaker-admins" \
-            --query 'Users[?UserName==`'"${username}"'`].UserName' --output text 2>/dev/null || echo "")
+        local admin_group_members=$(aws iam get-group --group-name "sagemaker-admins" \
+            --query 'Users[].UserName' --output text 2>/dev/null || echo "")
+            
+        local in_admin=""
+        if [[ " $admin_group_members " =~ " ${username} " ]]; then
+            in_admin="$username"
+        fi
         
         if [[ -n "$in_admin" ]]; then
             echo -e "  ${GREEN}✓${NC} $username → admin group"

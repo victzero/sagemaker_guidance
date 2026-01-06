@@ -154,18 +154,34 @@ PROJECT_MEMBERS=$(aws iam get-group --group-name "$GROUP_NAME" \
     --query 'Users[].UserName' --output text 2>/dev/null || echo "")
 
 # 查询 User Profiles
-PROJECT_PROFILES=$(aws sagemaker list-user-profiles \
+ALL_PROFILES=$(aws sagemaker list-user-profiles \
     --domain-id "$DOMAIN_ID" \
-    --query 'UserProfiles[?contains(UserProfileName, `-'"${PROJECT_SHORT}"'-`)].UserProfileName' \
+    --query 'UserProfiles[].UserProfileName' \
     --output text \
     --region "$AWS_REGION" 2>/dev/null || echo "")
 
+PROJECT_PROFILES=""
+for p in $ALL_PROFILES; do
+    if [[ "$p" == *"-${PROJECT_SHORT}-"* ]]; then
+        PROJECT_PROFILES="$PROJECT_PROFILES $p"
+    fi
+done
+PROJECT_PROFILES=$(echo "$PROJECT_PROFILES" | xargs)
+
 # 查询 Private Spaces
-PROJECT_SPACES=$(aws sagemaker list-spaces \
+ALL_SPACES=$(aws sagemaker list-spaces \
     --domain-id "$DOMAIN_ID" \
-    --query 'Spaces[?contains(SpaceName, `-'"${PROJECT_SHORT}"'-`)].SpaceName' \
+    --query 'Spaces[].SpaceName' \
     --output text \
     --region "$AWS_REGION" 2>/dev/null || echo "")
+
+PROJECT_SPACES=""
+for s in $ALL_SPACES; do
+    if [[ "$s" == *"-${PROJECT_SHORT}-"* ]]; then
+        PROJECT_SPACES="$PROJECT_SPACES $s"
+    fi
+done
+PROJECT_SPACES=$(echo "$PROJECT_SPACES" | xargs)
 
 # 资源名称前缀 (用于显示)
 POLICY_PREFIX="SageMaker-${TEAM_FORMATTED}-${PROJECT_FORMATTED}"

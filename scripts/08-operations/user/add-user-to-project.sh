@@ -245,11 +245,18 @@ echo "  - 新 Private Space: $SPACE_NAME"
 echo ""
 
 echo "用户当前可访问的项目 Profiles:"
-aws sagemaker list-user-profiles \
+# 获取所有 Profiles 并过滤
+ALL_PROFILES=$(aws sagemaker list-user-profiles \
     --domain-id "$DOMAIN_ID" \
-    --query 'UserProfiles[?contains(UserProfileName, `'"${USER_NAME}"'`)].UserProfileName' \
-    --output table \
-    --region "$AWS_REGION" 2>/dev/null || true
+    --query 'UserProfiles[].UserProfileName' \
+    --output text \
+    --region "$AWS_REGION" 2>/dev/null || echo "")
+
+for p in $ALL_PROFILES; do
+    if [[ "$p" == *"${USER_NAME}"* ]]; then
+        echo "  - $p"
+    fi
+done
 echo ""
 
 echo -e "${YELLOW}📌 用户登录后:${NC}"

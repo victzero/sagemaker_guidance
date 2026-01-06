@@ -84,18 +84,34 @@ USER_GROUPS=$(aws iam list-groups-for-user --user-name "$IAM_USERNAME" \
     --query 'Groups[].GroupName' --output text 2>/dev/null || echo "")
 
 # 查询 User Profiles
-USER_PROFILES=$(aws sagemaker list-user-profiles \
+ALL_PROFILES=$(aws sagemaker list-user-profiles \
     --domain-id "$DOMAIN_ID" \
-    --query 'UserProfiles[?contains(UserProfileName, `'"${USER_NAME}"'`)].UserProfileName' \
+    --query 'UserProfiles[].UserProfileName' \
     --output text \
     --region "$AWS_REGION" 2>/dev/null || echo "")
 
+USER_PROFILES=""
+for p in $ALL_PROFILES; do
+    if [[ "$p" == *"${USER_NAME}"* ]]; then
+        USER_PROFILES="$USER_PROFILES $p"
+    fi
+done
+USER_PROFILES=$(echo "$USER_PROFILES" | xargs)
+
 # 查询 Private Spaces
-USER_SPACES=$(aws sagemaker list-spaces \
+ALL_SPACES=$(aws sagemaker list-spaces \
     --domain-id "$DOMAIN_ID" \
-    --query 'Spaces[?contains(SpaceName, `'"${USER_NAME}"'`)].SpaceName' \
+    --query 'Spaces[].SpaceName' \
     --output text \
     --region "$AWS_REGION" 2>/dev/null || echo "")
+
+USER_SPACES=""
+for s in $ALL_SPACES; do
+    if [[ "$s" == *"${USER_NAME}"* ]]; then
+        USER_SPACES="$USER_SPACES $s"
+    fi
+done
+USER_SPACES=$(echo "$USER_SPACES" | xargs)
 
 # 查询 Access Keys
 ACCESS_KEYS=$(aws iam list-access-keys --user-name "$IAM_USERNAME" \
