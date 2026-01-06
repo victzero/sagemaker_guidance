@@ -18,6 +18,56 @@ fi
 _LIB_IAM_CORE_LOADED=1
 
 # =============================================================================
+# 存在性检查函数
+# =============================================================================
+
+# 检查 IAM User 是否存在
+# 用法: iam_user_exists <username>
+# 返回: 0 存在, 1 不存在
+iam_user_exists() {
+    local username=$1
+    aws iam get-user --user-name "$username" &> /dev/null
+}
+
+# 检查用户是否在 Group 中
+# 用法: user_in_group <username> <group_name>
+# 返回: 0 在组中, 1 不在组中
+user_in_group() {
+    local username=$1
+    local group_name=$2
+    
+    local in_group=$(aws iam get-group --group-name "$group_name" \
+        --query "Users[?UserName=='${username}'].UserName" \
+        --output text 2>/dev/null || echo "")
+    
+    [[ -n "$in_group" ]]
+}
+
+# 检查 IAM Group 是否存在
+# 用法: iam_group_exists <group_name>
+# 返回: 0 存在, 1 不存在
+iam_group_exists() {
+    local group_name=$1
+    aws iam get-group --group-name "$group_name" &> /dev/null
+}
+
+# 检查 IAM Role 是否存在
+# 用法: iam_role_exists <role_name>
+# 返回: 0 存在, 1 不存在
+iam_role_exists() {
+    local role_name=$1
+    aws iam get-role --role-name "$role_name" &> /dev/null
+}
+
+# 检查 IAM Policy 是否存在
+# 用法: iam_policy_exists <policy_arn>
+# 返回: 0 存在, 1 不存在
+iam_policy_exists() {
+    local policy_arn=$1
+    aws iam get-policy --policy-arn "$policy_arn" &> /dev/null
+}
+
+# =============================================================================
 # 模板渲染函数
 # =============================================================================
 

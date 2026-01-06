@@ -155,16 +155,9 @@ PROJECT_SPACES=$(aws sagemaker list-spaces \
     --output text \
     --region "$AWS_REGION" 2>/dev/null || echo "")
 
-# 角色名称
-ROLE_EXECUTION="SageMaker-${TEAM_FORMATTED}-${PROJECT_FORMATTED}-ExecutionRole"
-ROLE_TRAINING="SageMaker-${TEAM_FORMATTED}-${PROJECT_FORMATTED}-TrainingRole"
-ROLE_PROCESSING="SageMaker-${TEAM_FORMATTED}-${PROJECT_FORMATTED}-ProcessingRole"
-ROLE_INFERENCE="SageMaker-${TEAM_FORMATTED}-${PROJECT_FORMATTED}-InferenceRole"
-
-# 策略名称
-POLICY_ACCESS="SageMaker-${TEAM_FORMATTED}-${PROJECT_FORMATTED}-Access"
-POLICY_S3="SageMaker-${TEAM_FORMATTED}-${PROJECT_FORMATTED}-S3Access"
-POLICY_PASSROLE="SageMaker-${TEAM_FORMATTED}-${PROJECT_FORMATTED}-PassRole"
+# 资源名称前缀 (用于显示)
+POLICY_PREFIX="SageMaker-${TEAM_FORMATTED}-${PROJECT_FORMATTED}"
+ROLE_PREFIX="${POLICY_PREFIX}"
 
 # 检查 S3 Bucket
 BUCKET_EXISTS=false
@@ -214,15 +207,23 @@ echo "    - $GROUP_NAME"
 echo "    - 成员 ($MEMBER_COUNT 人): $PROJECT_MEMBERS"
 echo ""
 echo "  IAM Roles (4个):"
-echo "    - $ROLE_EXECUTION"
-echo "    - $ROLE_TRAINING"
-echo "    - $ROLE_PROCESSING"
-echo "    - $ROLE_INFERENCE"
+echo "    - ${ROLE_PREFIX}-ExecutionRole"
+echo "    - ${ROLE_PREFIX}-TrainingRole"
+echo "    - ${ROLE_PREFIX}-ProcessingRole"
+echo "    - ${ROLE_PREFIX}-InferenceRole"
 echo ""
-echo "  IAM Policies (3个):"
-echo "    - $POLICY_ACCESS"
-echo "    - $POLICY_S3"
-echo "    - $POLICY_PASSROLE"
+echo "  IAM Policies (11个):"
+echo "    - ${POLICY_PREFIX}-Access"
+echo "    - ${POLICY_PREFIX}-S3Access"
+echo "    - ${POLICY_PREFIX}-PassRole"
+echo "    - ${POLICY_PREFIX}-ExecutionPolicy"
+echo "    - ${POLICY_PREFIX}-ExecutionJobPolicy"
+echo "    - ${POLICY_PREFIX}-TrainingPolicy"
+echo "    - ${POLICY_PREFIX}-TrainingOpsPolicy"
+echo "    - ${POLICY_PREFIX}-ProcessingPolicy"
+echo "    - ${POLICY_PREFIX}-ProcessingOpsPolicy"
+echo "    - ${POLICY_PREFIX}-InferencePolicy"
+echo "    - ${POLICY_PREFIX}-InferenceOpsPolicy"
 echo ""
 
 if [[ "$DELETE_BUCKET" == "true" && "$BUCKET_EXISTS" == "true" ]]; then
@@ -240,7 +241,7 @@ elif [[ "$BUCKET_EXISTS" == "true" ]]; then
 fi
 
 print_separator
-echo -e "${CYAN}Summary: 删除 $SPACE_COUNT Spaces, $PROFILE_COUNT Profiles, 1 Group, 4 Roles, 3 Policies$([ "$DELETE_BUCKET" == "true" ] && echo ", 1 Bucket")${NC}"
+echo -e "${CYAN}Summary: 删除 $SPACE_COUNT Spaces, $PROFILE_COUNT Profiles, 1 Group, 4 Roles, 11 Policies$([ "$DELETE_BUCKET" == "true" ] && echo ", 1 Bucket")${NC}"
 print_separator
 
 # =============================================================================
@@ -325,34 +326,19 @@ else
 fi
 
 # -----------------------------------------------------------------------------
-# Step 4: 删除 IAM Roles
+# Step 4: 删除 IAM Roles (使用 lib/iam-core.sh)
 # -----------------------------------------------------------------------------
 log_info "Step 4/6: 删除 IAM Roles..."
 
-for role_name in "$ROLE_EXECUTION" "$ROLE_TRAINING" "$ROLE_PROCESSING" "$ROLE_INFERENCE"; do
-    if aws iam get-role --role-name "$role_name" &> /dev/null; then
-        delete_iam_role "$role_name"
-    else
-        log_warn "  跳过 (不存在): $role_name"
-    fi
-done
+delete_project_roles "$SELECTED_TEAM" "$SELECTED_PROJECT"
 
 # -----------------------------------------------------------------------------
-# Step 5: 删除 IAM Policies
+# Step 5: 删除 IAM Policies (使用 lib/iam-core.sh)
+# 注意: delete_project_iam_policies 会删除所有 11 个项目策略
 # -----------------------------------------------------------------------------
 log_info "Step 5/6: 删除 IAM Policies..."
 
-POLICY_ARN_PREFIX="arn:aws:iam::${AWS_ACCOUNT_ID}:policy${IAM_PATH}"
-
-for policy_name in "$POLICY_ACCESS" "$POLICY_S3" "$POLICY_PASSROLE"; do
-    policy_arn="${POLICY_ARN_PREFIX}${policy_name}"
-    
-    if aws iam get-policy --policy-arn "$policy_arn" &> /dev/null; then
-        delete_iam_policy "$policy_arn"
-    else
-        log_warn "  跳过 (不存在): $policy_name"
-    fi
-done
+delete_project_iam_policies "$SELECTED_TEAM" "$SELECTED_PROJECT"
 
 # -----------------------------------------------------------------------------
 # Step 6: 删除 S3 Bucket (可选)
@@ -378,7 +364,7 @@ echo "  - Private Spaces: $SPACE_COUNT"
 echo "  - User Profiles: $PROFILE_COUNT"
 echo "  - IAM Group: $GROUP_NAME"
 echo "  - IAM Roles: 4"
-echo "  - IAM Policies: 3"
+echo "  - IAM Policies: 11"
 if [[ "$DELETE_BUCKET" == "true" ]]; then
     echo "  - S3 Bucket: $BUCKET_NAME"
 fi

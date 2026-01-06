@@ -104,7 +104,7 @@ get_project_list() {
 }
 
 # -----------------------------------------------------------------------------
-# 验证用户名格式
+# 验证用户名格式 (Operations 独有，用于交互式输入验证)
 # -----------------------------------------------------------------------------
 validate_username() {
     local username=$1
@@ -125,47 +125,22 @@ validate_username() {
 }
 
 # -----------------------------------------------------------------------------
-# 检查 IAM User 是否存在
+# 存在性检查 - 使用 lib 函数的便捷包装器
+# 注意: iam_user_exists, user_in_group 直接使用 lib/iam-core.sh 中的函数
 # -----------------------------------------------------------------------------
-iam_user_exists() {
-    local username=$1
-    aws iam get-user --user-name "$username" &> /dev/null
-}
 
-# -----------------------------------------------------------------------------
-# 检查 User Profile 是否存在
-# -----------------------------------------------------------------------------
+# 检查 User Profile 是否存在 (使用环境变量 DOMAIN_ID)
+# 用法: profile_exists <profile_name>
 profile_exists() {
     local profile_name=$1
-    aws sagemaker describe-user-profile \
-        --domain-id "$DOMAIN_ID" \
-        --user-profile-name "$profile_name" \
-        --region "$AWS_REGION" &> /dev/null
+    sagemaker_profile_exists "$DOMAIN_ID" "$profile_name"
 }
 
-# -----------------------------------------------------------------------------
-# 检查 Space 是否存在
-# -----------------------------------------------------------------------------
+# 检查 Space 是否存在 (使用环境变量 DOMAIN_ID)
+# 用法: space_exists <space_name>
 space_exists() {
     local space_name=$1
-    aws sagemaker describe-space \
-        --domain-id "$DOMAIN_ID" \
-        --space-name "$space_name" \
-        --region "$AWS_REGION" &> /dev/null
-}
-
-# -----------------------------------------------------------------------------
-# 检查用户是否在 Group 中
-# -----------------------------------------------------------------------------
-user_in_group() {
-    local username=$1
-    local group_name=$2
-    
-    local in_group=$(aws iam get-group --group-name "$group_name" \
-        --query "Users[?UserName=='${username}'].UserName" \
-        --output text 2>/dev/null || echo "")
-    
-    [[ -n "$in_group" ]]
+    sagemaker_space_exists "$DOMAIN_ID" "$space_name"
 }
 
 # -----------------------------------------------------------------------------

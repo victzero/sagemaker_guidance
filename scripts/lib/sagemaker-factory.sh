@@ -17,6 +17,34 @@ if [[ -z "$_SAGEMAKER_COMMON_LOADED" ]]; then
 fi
 
 # =============================================================================
+# 存在性检查函数
+# =============================================================================
+
+# 检查 User Profile 是否存在
+# 用法: sagemaker_profile_exists <domain_id> <profile_name>
+# 返回: 0 存在, 1 不存在
+sagemaker_profile_exists() {
+    local domain_id=$1
+    local profile_name=$2
+    aws sagemaker describe-user-profile \
+        --domain-id "$domain_id" \
+        --user-profile-name "$profile_name" \
+        --region "$AWS_REGION" &> /dev/null
+}
+
+# 检查 Space 是否存在
+# 用法: sagemaker_space_exists <domain_id> <space_name>
+# 返回: 0 存在, 1 不存在
+sagemaker_space_exists() {
+    local domain_id=$1
+    local space_name=$2
+    aws sagemaker describe-space \
+        --domain-id "$domain_id" \
+        --space-name "$space_name" \
+        --region "$AWS_REGION" &> /dev/null
+}
+
+# =============================================================================
 # User Profile 创建
 # =============================================================================
 
