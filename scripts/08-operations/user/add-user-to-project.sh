@@ -239,8 +239,36 @@ aws sagemaker create-user-profile \
 
 log_success "User Profile 创建完成: $PROFILE_NAME"
 
-# 等待 Profile 创建完成
-sleep 2
+# 等待 Profile 状态变为 InService
+log_info "等待 User Profile 状态变为 InService..."
+MAX_WAIT=120
+WAIT_INTERVAL=5
+ELAPSED=0
+
+while [ $ELAPSED -lt $MAX_WAIT ]; do
+    PROFILE_STATUS=$(aws sagemaker describe-user-profile \
+        --domain-id "$DOMAIN_ID" \
+        --user-profile-name "$PROFILE_NAME" \
+        --query 'Status' \
+        --output text \
+        --region "$AWS_REGION" 2>/dev/null || echo "Unknown")
+    
+    if [ "$PROFILE_STATUS" == "InService" ]; then
+        log_success "User Profile 状态: InService"
+        break
+    fi
+    
+    echo -n "."
+    sleep $WAIT_INTERVAL
+    ELAPSED=$((ELAPSED + WAIT_INTERVAL))
+done
+echo ""
+
+if [ "$PROFILE_STATUS" != "InService" ]; then
+    log_error "User Profile 未能在 ${MAX_WAIT}s 内变为 InService (当前状态: $PROFILE_STATUS)"
+    log_error "请稍后手动创建 Private Space"
+    exit 1
+fi
 
 # -----------------------------------------------------------------------------
 # Step 3: 创建 Private Space

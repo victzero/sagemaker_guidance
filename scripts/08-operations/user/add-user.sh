@@ -194,7 +194,7 @@ echo ""
 # -----------------------------------------------------------------------------
 # Step 1: 创建 IAM User
 # -----------------------------------------------------------------------------
-log_info "Step 1/5: 创建 IAM User..."
+log_info "Step 1/6: 创建 IAM User..."
 
 aws iam create-user \
     --user-name "$IAM_USERNAME" \
@@ -210,7 +210,7 @@ log_success "IAM User 创建完成: $IAM_USERNAME"
 # -----------------------------------------------------------------------------
 # Step 2: 设置 Permissions Boundary
 # -----------------------------------------------------------------------------
-log_info "Step 2/5: 设置 Permissions Boundary..."
+log_info "Step 2/6: 设置 Permissions Boundary..."
 
 aws iam put-user-permissions-boundary \
     --user-name "$IAM_USERNAME" \
@@ -222,7 +222,7 @@ log_success "Permissions Boundary 已绑定"
 # Step 3: 创建 Console Login (可选)
 # -----------------------------------------------------------------------------
 if [[ "$ENABLE_CONSOLE" == "true" ]]; then
-    log_info "Step 3/5: 创建 Console Login..."
+    log_info "Step 3/6: 创建 Console Login..."
     
     aws iam create-login-profile \
         --user-name "$IAM_USERNAME" \
@@ -231,13 +231,13 @@ if [[ "$ENABLE_CONSOLE" == "true" ]]; then
     
     log_success "Console Login 已启用"
 else
-    log_info "Step 3/5: 跳过 Console Login (已禁用)"
+    log_info "Step 3/6: 跳过 Console Login (已禁用)"
 fi
 
 # -----------------------------------------------------------------------------
 # Step 4: 添加到 Groups
 # -----------------------------------------------------------------------------
-log_info "Step 4/5: 添加到 IAM Groups..."
+log_info "Step 4/6: 添加到 IAM Groups..."
 
 # 添加到团队组
 aws iam add-user-to-group \
@@ -254,7 +254,7 @@ log_success "已加入项目组: $PROJECT_GROUP"
 # -----------------------------------------------------------------------------
 # Step 5: 创建 User Profile
 # -----------------------------------------------------------------------------
-log_info "Step 5/5: 创建 SageMaker User Profile..."
+log_info "Step 5/6: 创建 SageMaker User Profile..."
 
 SG_ID=$(get_studio_sg)
 
@@ -280,13 +280,41 @@ aws sagemaker create-user-profile \
 
 log_success "User Profile 创建完成: $PROFILE_NAME"
 
-# 等待 Profile 创建完成
-sleep 2
+# 等待 Profile 状态变为 InService
+log_info "等待 User Profile 状态变为 InService..."
+MAX_WAIT=120
+WAIT_INTERVAL=5
+ELAPSED=0
+
+while [ $ELAPSED -lt $MAX_WAIT ]; do
+    PROFILE_STATUS=$(aws sagemaker describe-user-profile \
+        --domain-id "$DOMAIN_ID" \
+        --user-profile-name "$PROFILE_NAME" \
+        --query 'Status' \
+        --output text \
+        --region "$AWS_REGION" 2>/dev/null || echo "Unknown")
+    
+    if [ "$PROFILE_STATUS" == "InService" ]; then
+        log_success "User Profile 状态: InService"
+        break
+    fi
+    
+    echo -n "."
+    sleep $WAIT_INTERVAL
+    ELAPSED=$((ELAPSED + WAIT_INTERVAL))
+done
+echo ""
+
+if [ "$PROFILE_STATUS" != "InService" ]; then
+    log_error "User Profile 未能在 ${MAX_WAIT}s 内变为 InService (当前状态: $PROFILE_STATUS)"
+    log_error "请稍后手动创建 Private Space"
+    exit 1
+fi
 
 # -----------------------------------------------------------------------------
 # Step 6: 创建 Private Space
 # -----------------------------------------------------------------------------
-log_info "Step 6/5: 创建 Private Space..."
+log_info "Step 6/6: 创建 Private Space..."
 
 SPACE_SETTINGS=$(cat <<EOF
 {
