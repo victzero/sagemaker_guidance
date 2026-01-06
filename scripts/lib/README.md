@@ -120,14 +120,27 @@ lib/*.sh
 
 ## 模块使用情况
 
-| 模块             | iam-core | discovery | s3-factory | sagemaker-factory |
-| ---------------- | :------: | :-------: | :--------: | :---------------: |
-| 01-iam/cleanup   |    ✅    |     -     |     -      |         -         |
-| 03-s3/cleanup    |    -     |     -     |     ✅     |         -         |
-| 05-user-profiles |    -     |     -     |     -      |        ✅         |
-| 08-operations    |    ✅    |    ✅     |     ✅     |        ✅         |
+| 模块                    | iam-core | discovery | s3-factory | sagemaker-factory |
+| ----------------------- | :------: | :-------: | :--------: | :---------------: |
+| 01-iam/01-create-policy |    ✅    |     -     |     -      |         -         |
+| 01-iam/04-create-roles  |    ✅    |     -     |     -      |         -         |
+| 01-iam/cleanup          |    ✅    |     -     |     -      |         -         |
+| 03-s3/cleanup           |    -     |     -     |     ✅     |         -         |
+| 05-user-profiles        |    -     |     -     |     -      |        ✅         |
+| 08-operations           |    ✅    |    ✅     |     ✅     |        ✅         |
 
 ### 复用的函数
+
+**01-iam:**
+
+- `create_policy()` - 由 01-create-policies.sh 调用
+- `create_domain_default_role()` - 由 04-create-roles.sh 调用
+- `create_execution_role()` - 由 04-create-roles.sh 调用
+- `create_training_role()` - 由 04-create-roles.sh 调用
+- `create_processing_role()` - 由 04-create-roles.sh 调用
+- `create_inference_role()` - 由 04-create-roles.sh 调用
+- `attach_canvas_policies()` / `attach_studio_app_permissions()` / `attach_mlflow_app_access()` - 由 04-create-roles.sh 调用
+- `delete_iam_*()` - 由 cleanup.sh 调用
 
 **05-user-profiles:**
 
