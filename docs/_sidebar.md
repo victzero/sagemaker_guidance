@@ -37,6 +37,7 @@
 
   - [ECR 容器镜像](../scripts/06-ecr/README.md)
   - [Model Registry](../scripts/07-model-registry/README.md)
+  - [运维操作脚本](../scripts/08-operations/README.md)
 
 - **用户指南**
 

@@ -28,9 +28,10 @@ scripts/
 │
 │   ─────── 运维操作脚本 ───────
 ├── 08-operations/       # 增量变更操作 (新增用户/项目等) ✅
-│   ├── user/            # 用户管理 (add-user, add-user-to-project)
-│   ├── project/         # 项目管理 (待实现)
-│   └── team/            # 团队管理 (待实现)
+│   ├── user/            # 用户管理 (add/remove/delete user)
+│   ├── project/         # 项目管理 (add/delete project)
+│   ├── team/            # 团队管理 (add/delete team)
+│   └── query/           # 查询工具 (list-users, list-projects)
 │
 ├── common.sh            # 共享函数库
 ├── .env.shared.example  # 共享配置模板
@@ -417,13 +418,19 @@ cd 08-operations
 
 ### 支持的操作
 
-| 场景 | 脚本 | 状态 |
-|------|------|------|
-| 新增用户到已有项目 | `user/add-user.sh` | ✅ |
-| 将已有用户添加到新项目 | `user/add-user-to-project.sh` | ✅ |
-| 从项目移除用户 | `user/remove-user-from-project.sh` | ⏳ |
-| 完全删除用户 | `user/delete-user.sh` | ⏳ |
-| 新增项目 | `project/add-project.sh` | ⏳ |
-| 删除项目 | `project/delete-project.sh` | ⏳ |
+| 类别     | 场景                      | 脚本                               | 状态 |
+| -------- | ------------------------- | ---------------------------------- | ---- |
+| 用户管理 | 新增用户到已有项目        | `user/add-user.sh`                 | ✅   |
+|          | 将已有用户添加到新项目    | `user/add-user-to-project.sh`      | ✅   |
+|          | 从项目移除用户            | `user/remove-user-from-project.sh` | ✅   |
+|          | 完全删除用户              | `user/delete-user.sh`              | ✅   |
+| 项目管理 | 新增项目                  | `project/add-project.sh`           | ✅   |
+|          | 删除项目                  | `project/delete-project.sh`        | ✅   |
+| 团队管理 | 新增团队                  | `team/add-team.sh`                 | ✅   |
+|          | 删除团队                  | `team/delete-team.sh`              | ✅   |
+| 查询工具 | 列出用户                  | `query/list-users.sh`              | ✅   |
+|          | 列出项目                  | `query/list-projects.sh`           | ✅   |
+
+> **删除操作需两次确认**：`delete-user.sh`、`delete-project.sh`、`delete-team.sh` 为高危操作，需要两次确认才能执行。
 
 详见 [08-operations/README.md](./08-operations/README.md)

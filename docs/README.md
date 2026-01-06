@@ -86,6 +86,12 @@ Phase 2 - ML 服务扩展 ✅ POC 就绪
 ├── ECR 容器镜像仓库        (scripts/06-ecr)
 └── Model Registry          (scripts/07-model-registry)
 
+运维操作 ✅ 已完成
+├── 用户管理: add-user, add-user-to-project, remove, delete
+├── 项目管理: add-project, delete-project
+├── 团队管理: add-team, delete-team
+└── 查询工具: list-users, list-projects
+
 Phase 3 - 高级功能 ⏳ 待规划
 ├── Feature Store
 ├── ML Pipelines
@@ -169,3 +175,4 @@ Phase 3 - 高级功能 ⏳ 待规划
 - **用户手册**：[用户使用手册](./USER-GUIDE.md)
 - **ML Jobs**：[Processing](./10-sagemaker-processing.md) | [Training](./12-sagemaker-training.md) | [Inference](./13-realtime-inference.md)
 - **工作负载**：[资源设计](./14-workload-resources.md) | [实施计划](./15-workload-implementation.md)
+- **运维操作**：[用户/项目/团队管理](../scripts/08-operations/README.md)
