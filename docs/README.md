@@ -31,6 +31,9 @@
 | 13   | [Real-Time Inference](./13-realtime-inference.md)    | 实时推理 Endpoint           | ✅ 可用 |
 | 14   | [工作负载资源设计](./14-workload-resources.md)       | 安全组、ECR、Model Registry | ✅ 可用 |
 | 15   | [工作负载实施计划](./15-workload-implementation.md)  | 详细实施步骤                | ✅ 可用 |
+| 16   | [运维操作指南](./16-operations.md)                   | 用户/项目/团队管理          | ✅ 可用 |
+| 17   | [ECR 容器镜像](./17-ecr.md)                          | 自定义 Docker 镜像仓库      | ✅ 可用 |
+| 18   | [Model Registry](./18-model-registry.md)             | 模型版本管理、审批流程      | ✅ 可用 |
 
 ---
 

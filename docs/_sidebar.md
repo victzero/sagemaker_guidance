@@ -32,6 +32,8 @@
 
   - [14 - 资源设计](14-workload-resources.md)
   - [15 - 实施计划](15-workload-implementation.md)
+  - [17 - ECR 容器镜像](17-ecr.md)
+  - [18 - Model Registry](18-model-registry.md)
 
 - **运维管理**
 
