@@ -199,8 +199,12 @@ generate_execution_role_policy() {
 generate_execution_role_jobs_policy() {
     local team=$1
     local project=$2
+    local team_fullname=$(get_team_fullname "$team")
+    local team_capitalized=$(format_name "$team_fullname")
+    local project_formatted=$(format_name "$project")
     render_template "${POLICY_TEMPLATES_DIR}/execution-role-jobs.json.tpl" \
-        "TEAM=${team}" "PROJECT=${project}"
+        "TEAM=${team}" "PROJECT=${project}" \
+        "TEAM_FULLNAME=${team_capitalized}" "PROJECT_FULLNAME=${project_formatted}"
 }
 
 generate_training_role_policy() {
@@ -213,8 +217,12 @@ generate_training_role_policy() {
 generate_training_role_ops_policy() {
     local team=$1
     local project=$2
+    local team_fullname=$(get_team_fullname "$team")
+    local team_capitalized=$(format_name "$team_fullname")
+    local project_formatted=$(format_name "$project")
     render_template "${POLICY_TEMPLATES_DIR}/training-role-ops.json.tpl" \
-        "TEAM=${team}" "PROJECT=${project}"
+        "TEAM=${team}" "PROJECT=${project}" \
+        "TEAM_FULLNAME=${team_capitalized}" "PROJECT_FULLNAME=${project_formatted}"
 }
 
 generate_processing_role_policy() {
@@ -227,8 +235,12 @@ generate_processing_role_policy() {
 generate_processing_role_ops_policy() {
     local team=$1
     local project=$2
+    local team_fullname=$(get_team_fullname "$team")
+    local team_capitalized=$(format_name "$team_fullname")
+    local project_formatted=$(format_name "$project")
     render_template "${POLICY_TEMPLATES_DIR}/processing-role-ops.json.tpl" \
-        "TEAM=${team}" "PROJECT=${project}"
+        "TEAM=${team}" "PROJECT=${project}" \
+        "TEAM_FULLNAME=${team_capitalized}" "PROJECT_FULLNAME=${project_formatted}"
 }
 
 generate_inference_role_policy() {
@@ -241,8 +253,12 @@ generate_inference_role_policy() {
 generate_inference_role_ops_policy() {
     local team=$1
     local project=$2
+    local team_fullname=$(get_team_fullname "$team")
+    local team_capitalized=$(format_name "$team_fullname")
+    local project_formatted=$(format_name "$project")
     render_template "${POLICY_TEMPLATES_DIR}/inference-role-ops.json.tpl" \
-        "TEAM=${team}" "PROJECT=${project}"
+        "TEAM=${team}" "PROJECT=${project}" \
+        "TEAM_FULLNAME=${team_capitalized}" "PROJECT_FULLNAME=${project_formatted}"
 }
 
 generate_user_boundary_policy() {
