@@ -33,11 +33,9 @@
   - [14 - 资源设计](14-workload-resources.md)
   - [15 - 实施计划](15-workload-implementation.md)
 
-- **脚本参考**
+- **运维管理**
 
-  - [ECR 容器镜像](../scripts/06-ecr/README.md)
-  - [Model Registry](../scripts/07-model-registry/README.md)
-  - [运维操作脚本](../scripts/08-operations/README.md)
+  - [16 - 运维操作指南](16-operations.md)
 
 - **用户指南**
 

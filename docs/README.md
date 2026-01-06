@@ -175,4 +175,4 @@ Phase 3 - 高级功能 ⏳ 待规划
 - **用户手册**：[用户使用手册](./USER-GUIDE.md)
 - **ML Jobs**：[Processing](./10-sagemaker-processing.md) | [Training](./12-sagemaker-training.md) | [Inference](./13-realtime-inference.md)
 - **工作负载**：[资源设计](./14-workload-resources.md) | [实施计划](./15-workload-implementation.md)
-- **运维操作**：[用户/项目/团队管理](../scripts/08-operations/README.md)
+- **运维操作**：[用户/项目/团队管理](./16-operations.md)
