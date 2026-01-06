@@ -116,24 +116,20 @@ for user in $USERS; do
     log_info "DEBUG: Step 3a - ALL_USER_GROUPS=[$ALL_USER_GROUPS]"
     
     # 在 bash 中过滤匹配 sagemaker-${TEAM}- 前缀的 groups
-    log_info "DEBUG: Step 3b - Starting filter loop"
-    GROUPS=""
+    USER_GROUPS_FILTERED=""
     for g in $ALL_USER_GROUPS; do
-        log_info "DEBUG: Step 3c - Checking group: $g against pattern sagemaker-${TEAM}-*"
         if [[ "$g" == sagemaker-${TEAM}-* ]]; then
-            GROUPS="$GROUPS $g"
-            log_info "DEBUG: Step 3d - Matched! GROUPS now: [$GROUPS]"
+            if [[ -n "$USER_GROUPS_FILTERED" ]]; then
+                USER_GROUPS_FILTERED="$USER_GROUPS_FILTERED $g"
+            else
+                USER_GROUPS_FILTERED="$g"
+            fi
         fi
     done
-    log_info "DEBUG: Step 3e - Loop done, GROUPS before trim: [$GROUPS]"
-    # trim whitespace safely (avoid xargs issues with empty input)
-    GROUPS="${GROUPS## }"
-    GROUPS="${GROUPS%% }"
-    log_info "DEBUG: Step 3f - Filtered GROUPS=[$GROUPS]"
     
     # 简化 Group 显示
     GROUP_DISPLAY=""
-    for group in $GROUPS; do
+    for group in $USER_GROUPS_FILTERED; do
         # sagemaker-rc-fraud-detection -> fraud-detection
         project="${group#sagemaker-${TEAM}-}"
         if [[ -n "$GROUP_DISPLAY" ]]; then
