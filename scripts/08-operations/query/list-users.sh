@@ -93,22 +93,27 @@ log_info "DEBUG: Starting for loop with USERS=[$USERS]"
 for user in $USERS; do
     log_info "DEBUG: Processing user: $user"
     ((TOTAL_USERS++)) || true
+    log_info "DEBUG: Step 1 - TOTAL_USERS=$TOTAL_USERS"
     
     # 解析用户类型
     if [[ "$user" =~ ^sm-admin- ]]; then
         TEAM="admin"
         ((ADMIN_USERS++)) || true
+        log_info "DEBUG: Step 2a - Admin user, TEAM=$TEAM"
     else
         # sm-rc-alice -> rc
         PARTS=(${user//-/ })
         TEAM="${PARTS[1]}"
         ((TEAM_USERS++)) || true
+        log_info "DEBUG: Step 2b - Team user, TEAM=$TEAM"
     fi
     
     # 获取用户所属的项目 Groups
+    log_info "DEBUG: Step 3 - Getting groups for $user with TEAM=$TEAM"
     GROUPS=$(aws iam list-groups-for-user --user-name "$user" \
         --query 'Groups[?starts_with(GroupName, `sagemaker-'"${TEAM}"'-`)].GroupName' \
         --output text 2>/dev/null || echo "")
+    log_info "DEBUG: Step 3 done - GROUPS=[$GROUPS]"
     
     # 简化 Group 显示
     GROUP_DISPLAY=""
@@ -129,10 +134,12 @@ for user in $USERS; do
     # 获取 Profile 数量
     # 注意: 使用 ends_with 避免误匹配 (如 alice 匹配到 alicesmith)
     # Profile 格式: profile-{team}-{project_short}-{username}
+    log_info "DEBUG: Step 4 - GROUP_DISPLAY=$GROUP_DISPLAY"
     PROFILE_COUNT=0
     if [[ "$TEAM" != "admin" ]]; then
         # 从用户名提取用户标识
         USER_IDENT="${user#sm-${TEAM}-}"
+        log_info "DEBUG: Step 5 - Getting profiles, DOMAIN_ID=$DOMAIN_ID, USER_IDENT=$USER_IDENT"
         PROFILE_COUNT=$(aws sagemaker list-user-profiles \
             --domain-id "$DOMAIN_ID" \
             --query 'UserProfiles[?ends_with(UserProfileName, `-'"${USER_IDENT}"'`)].UserProfileName' \
@@ -140,7 +147,9 @@ for user in $USERS; do
             --region "$AWS_REGION" 2>/dev/null | wc -w | tr -d ' ')
     fi
     
+    log_info "DEBUG: Step 6 - About to printf: user=$user, TEAM=$TEAM, GROUP_DISPLAY=$GROUP_DISPLAY, PROFILE_COUNT=$PROFILE_COUNT"
     printf "%-25s %-15s %-30s %s\n" "$user" "$TEAM" "$GROUP_DISPLAY" "${PROFILE_COUNT} profiles"
+    log_info "DEBUG: Step 7 - printf done"
     
     # 详细信息
     if [[ "$SHOW_DETAIL" == "true" && "$TEAM" != "admin" ]]; then
