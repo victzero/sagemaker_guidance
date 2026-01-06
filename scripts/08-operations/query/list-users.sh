@@ -110,14 +110,20 @@ for user in $USERS; do
     
     # 获取用户所属的项目 Groups
     log_info "DEBUG: Step 3 - Getting groups for $user with TEAM=$TEAM"
-    # 临时禁用 set -e，避免命令替换中的退出问题
-    set +e
-    GROUPS=$(aws iam list-groups-for-user --user-name "$user" \
-        --query "Groups[?starts_with(GroupName, \`sagemaker-${TEAM}-\`)].GroupName" \
-        --output text 2>/dev/null)
-    GROUPS_EXIT_CODE=$?
-    set -e
-    log_info "DEBUG: Step 3 done - exit_code=$GROUPS_EXIT_CODE, GROUPS=[$GROUPS]"
+    # 获取所有 groups，然后在 bash 中过滤（避免 JMESPath 变量问题）
+    ALL_USER_GROUPS=$(aws iam list-groups-for-user --user-name "$user" \
+        --query 'Groups[].GroupName' --output text 2>/dev/null || echo "")
+    log_info "DEBUG: Step 3a - ALL_USER_GROUPS=[$ALL_USER_GROUPS]"
+    
+    # 在 bash 中过滤匹配 sagemaker-${TEAM}- 前缀的 groups
+    GROUPS=""
+    for g in $ALL_USER_GROUPS; do
+        if [[ "$g" == sagemaker-${TEAM}-* ]]; then
+            GROUPS="$GROUPS $g"
+        fi
+    done
+    GROUPS=$(echo "$GROUPS" | xargs)  # trim whitespace
+    log_info "DEBUG: Step 3b - Filtered GROUPS=[$GROUPS]"
     
     # 简化 Group 显示
     GROUP_DISPLAY=""
