@@ -411,13 +411,8 @@ get_trust_policy_file() {
         exit 1
     fi
     
-    # 如果有 OUTPUT_DIR，复制到该目录
-    if [[ -n "$OUTPUT_DIR" && -n "$SCRIPT_DIR" ]]; then
-        cp "$trust_policy_file" "${SCRIPT_DIR}/${OUTPUT_DIR}/trust-policy-sagemaker.json"
-        echo "${SCRIPT_DIR}/${OUTPUT_DIR}/trust-policy-sagemaker.json"
-    else
-        echo "$trust_policy_file"
-    fi
+    # 直接返回源文件路径，避免复制操作导致的目录不存在错误
+    echo "$trust_policy_file"
 }
 
 # =============================================================================
