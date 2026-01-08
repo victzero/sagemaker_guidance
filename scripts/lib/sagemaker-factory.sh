@@ -195,6 +195,66 @@ EOF
 }
 
 # =============================================================================
+# Lifecycle Configuration 创建
+# =============================================================================
+
+# 创建 Lifecycle Configuration
+# 用法: create_lifecycle_config <name> <script_path> <type>
+# type: JupyterLab | KernelGateway
+create_lifecycle_config() {
+    local lcc_name=$1
+    local script_path=$2
+    local lcc_type=${3:-JupyterLab}
+    
+    log_info "Creating Lifecycle Config: $lcc_name ($lcc_type)"
+    
+    if [[ ! -f "$script_path" ]]; then
+        log_error "Script file not found: $script_path"
+        return 1
+    fi
+    
+    # Read script content and base64 encode it
+    local content_base64
+    if [[ "$OSTYPE" == "darwin"* ]]; then
+        content_base64=$(openssl base64 -in "$script_path" | tr -d '\n')
+    else
+        content_base64=$(base64 -w 0 "$script_path")
+    fi
+    
+    # Check if exists
+    local existing_arn=$(aws sagemaker list-studio-lifecycle-configs \
+        --name-contains "$lcc_name" \
+        --query "StudioLifecycleConfigs[?StudioLifecycleConfigName=='${lcc_name}'].StudioLifecycleConfigArn" \
+        --output text \
+        --region "$AWS_REGION" 2>/dev/null || echo "")
+        
+    if [[ -n "$existing_arn" && "$existing_arn" != "None" ]]; then
+        log_warn "Lifecycle Config $lcc_name already exists, updating content..."
+        
+        # Delete and recreate to ensure content update
+        aws sagemaker delete-studio-lifecycle-config \
+            --studio-lifecycle-config-name "$lcc_name" \
+            --region "$AWS_REGION"
+            
+        sleep 2
+    fi
+    
+    local arn=$(aws sagemaker create-studio-lifecycle-config \
+        --studio-lifecycle-config-name "$lcc_name" \
+        --studio-lifecycle-config-content "$content_base64" \
+        --studio-lifecycle-config-app-type "$lcc_type" \
+        --tags \
+            Key=ManagedBy,Value="${TAG_PREFIX:-sagemaker}" \
+            Key=Environment,Value=production \
+        --query 'StudioLifecycleConfigArn' \
+        --output text \
+        --region "$AWS_REGION")
+        
+    log_success "Lifecycle Config created: $arn"
+    echo "$arn"
+}
+
+# =============================================================================
 # 组合函数
 # =============================================================================
 

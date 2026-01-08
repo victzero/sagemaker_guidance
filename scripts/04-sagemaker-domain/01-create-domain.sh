@@ -7,6 +7,7 @@ set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${SCRIPT_DIR}/00-init.sh"
+source "${SCRIPT_DIR}/../lib/sagemaker-factory.sh"
 
 init
 
@@ -64,6 +65,17 @@ main() {
         
         log_info "Using execution role: $default_role_arn"
         
+        # Ensure Lifecycle Config exists
+        local lcc_script="${SCRIPT_DIR}/lifecycle-scripts/disable-download.sh"
+        local lcc_name="${TAG_PREFIX}-disable-download"
+        local lcc_arn
+        
+        if [[ -f "$lcc_script" ]]; then
+            lcc_arn=$(create_lifecycle_config "$lcc_name" "$lcc_script" "JupyterLab")
+        else
+            log_warn "Lifecycle script not found at $lcc_script, skipping..."
+        fi
+        
         local default_user_settings=$(cat <<EOF
 {
     "ExecutionRole": "${default_role_arn}",
@@ -72,8 +84,10 @@ main() {
     "StudioWebPortal": "ENABLED",
     "JupyterLabAppSettings": {
         "DefaultResourceSpec": {
-            "InstanceType": "${DEFAULT_INSTANCE_TYPE}"
+            "InstanceType": "${DEFAULT_INSTANCE_TYPE}",
+            "LifecycleConfigArn": "${lcc_arn}"
         },
+        "LifecycleConfigArns": ["${lcc_arn}"],
         "AppLifecycleManagement": {
             "IdleSettings": {
                 "LifecycleManagement": "ENABLED",

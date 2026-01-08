@@ -1,17 +1,16 @@
 #!/bin/bash
 # =============================================================================
-# fix-lifecycle-config.sh - 移除自定义 Lifecycle Config，启用内置 Idle Shutdown
+# update-domain-config.sh - 更新 Domain 配置 (LCC + Idle Shutdown)
 # =============================================================================
 #
-# 背景:
-#   旧版本脚本使用自定义 Lifecycle Config 实现自动关机功能。
-#   但自定义脚本可能因环境差异导致失败。
-#   
-#   新版 SageMaker Studio 已内置 Idle Shutdown 功能，更稳定可靠。
-#   此脚本用于将已创建的 Domain 从自定义 LCC 迁移到内置功能。
+# 功能:
+#   1. 部署/更新 "disable-download" Lifecycle Config
+#   2. 更新 Domain 默认配置：
+#      - 启用 disable-download LCC
+#      - 启用内置 Idle Shutdown
 #
 # 使用:
-#   ./fix-lifecycle-config.sh
+#   ./update-domain-config.sh
 #
 # =============================================================================
 
@@ -19,6 +18,7 @@ set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${SCRIPT_DIR}/00-init.sh"
+source "${SCRIPT_DIR}/../lib/sagemaker-factory.sh"
 
 init
 
@@ -28,6 +28,9 @@ init
 DOMAIN_ID=""
 CURRENT_LCC_ARN=""
 CURRENT_IDLE_SETTINGS=""
+EXPECTED_LCC_ARN=""
+LCC_NAME="${TAG_PREFIX}-disable-download"
+LCC_SCRIPT="${SCRIPT_DIR}/lifecycle-scripts/disable-download.sh"
 
 # =============================================================================
 # 辅助函数
@@ -35,6 +38,22 @@ CURRENT_IDLE_SETTINGS=""
 
 print_separator() {
     echo "────────────────────────────────────────────────────────────────────────────────"
+}
+
+# =============================================================================
+# 准备 Lifecycle Config
+# =============================================================================
+
+prepare_lcc() {
+    echo ""
+    log_info "检查/部署 Lifecycle Config: $LCC_NAME"
+    
+    if [[ ! -f "$LCC_SCRIPT" ]]; then
+        log_error "LCC 脚本未找到: $LCC_SCRIPT"
+        exit 1
+    fi
+    
+    EXPECTED_LCC_ARN=$(create_lifecycle_config "$LCC_NAME" "$LCC_SCRIPT" "JupyterLab")
 }
 
 # =============================================================================
@@ -49,17 +68,9 @@ scan_current_config() {
     echo ""
     
     # 获取 Domain ID
-    DOMAIN_ID=$(aws sagemaker list-domains \
-        --query "Domains[?DomainName=='${DOMAIN_NAME}'].DomainId" \
-        --output text \
-        --region "$AWS_REGION" 2>/dev/null || echo "")
+    get_domain_id
     
-    if [[ -z "$DOMAIN_ID" || "$DOMAIN_ID" == "None" ]]; then
-        log_error "未找到 Domain: $DOMAIN_NAME"
-        exit 1
-    fi
-    
-    log_info "找到 Domain: $DOMAIN_ID"
+    log_info "Domain ID: $DOMAIN_ID"
     
     # 获取当前配置
     local domain_info=$(aws sagemaker describe-domain \
@@ -89,32 +100,32 @@ show_changes_plan() {
     
     echo "【Domain: $DOMAIN_ID】"
     print_separator
-    printf "| %-30s | %-50s |\n" "配置项" "值"
+    printf "| %-30s | %-50s |\n" "配置项" "当前值"
     print_separator
-    printf "| %-30s | %-50s |\n" "自定义 Lifecycle Config (当前)" "${CURRENT_LCC_ARN:-无}"
-    printf "| %-30s | %-50s |\n" "自定义 Lifecycle Config (修复后)" "移除"
+    printf "| %-30s | %-50s |\n" "Lifecycle Config (Disable DL)" "${CURRENT_LCC_ARN:-无}"
+    printf "| %-30s | %-50s |\n" "期望 Lifecycle Config" "$EXPECTED_LCC_ARN"
     print_separator
-    printf "| %-30s | %-50s |\n" "内置 Idle Shutdown (当前)" "$current_idle_enabled ($current_idle_timeout min)"
-    printf "| %-30s | %-50s |\n" "内置 Idle Shutdown (修复后)" "ENABLED (${IDLE_TIMEOUT_MINUTES} min)"
+    printf "| %-30s | %-50s |\n" "内置 Idle Shutdown" "$current_idle_enabled ($current_idle_timeout min)"
+    printf "| %-30s | %-50s |\n" "期望 Idle Shutdown" "ENABLED (${IDLE_TIMEOUT_MINUTES} min)"
     print_separator
     echo ""
     
     # 检查是否需要修复
     local need_fix=false
     
-    if [[ -n "$CURRENT_LCC_ARN" && "$CURRENT_LCC_ARN" != "null" ]]; then
-        log_warn "需要移除自定义 Lifecycle Config"
+    if [[ "$CURRENT_LCC_ARN" != "$EXPECTED_LCC_ARN" ]]; then
+        log_warn "需要更新 Lifecycle Config"
         need_fix=true
     fi
     
     if [[ "$current_idle_enabled" != "ENABLED" ]] || [[ "$current_idle_timeout" != "$IDLE_TIMEOUT_MINUTES" ]]; then
-        log_warn "需要配置内置 Idle Shutdown"
+        log_warn "需要更新 Idle Shutdown 配置"
         need_fix=true
     fi
     
     if [[ "$need_fix" == "false" ]]; then
         echo ""
-        log_success "配置已经是最佳状态，无需修复！"
+        log_success "配置已经是最佳状态，无需变更！"
         return 1
     fi
     
@@ -122,25 +133,31 @@ show_changes_plan() {
 }
 
 # =============================================================================
-# 执行修复
+# 执行更新
 # =============================================================================
 
-execute_fix() {
+execute_update() {
     echo ""
     echo "=============================================="
-    echo " 执行修复"
+    echo " 执行更新"
     echo "=============================================="
     echo ""
     
     log_info "更新 Domain 配置..."
     
-    # 移除自定义 LCC，启用内置 Idle Shutdown
+    # 更新 Domain Settings
+    # 1. 设置 DefaultResourceSpec.LifecycleConfigArn (默认选中)
+    # 2. 设置 LifecycleConfigArns (允许列表)
+    # 3. 设置 Idle Shutdown
+    
     if aws sagemaker update-domain \
         --domain-id "$DOMAIN_ID" \
         --default-user-settings '{
             "JupyterLabAppSettings": {
-                "DefaultResourceSpec": {},
-                "LifecycleConfigArns": [],
+                "DefaultResourceSpec": {
+                    "LifecycleConfigArn": "'"${EXPECTED_LCC_ARN}"'"
+                },
+                "LifecycleConfigArns": ["'"${EXPECTED_LCC_ARN}"'"],
                 "AppLifecycleManagement": {
                     "IdleSettings": {
                         "LifecycleManagement": "ENABLED",
@@ -159,13 +176,13 @@ execute_fix() {
 }
 
 # =============================================================================
-# 验证修复结果
+# 验证结果
 # =============================================================================
 
-verify_fix() {
+verify_result() {
     echo ""
     echo "=============================================="
-    echo " 验证修复结果"
+    echo " 验证结果"
     echo "=============================================="
     echo ""
     
@@ -175,37 +192,30 @@ verify_fix() {
     
     local new_lcc=$(echo "$domain_info" | jq -r '.DefaultUserSettings.JupyterLabAppSettings.DefaultResourceSpec.LifecycleConfigArn // ""')
     local new_idle_enabled=$(echo "$domain_info" | jq -r '.DefaultUserSettings.JupyterLabAppSettings.AppLifecycleManagement.IdleSettings.LifecycleManagement // "DISABLED"')
-    local new_idle_timeout=$(echo "$domain_info" | jq -r '.DefaultUserSettings.JupyterLabAppSettings.AppLifecycleManagement.IdleSettings.IdleTimeoutInMinutes // 0')
     
     local all_ok=true
     
-    # 验证 LCC 已移除
-    if [[ -z "$new_lcc" || "$new_lcc" == "null" ]]; then
-        log_success "自定义 Lifecycle Config: 已移除 ✓"
+    # 验证 LCC
+    if [[ "$new_lcc" == "$EXPECTED_LCC_ARN" ]]; then
+        log_success "Lifecycle Config: 已更新 ✓"
     else
-        log_error "自定义 Lifecycle Config: 仍存在 ✗ ($new_lcc)"
+        log_error "Lifecycle Config: 不匹配 ✗ (Got: $new_lcc)"
         all_ok=false
     fi
     
-    # 验证内置 Idle Shutdown
+    # 验证 Idle Shutdown
     if [[ "$new_idle_enabled" == "ENABLED" ]]; then
-        log_success "内置 Idle Shutdown: 已启用 ✓"
+        log_success "Idle Shutdown: 已启用 ✓"
     else
-        log_error "内置 Idle Shutdown: 未启用 ✗"
+        log_error "Idle Shutdown: 未启用 ✗"
         all_ok=false
-    fi
-    
-    if [[ "$new_idle_timeout" == "$IDLE_TIMEOUT_MINUTES" ]]; then
-        log_success "Idle Timeout: ${new_idle_timeout} 分钟 ✓"
-    else
-        log_warn "Idle Timeout: ${new_idle_timeout} 分钟 (期望: ${IDLE_TIMEOUT_MINUTES})"
     fi
     
     echo ""
     if [[ "$all_ok" == "true" ]]; then
-        log_success "所有配置验证通过！"
+        log_success "所有配置更新完成！"
     else
-        log_error "部分配置验证失败"
+        log_error "部分配置更新失败"
     fi
 }
 
@@ -216,15 +226,16 @@ verify_fix() {
 main() {
     echo ""
     echo "╔══════════════════════════════════════════════════════════════════════════════╗"
-    echo "║           修复 Lifecycle Config 配置                                         ║"
+    echo "║           SageMaker Domain 配置更新                                           ║"
     echo "╚══════════════════════════════════════════════════════════════════════════════╝"
     echo ""
-    echo "此脚本将："
-    echo "  1. 移除自定义 Lifecycle Config（可能导致启动失败）"
-    echo "  2. 启用内置 Idle Shutdown（更稳定可靠）"
+    echo "此脚本将强制应用以下安全/成本配置："
+    echo "  1. 禁用文件下载 (Lifecycle Config: disable-download)"
+    echo "  2. 自动闲置关机 (Idle Shutdown: ${IDLE_TIMEOUT_MINUTES} min)"
     echo ""
-    echo "Idle Timeout: ${IDLE_TIMEOUT_MINUTES} 分钟"
-    echo ""
+    
+    # 准备 LCC
+    prepare_lcc
     
     # 扫描当前配置
     scan_current_config
@@ -245,21 +256,21 @@ main() {
         exit 0
     fi
     
-    # 执行修复
-    execute_fix
+    # 执行更新
+    execute_update
     
     # 验证结果
-    verify_fix
+    verify_result
     
     echo ""
     echo "=============================================="
-    echo " 后续步骤"
+    echo " 注意事项"
     echo "=============================================="
     echo ""
-    echo "  1. 刷新 SageMaker Studio 控制台页面"
-    echo "  2. 重新启动 JupyterLab 应用"
+    echo "  1. 对于已运行的 App，需重启后生效。"
+    echo "  2. 现有 User Profile 如果覆盖了 JupyterLabAppSettings，可能需要手动更新。"
+    echo "     (默认情况下 User Profile 继承 Domain 设置)"
     echo ""
 }
 
 main
-
