@@ -45,6 +45,12 @@ print_separator() {
 # =============================================================================
 
 prepare_lcc() {
+    if [[ "${DISABLE_STUDIO_DOWNLOAD}" != "true" ]]; then
+        log_info "DISABLE_STUDIO_DOWNLOAD is false, skipping LCC preparation."
+        EXPECTED_LCC_ARN=""  # Explicitly clear it to indicate removal
+        return 0
+    fi
+
     echo ""
     log_info "检查/部署 Lifecycle Config: $LCC_NAME"
     
@@ -161,14 +167,20 @@ execute_update() {
     # 2. 设置 LifecycleConfigArns (允许列表)
     # 3. 设置 Idle Shutdown
     
+    local lcc_settings=""
+    if [[ -n "$EXPECTED_LCC_ARN" ]]; then
+        # Enable LCC
+        lcc_settings='"DefaultResourceSpec": {"LifecycleConfigArn": "'"${EXPECTED_LCC_ARN}"'"}, "LifecycleConfigArns": ["'"${EXPECTED_LCC_ARN}"'"],'
+    else
+        # Disable/Remove LCC (Empty list and empty default spec)
+        lcc_settings='"DefaultResourceSpec": {}, "LifecycleConfigArns": [],'
+    fi
+
     if aws sagemaker update-domain \
         --domain-id "$DOMAIN_ID" \
         --default-user-settings '{
             "JupyterLabAppSettings": {
-                "DefaultResourceSpec": {
-                    "LifecycleConfigArn": "'"${EXPECTED_LCC_ARN}"'"
-                },
-                "LifecycleConfigArns": ["'"${EXPECTED_LCC_ARN}"'"],
+                '"${lcc_settings}"'
                 "AppLifecycleManagement": {
                     "IdleSettings": {
                         "LifecycleManagement": "ENABLED",
@@ -247,7 +259,11 @@ main() {
     echo "╚══════════════════════════════════════════════════════════════════════════════╝"
     echo ""
     echo "此脚本将强制应用以下安全/成本配置："
-    echo "  1. 禁用文件下载 (Lifecycle Config: disable-download)"
+    if [[ "${DISABLE_STUDIO_DOWNLOAD}" == "true" ]]; then
+        echo "  1. 禁用文件下载 (Lifecycle Config: disable-download) [ENABLED]"
+    else
+        echo "  1. 禁用文件下载 (Lifecycle Config: disable-download) [DISABLED - Configured via .env]"
+    fi
     echo "  2. 自动闲置关机 (Idle Shutdown: ${IDLE_TIMEOUT_MINUTES} min)"
     echo ""
     

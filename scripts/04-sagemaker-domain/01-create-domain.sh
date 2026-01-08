@@ -65,17 +65,33 @@ main() {
         
         log_info "Using execution role: $default_role_arn"
         
-        # Ensure Lifecycle Config exists
-        local lcc_script="${SCRIPT_DIR}/lifecycle-scripts/disable-download.sh"
-        local lcc_name="${TAG_PREFIX}-disable-download"
-        local lcc_arn
+        # Prepare LCC list based on configuration
+        local lcc_arn_list="[]"
+        local default_lcc_arn=""
         
-        if [[ -f "$lcc_script" ]]; then
-            lcc_arn=$(create_lifecycle_config "$lcc_name" "$lcc_script" "JupyterLab")
-        else
-            log_warn "Lifecycle script not found at $lcc_script, skipping..."
+        if [[ "${DISABLE_STUDIO_DOWNLOAD}" == "true" ]]; then
+            log_info "Configuring Lifecycle Config for Disable Download..."
+            
+            local lcc_script="${SCRIPT_DIR}/lifecycle-scripts/disable-download.sh"
+            local lcc_name="${TAG_PREFIX}-disable-download"
+            local lcc_arn
+            
+            if [[ -f "$lcc_script" ]]; then
+                lcc_arn=$(create_lifecycle_config "$lcc_name" "$lcc_script" "JupyterLab")
+                lcc_arn_list="[\"${lcc_arn}\"]"
+                default_lcc_arn="${lcc_arn}"
+            else
+                log_warn "Lifecycle script not found at $lcc_script, skipping..."
+            fi
         fi
         
+        # Build DefaultResourceSpec JSON
+        local default_resource_spec="{\"InstanceType\": \"${DEFAULT_INSTANCE_TYPE}\"}"
+        if [[ -n "$default_lcc_arn" ]]; then
+             # Use jq to safely add the field
+             default_resource_spec=$(echo "$default_resource_spec" | jq -c ". + {\"LifecycleConfigArn\": \"${default_lcc_arn}\"}")
+        fi
+
         local default_user_settings=$(cat <<EOF
 {
     "ExecutionRole": "${default_role_arn}",
@@ -83,11 +99,8 @@ main() {
     "DefaultLandingUri": "studio::",
     "StudioWebPortal": "ENABLED",
     "JupyterLabAppSettings": {
-        "DefaultResourceSpec": {
-            "InstanceType": "${DEFAULT_INSTANCE_TYPE}",
-            "LifecycleConfigArn": "${lcc_arn}"
-        },
-        "LifecycleConfigArns": ["${lcc_arn}"],
+        "DefaultResourceSpec": $default_resource_spec,
+        "LifecycleConfigArns": $lcc_arn_list,
         "AppLifecycleManagement": {
             "IdleSettings": {
                 "LifecycleManagement": "ENABLED",
