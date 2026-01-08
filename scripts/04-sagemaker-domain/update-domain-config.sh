@@ -77,7 +77,18 @@ scan_current_config() {
         --domain-id "$DOMAIN_ID" \
         --region "$AWS_REGION")
     
+    # 打印一下当前的 domain_info，方便调试，看看 LCC 到底是什么结构
+    echo "DEBUG: Domain Info LCC Section:"
+    echo "$domain_info" | jq '.DefaultUserSettings.JupyterLabAppSettings'
+
+    # 尝试读取 DefaultResourceSpec.LifecycleConfigArn (注意：有时可能是 null 或空)
     CURRENT_LCC_ARN=$(echo "$domain_info" | jq -r '.DefaultUserSettings.JupyterLabAppSettings.DefaultResourceSpec.LifecycleConfigArn // ""')
+
+    # 如果为空，再尝试读取 LifecycleConfigArns 数组中的第一个 (作为 fallback 显示)
+    if [[ -z "$CURRENT_LCC_ARN" ]]; then
+         CURRENT_LCC_ARN=$(echo "$domain_info" | jq -r '.DefaultUserSettings.JupyterLabAppSettings.LifecycleConfigArns[0] // ""')
+    fi
+
     CURRENT_IDLE_SETTINGS=$(echo "$domain_info" | jq -r '.DefaultUserSettings.JupyterLabAppSettings.AppLifecycleManagement.IdleSettings // {}')
     
     local current_idle_enabled=$(echo "$CURRENT_IDLE_SETTINGS" | jq -r '.LifecycleManagement // "DISABLED"')
@@ -191,6 +202,12 @@ verify_result() {
         --region "$AWS_REGION")
     
     local new_lcc=$(echo "$domain_info" | jq -r '.DefaultUserSettings.JupyterLabAppSettings.DefaultResourceSpec.LifecycleConfigArn // ""')
+    
+    # 同样添加 fallback 读取逻辑
+    if [[ -z "$new_lcc" ]]; then
+         new_lcc=$(echo "$domain_info" | jq -r '.DefaultUserSettings.JupyterLabAppSettings.LifecycleConfigArns[0] // ""')
+    fi
+    
     local new_idle_enabled=$(echo "$domain_info" | jq -r '.DefaultUserSettings.JupyterLabAppSettings.AppLifecycleManagement.IdleSettings.LifecycleManagement // "DISABLED"')
     
     local all_ok=true
