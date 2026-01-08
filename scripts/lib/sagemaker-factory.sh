@@ -206,10 +206,10 @@ create_lifecycle_config() {
     local script_path=$2
     local lcc_type=${3:-JupyterLab}
     
-    log_info "Creating Lifecycle Config: $lcc_name ($lcc_type)"
+    log_info "Creating Lifecycle Config: $lcc_name ($lcc_type)" >&2
     
     if [[ ! -f "$script_path" ]]; then
-        log_error "Script file not found: $script_path"
+        log_error "Script file not found: $script_path" >&2
         return 1
     fi
     
@@ -229,7 +229,7 @@ create_lifecycle_config() {
         --region "$AWS_REGION" 2>/dev/null || echo "")
         
     if [[ -n "$existing_arn" && "$existing_arn" != "None" ]]; then
-        log_warn "Lifecycle Config $lcc_name already exists, updating content..."
+        log_warn "Lifecycle Config $lcc_name already exists, updating content..." >&2
         
         # Delete and recreate to ensure content update
         aws sagemaker delete-studio-lifecycle-config \
@@ -250,7 +250,7 @@ create_lifecycle_config() {
         --output text \
         --region "$AWS_REGION")
         
-    log_success "Lifecycle Config created: $arn"
+    log_success "Lifecycle Config created: $arn" >&2
     echo "$arn"
 }
 

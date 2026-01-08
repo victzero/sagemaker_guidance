@@ -166,7 +166,7 @@ execute_update() {
                 }
             }
         }' \
-        --region "$AWS_REGION" > /dev/null 2>&1; then
+        --region "$AWS_REGION"; then
         log_success "Domain 配置更新成功"
         return 0
     else
