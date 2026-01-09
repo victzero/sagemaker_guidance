@@ -15,13 +15,44 @@
 | 文件                   | 说明                                             |
 | ---------------------- | ------------------------------------------------ |
 | `iam-core.sh`          | IAM 核心函数（模板渲染、策略/角色/组 创建/删除） |
-| `discovery.sh`         | 动态资源发现（从 AWS 查询团队/项目）             |
+| `discovery.sh`         | 动态资源发现（从 AWS 实时查询团队/项目/用户）    |
 | `s3-factory.sh`        | S3 Bucket 创建/删除函数                          |
 | `sagemaker-factory.sh` | User Profile、Space 创建/删除函数                |
 
 ---
 
 ## 核心函数一览
+
+### discovery.sh
+
+**设计目标**: 08-operations 运维脚本使用动态发现，而非依赖静态 `.env` 配置。
+
+| 函数                                      | 说明                              |
+| ----------------------------------------- | --------------------------------- |
+| `discover_teams`                          | 从 IAM Groups 发现所有团队短 ID   |
+| `discover_projects_for_team <team>`       | 发现团队下的所有项目              |
+| `get_project_list_dynamic <team>`         | 动态发现 + fallback 到 `.env`     |
+| `project_exists <team> <project>`         | 检查项目是否存在 (通过 IAM Group) |
+| `check_project_roles <team> <project>`    | 检查项目 IAM Roles 是否完整       |
+| `check_project_bucket <team> <project>`   | 检查项目 S3 Bucket 是否存在       |
+| `discover_project_users <team> <project>` | 获取项目的用户列表                |
+| `discover_user_projects <iam_username>`   | 获取用户参与的项目列表            |
+
+**发现机制**:
+
+```
+IAM Groups 命名规范 → 反向解析资源
+├── sagemaker-{team-fullname}         → 团队
+├── sagemaker-{team}-{project}        → 项目
+└── Group 成员                        → 用户
+```
+
+**与初始化脚本的区别**:
+
+| 脚本类型     | 资源发现    | 说明           |
+| ------------ | ----------- | -------------- |
+| 01-07 初始化 | `.env` 配置 | 声明式批量部署 |
+| 08 运维脚本  | 动态发现    | 交互式日常操作 |
 
 ### iam-core.sh
 

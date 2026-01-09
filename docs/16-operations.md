@@ -266,19 +266,42 @@ cd scripts/08-operations
 
 ## ⚙️ 配置说明
 
-运维脚本复用已有配置，无需额外配置：
+### 资源发现机制
 
-| 配置变量            | 来源                             | 用途              |
-| ------------------- | -------------------------------- | ----------------- |
-| `COMPANY`           | `.env.shared`                    | 公司前缀          |
-| `TEAMS`             | `.env.shared`                    | 团队列表          |
-| `*_PROJECTS`        | `.env.shared`                    | 项目列表          |
-| `*_USERS`           | `.env.shared`                    | 用户列表          |
-| `IAM_PATH`          | `01-iam/.env.local`              | IAM 资源路径      |
-| `PASSWORD_PREFIX`   | `01-iam/.env.local`              | 初始密码前缀      |
-| `PASSWORD_SUFFIX`   | `01-iam/.env.local`              | 初始密码后缀      |
-| `DOMAIN_ID`         | `04-sagemaker-domain/.env.local` | SageMaker Domain  |
-| `SPACE_EBS_SIZE_GB` | `05-user-profiles/.env.local`    | Private Space EBS |
+运维脚本使用**动态发现**机制，直接从 AWS 实时查询资源状态，而非依赖静态配置文件：
+
+| 资源类型 | 发现方式                       | 说明                                            |
+| -------- | ------------------------------ | ----------------------------------------------- |
+| 团队列表 | `discover_teams()`             | 从 IAM Groups 解析 `sagemaker-{team-fullname}`  |
+| 项目列表 | `discover_projects_for_team()` | 从 IAM Groups 解析 `sagemaker-{team}-{project}` |
+| 用户列表 | `discover_project_users()`     | 从 IAM Group 成员获取                           |
+
+**优势**:
+
+- 🔄 无需手动维护 `.env.shared` 中的 `TEAMS`/`*_PROJECTS` 变量
+- ✅ 新增团队/项目后立即可见
+- 🛡️ 基于真实环境状态操作，避免配置不一致
+
+> **注意**: `.env.shared` 仍用于 `get_team_fullname()` 等映射函数，建议在新增团队后更新配置以便显示友好名称。
+
+### 配置优先级
+
+| 配置变量            | 来源                             | 用途                |
+| ------------------- | -------------------------------- | ------------------- |
+| `COMPANY`           | `.env.shared`                    | 公司前缀            |
+| `TEAM_*_FULLNAME`   | `.env.shared`                    | 团队短 ID→ 全称映射 |
+| `IAM_PATH`          | `01-iam/.env.local`              | IAM 资源路径        |
+| `PASSWORD_PREFIX`   | `01-iam/.env.local`              | 初始密码前缀        |
+| `PASSWORD_SUFFIX`   | `01-iam/.env.local`              | 初始密码后缀        |
+| `DOMAIN_ID`         | `04-sagemaker-domain/.env.local` | SageMaker Domain    |
+| `SPACE_EBS_SIZE_GB` | `05-user-profiles/.env.local`    | Private Space EBS   |
+
+### 与初始化脚本的区别
+
+| 脚本类型         | 资源发现方式       | 适用场景               |
+| ---------------- | ------------------ | ---------------------- |
+| **01-07 初始化** | `.env` 配置文件    | 声明式批量部署基础设施 |
+| **08 运维脚本**  | 动态发现 (AWS API) | 交互式日常运维操作     |
 
 ---
 
