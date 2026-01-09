@@ -43,7 +43,15 @@ echo ""
 # 1. 选择团队
 # -----------------------------------------------------------------------------
 echo "可用团队:"
-teams=($TEAMS)
+
+# 动态发现团队 (从 IAM Groups)
+teams=($(discover_teams))
+
+if [[ ${#teams[@]} -eq 0 ]]; then
+    log_error "未找到任何团队。请先使用 team/add-team.sh 创建团队。"
+    exit 1
+fi
+
 for i in "${!teams[@]}"; do
     team="${teams[$i]}"
     fullname=$(get_team_fullname "$team")

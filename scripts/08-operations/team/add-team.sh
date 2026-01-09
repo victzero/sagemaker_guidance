@@ -28,6 +28,7 @@ init_silent
 # 加载工厂函数库
 POLICY_TEMPLATES_DIR="${SCRIPTS_ROOT}/01-iam/policies"
 source "${SCRIPTS_ROOT}/lib/iam-core.sh"
+source "${SCRIPTS_ROOT}/lib/discovery.sh"
 
 # =============================================================================
 # 交互式输入
@@ -55,9 +56,10 @@ while true; do
         continue
     fi
     
-    # 检查是否已存在
-    if [[ " $TEAMS " == *" $TEAM_ID "* ]]; then
-        log_error "团队 ID '$TEAM_ID' 已存在于配置中"
+    # 检查是否已存在 (动态发现)
+    existing_teams=$(discover_teams)
+    if [[ " $existing_teams " == *" $TEAM_ID "* ]]; then
+        log_error "团队 ID '$TEAM_ID' 已存在 (IAM Group 已创建)"
         continue
     fi
     

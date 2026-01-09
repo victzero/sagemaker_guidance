@@ -15,6 +15,7 @@
 |          | 将已有用户添加到新项目 | `user/add-user-to-project.sh`      |
 |          | 从项目移除用户         | `user/remove-user-from-project.sh` |
 |          | 完全删除用户           | `user/delete-user.sh`              |
+|          | **管理文件下载权限**   | `user/set-user-download-access.sh` |
 | 项目管理 | 新增项目               | `project/add-project.sh`           |
 |          | 删除项目               | `project/delete-project.sh`        |
 | 团队管理 | 新增团队               | `team/add-team.sh`                 |
@@ -60,7 +61,8 @@ scripts/08-operations/
 │   ├── add-user.sh                   # 新增用户到项目
 │   ├── add-user-to-project.sh        # 已有用户加入新项目
 │   ├── remove-user-from-project.sh   # 从项目移除用户
-│   └── delete-user.sh                # 完全删除用户
+│   ├── delete-user.sh                # 完全删除用户
+│   └── set-user-download-access.sh   # 管理文件下载权限
 │
 ├── project/                          # 项目管理
 │   ├── add-project.sh                # 新增项目
@@ -184,7 +186,35 @@ cd scripts/08-operations
 | Access Keys    | 删除 | 全部 |
 | MFA Devices    | 删除 | 全部 |
 
-### 场景 5: 新增项目
+### 场景 5: 管理文件下载权限
+
+**触发条件**：需要对特定用户（如特权用户）开启或关闭文件下载功能
+
+**涉及资源**：
+
+| 资源类型     | 操作     | 数量 |
+| ------------ | -------- | ---- |
+| User Profile | 更新 LCC | 1    |
+
+**命令示例**：
+
+```bash
+# 允许用户下载 (开启白名单)
+./user/set-user-download-access.sh profile-rc-fraud-alice enable
+
+# 禁止用户下载 (关闭)
+./user/set-user-download-access.sh profile-rc-fraud-alice disable
+
+# 重置为全局默认 (跟随 Domain 配置)
+./user/set-user-download-access.sh profile-rc-fraud-alice reset
+```
+
+**注意事项**：
+
+- 修改后用户必须重启 JupyterLab Space 才能生效。
+- Domain 全局默认配置由 `04-sagemaker-domain` 中的环境变量控制。
+
+### 场景 6: 新增项目
 
 **触发条件**：团队开始新项目
 
@@ -197,7 +227,7 @@ cd scripts/08-operations
 | IAM Roles    | 创建 | 4    |
 | S3 Bucket    | 创建 | 1    |
 
-### 场景 6: 删除项目
+### 场景 7: 删除项目
 
 **触发条件**：项目结束或合并
 
@@ -212,7 +242,7 @@ cd scripts/08-operations
 | IAM Policies   | 删除 | 3    |
 | S3 Bucket      | 可选 | 1    |
 
-### 场景 7: 新增团队
+### 场景 8: 新增团队
 
 **触发条件**：组织扩展，新部门需要独立环境
 
@@ -223,7 +253,7 @@ cd scripts/08-operations
 | IAM Group  | 创建 | 1    |
 | IAM Policy | 创建 | 1    |
 
-### 场景 8: 删除团队
+### 场景 9: 删除团队
 
 **触发条件**：部门重组或撤销
 

@@ -32,6 +32,7 @@ POLICY_TEMPLATES_DIR="${SCRIPTS_ROOT}/01-iam/policies"
 source "${SCRIPTS_ROOT}/lib/iam-core.sh"
 source "${SCRIPTS_ROOT}/lib/sagemaker-factory.sh"
 source "${SCRIPTS_ROOT}/lib/s3-factory.sh"
+source "${SCRIPTS_ROOT}/lib/discovery.sh"
 
 # =============================================================================
 # 交互式选择
@@ -49,7 +50,15 @@ echo ""
 # 1. 选择团队
 # -----------------------------------------------------------------------------
 echo "可用团队:"
-teams=($TEAMS)
+
+# 动态发现团队 (从 IAM Groups)
+teams=($(discover_teams))
+
+if [[ ${#teams[@]} -eq 0 ]]; then
+    log_error "未找到任何团队。"
+    exit 1
+fi
+
 for i in "${!teams[@]}"; do
     team="${teams[$i]}"
     fullname=$(get_team_fullname "$team")

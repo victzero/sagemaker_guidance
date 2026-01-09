@@ -30,6 +30,7 @@ init_silent
 # 加载工厂函数库
 POLICY_TEMPLATES_DIR="${SCRIPTS_ROOT}/01-iam/policies"
 source "${SCRIPTS_ROOT}/lib/iam-core.sh"
+source "${SCRIPTS_ROOT}/lib/discovery.sh"
 
 # =============================================================================
 # 交互式选择
@@ -85,15 +86,14 @@ for i in "${!TEAM_GROUPS[@]}"; do
     member_count=$(aws iam get-group --group-name "$group" \
         --query 'Users | length(@)' --output text 2>/dev/null || echo "0")
     
-    # 检查是否有关联项目 (bash 过滤)
-    ALL_GROUPS_FOR_CHECK=$(aws iam list-groups --path-prefix "${IAM_PATH}" \
-        --query 'Groups[?starts_with(GroupName, `sagemaker-`)].GroupName' \
-        --output text 2>/dev/null || echo "")
-        
+    # 找到团队短 ID，然后获取项目数
     project_count=0
-    for g in $ALL_GROUPS_FOR_CHECK; do
-        if [[ "$g" == *"-${team_name}-"* ]]; then
-            ((project_count++))
+    for team_id in $(discover_teams); do
+        team_fullname=$(get_team_fullname "$team_id")
+        if [[ "$team_name" == "$team_fullname" ]]; then
+            projects=$(discover_projects_for_team "$team_id")
+            project_count=$(echo "$projects" | wc -w | tr -d ' ')
+            break
         fi
     done
     
@@ -128,61 +128,25 @@ TEAM_MEMBERS=$(aws iam get-group --group-name "$SELECTED_GROUP" \
     --query 'Users[].UserName' --output text 2>/dev/null || echo "")
 MEMBER_COUNT=$(echo "$TEAM_MEMBERS" | wc -w | tr -d ' ')
 
-# 检查关联项目
-PROJECT_GROUPS=$(aws iam list-groups --path-prefix "${IAM_PATH}" \
-    --query 'Groups[?starts_with(GroupName, `sagemaker-`) && contains(GroupName, `-`)].GroupName' \
-    --output text 2>/dev/null || echo "")
-
-TEAM_PROJECTS=()
-for group in $PROJECT_GROUPS; do
-    # 检查是否是这个团队的项目 (sagemaker-{team}-{project})
-    if [[ "$group" =~ ^sagemaker-[a-z]+-${SELECTED_TEAM}- || "$group" == "sagemaker-"*"-${SELECTED_TEAM}" ]]; then
-        continue
-    fi
-    # 提取团队部分进行匹配
-    group_team=$(echo "${group#sagemaker-}" | cut -d'-' -f1)
-    if [[ -n "$group_team" ]]; then
-        # 检查是否与选中的团队相关
-        local_name="${group#sagemaker-}"
-        if [[ "$local_name" =~ ^[a-z]+-[a-z] ]]; then
-            first_part="${local_name%%-*}"
-            # 需要从配置中查找团队 ID 对应关系
-            for team in $TEAMS; do
-                team_fullname=$(get_team_fullname "$team")
-                if [[ "$SELECTED_TEAM" == "$team_fullname" && "$first_part" == "$team" ]]; then
-                    project="${local_name#*-}"
-                    TEAM_PROJECTS+=("$project")
-                fi
-            done
-        fi
-    fi
-done
-
-# 简化：直接查找包含团队缩写的项目组
-for team in $TEAMS; do
-    team_fullname=$(get_team_fullname "$team")
+# 检查关联项目 (使用动态发现)
+# 首先找到团队的短 ID
+TEAM_SHORT_ID=""
+for team_id in $(discover_teams); do
+    team_fullname=$(get_team_fullname "$team_id")
     if [[ "$SELECTED_TEAM" == "$team_fullname" ]]; then
-        # 找到团队 ID，查找其项目 (bash 过滤)
-        ALL_GROUPS_FOR_PROJECTS=$(aws iam list-groups --path-prefix "${IAM_PATH}" \
-            --query 'Groups[].GroupName' \
-            --output text 2>/dev/null || echo "")
-            
-        PROJECTS=""
-        for g in $ALL_GROUPS_FOR_PROJECTS; do
-            if [[ "$g" == sagemaker-${team}-* ]]; then
-                PROJECTS="$PROJECTS $g"
-            fi
-        done
-        
-        for proj_group in $PROJECTS; do
-            project="${proj_group#sagemaker-${team}-}"
-            if [[ -n "$project" ]]; then
-                TEAM_PROJECTS+=("$project")
-            fi
-        done
+        TEAM_SHORT_ID="$team_id"
         break
     fi
 done
+
+TEAM_PROJECTS=()
+if [[ -n "$TEAM_SHORT_ID" ]]; then
+    # 使用 discovery 函数获取项目列表
+    projects=$(discover_projects_for_team "$TEAM_SHORT_ID")
+    for project in $projects; do
+        TEAM_PROJECTS+=("$project")
+    done
+fi
 
 PROJECT_COUNT=${#TEAM_PROJECTS[@]}
 
