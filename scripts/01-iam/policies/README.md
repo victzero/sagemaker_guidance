@@ -23,6 +23,7 @@
 | `self-service.json.tpl`           | 用户自助服务策略               | `AWS_ACCOUNT_ID`, `IAM_PATH`                                                                      |
 | `studio-app-permissions.json.tpl` | Studio App 用户隔离            | `AWS_REGION`, `AWS_ACCOUNT_ID`                                                                    |
 | `mlflow-app-access.json.tpl`      | MLflow 实验追踪                | `AWS_REGION`, `AWS_ACCOUNT_ID`                                                                    |
+| **`deny-cross-project-resources.json.tpl`** | **跨项目资源隔离**     | `AWS_REGION`, `AWS_ACCOUNT_ID`, `TEAM`, `PROJECT`                                                 |
 
 ## Trust Policy 说明
 
@@ -79,6 +80,12 @@ User Profile 绑定的 Execution Role 包含以下权限（按附加顺序）：
    - ECR 镜像仓库
    - Amazon Q / Data Science Assistant
 
+6. **跨项目资源隔离** (`deny-cross-project-resources.json.tpl`, 安全必须)
+   - 显式 Deny 删除/修改其他项目的 Model、Endpoint、EndpointConfig
+   - 显式 Deny 停止其他项目的 Training/Processing/Transform Jobs
+   - 显式 Deny 修改其他项目的 Experiments 和 Model Registry
+   - 解决 `AmazonSageMakerFullAccess` 授予 `sagemaker:*` on `Resource: *` 的隔离问题
+
 ## 4 角色分离设计（生产级）
 
 ### 角色权限对比矩阵
@@ -86,6 +93,7 @@ User Profile 绑定的 Execution Role 包含以下权限（按附加顺序）：
 | 权限类型                  | ExecutionRole | TrainingRole | ProcessingRole | InferenceRole |
 | ------------------------- | :-----------: | :----------: | :------------: | :-----------: |
 | AmazonSageMakerFullAccess |      ✅       |      ❌      |       ❌       |      ❌       |
+| **DenyCrossProject**      |      ✅       |      ❌      |       ❌       |      ❌       |
 | S3 完整读写               |      ✅       |      ❌      |       ❌       |      ❌       |
 | S3 训练数据读取           |      ✅       |      ✅      |       ❌       |      ❌       |
 | S3 模型输出写入           |      ✅       |      ✅      |       ❌       |      ❌       |
@@ -368,6 +376,13 @@ ${COMPANY}-sm-shared-*                 # 共享仓库 (只读)
 | `DenySageMakerAdminActions`        | Domain/UserProfile/Space 管理     | 防止越权管理，禁止用户自建 Space |
 | `DenyPresignedUrlForOthersProfile` | 为他人 Profile 创建预签名 URL     | 防止跨用户访问 Studio            |
 | `DenyS3BucketAdmin`                | Bucket 创建/删除/策略修改         | 防止基础设施变更                 |
+| **`DenyDeleteOtherProjectModels`** | **删除非本项目的 Model**          | **跨项目资源隔离**               |
+| **`DenyDeleteOtherProjectEndpointConfigs`** | **删除非本项目的 EndpointConfig** | **跨项目资源隔离** |
+| **`DenyModifyOtherProjectEndpoints`** | **删除/修改非本项目的 Endpoint** | **跨项目资源隔离**           |
+| **`DenyStopOtherProjectTrainingJobs`** | **停止非本项目的 TrainingJob** | **跨项目资源隔离**             |
+| **`DenyStopOtherProjectProcessingJobs`** | **停止非本项目的 ProcessingJob** | **跨项目资源隔离**           |
+| **`DenyModifyOtherProjectExperiments`** | **修改/删除非本项目的 Experiment** | **跨项目资源隔离**          |
+| **`DenyModifyOtherProjectModelPackages`** | **修改/删除非本项目的 ModelPackage** | **跨项目资源隔离**        |
 
 ### 跨资源隔离矩阵
 
@@ -380,6 +395,65 @@ ${COMPANY}-sm-shared-*                 # 共享仓库 (只读)
 | Model Registry | ARN 前缀                        | 项目     | `*-ops.json.tpl`      |
 | IAM PassRole   | 显式 Role ARN 列表              | 项目     | `shared-passrole.json.tpl` |
 | Space/Profile  | Tag 条件 + Owner 条件           | 用户     | `studio-app-permissions.json.tpl` |
+| **Model/Endpoint/Jobs** | **显式 Deny + StringNotLike** | **项目** | **`deny-cross-project-resources.json.tpl`** |
+
+### 跨项目资源隔离 (DenyCrossProject)
+
+**问题背景**：`AmazonSageMakerFullAccess` 托管策略授予 `sagemaker:*` on `Resource: *`，导致用户可以删除/修改其他项目的资源。
+
+**解决方案**：使用显式 Deny + `StringNotLike` 条件限制跨项目操作。
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                    跨项目资源隔离设计                                        │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│   AmazonSageMakerFullAccess (Allow sagemaker:* on Resource: *)              │
+│        │                                                                    │
+│        │  ❌ 问题: 可以删除任何项目的 Model/Endpoint/Jobs                   │
+│        │                                                                    │
+│        ▼                                                                    │
+│   DenyCrossProject (Deny with StringNotLike Condition)                      │
+│        │                                                                    │
+│        │  ✅ 解决: 显式 Deny 非本项目资源                                   │
+│        │     StringNotLike: sagemaker:ResourceArn NOT LIKE ${TEAM}-${PROJECT}-*
+│        │                                                                    │
+│        ▼                                                                    │
+│   有效权限 = Allow ∩ NOT(Deny)                                              │
+│        │                                                                    │
+│        └── 只能删除/修改本项目 (${TEAM}-${PROJECT}-*) 的资源                │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+**保护的资源类型和操作**：
+
+| 资源类型       | 保护的操作                                             |
+| -------------- | ------------------------------------------------------ |
+| Model          | DeleteModel                                            |
+| EndpointConfig | DeleteEndpointConfig                                   |
+| Endpoint       | DeleteEndpoint, UpdateEndpoint                         |
+| TrainingJob    | StopTrainingJob                                        |
+| ProcessingJob  | StopProcessingJob                                      |
+| TransformJob   | StopTransformJob                                       |
+| HPO Job        | StopHyperParameterTuningJob                            |
+| Experiment     | DeleteExperiment, UpdateExperiment, Delete/UpdateTrial |
+| Model Registry | DeleteModelPackage, UpdateModelPackage                 |
+
+**命名规范要求**：
+
+为使隔离生效，SageMaker 资源命名必须遵循 `${TEAM}-${PROJECT}-*` 格式：
+
+```
+# 正确命名示例
+rc-fraud-detection-xgboost-model-v1        # Model
+rc-fraud-detection-xgboost-endpoint-config # EndpointConfig
+rc-fraud-detection-xgboost-prod            # Endpoint
+rc-fraud-detection-train-20250112          # TrainingJob
+rc-fraud-detection-exp-001                 # Experiment
+```
+
+> **重要**: 如果资源命名不遵循此规范（如使用 SageMaker 默认命名），隔离策略将无法正确识别项目归属。
 
 ### Studio 跨用户访问控制
 

@@ -212,6 +212,11 @@ main() {
             create_policy "SageMaker-${team_capitalized}-${project_formatted}-InferenceOpsPolicy" \
                 "$(generate_inference_role_ops_policy "$team" "$project")" \
                 "Inference role ops policy for ${team}/${project}"
+            
+            # 创建跨项目资源 Deny 策略（安全隔离 - 防止操作其他项目资源）
+            create_policy "SageMaker-${team_capitalized}-${project_formatted}-DenyCrossProject" \
+                "$(generate_deny_cross_project_policy "$team" "$project")" \
+                "Cross-project resource deny policy for ${team}/${project} (security isolation)"
         done
     done
     

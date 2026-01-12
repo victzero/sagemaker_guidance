@@ -152,6 +152,7 @@ echo "  IAM Policies (完整策略集):"
 echo "    - ${POLICY_PREFIX}-Access"
 echo "    - ${POLICY_PREFIX}-S3Access"
 echo "    - ${POLICY_PREFIX}-PassRole (含 Deny 跨项目)"
+echo "    - ${POLICY_PREFIX}-DenyCrossProject (跨项目资源隔离)"
 echo "    - ${POLICY_PREFIX}-ExecutionPolicy"
 echo "    - ${POLICY_PREFIX}-ExecutionJobPolicy"
 echo "    - ${POLICY_PREFIX}-TrainingPolicy"
@@ -176,7 +177,7 @@ if [[ "$CREATE_BUCKET" == "true" ]]; then
 fi
 
 print_separator
-echo -e "${CYAN}Summary: 1 Group, 11 Policies, 4 Roles$([ "$CREATE_BUCKET" == "true" ] && echo ", 1 Bucket")${NC}"
+echo -e "${CYAN}Summary: 1 Group, 12 Policies, 4 Roles$([ "$CREATE_BUCKET" == "true" ] && echo ", 1 Bucket")${NC}"
 print_separator
 
 # =============================================================================
@@ -225,7 +226,7 @@ print_separator
 echo ""
 echo "创建的资源:"
 echo "  - IAM Group: $GROUP_NAME"
-echo "  - IAM Policies: 11 个完整策略"
+echo "  - IAM Policies: 12 个完整策略 (含跨项目资源隔离)"
 echo "  - IAM Roles: $ROLE_EXECUTION, $ROLE_TRAINING, $ROLE_PROCESSING, $ROLE_INFERENCE"
 if [[ "$CREATE_BUCKET" == "true" ]]; then
     echo "  - S3 Bucket: $BUCKET_NAME"

@@ -305,6 +305,14 @@ generate_inference_role_ops_policy() {
         "TEAM_FULLNAME=${team_capitalized}" "PROJECT_FULLNAME=${project_formatted}"
 }
 
+# 生成跨项目资源 Deny 策略 (防止操作其他项目的 Model/Endpoint/Jobs)
+generate_deny_cross_project_policy() {
+    local team=$1
+    local project=$2
+    render_template "${POLICY_TEMPLATES_DIR}/deny-cross-project-resources.json.tpl" \
+        "TEAM=${team}" "PROJECT=${project}"
+}
+
 generate_user_boundary_policy() {
     render_template "${POLICY_TEMPLATES_DIR}/user-boundary.json.tpl"
 }
@@ -756,6 +764,14 @@ create_execution_role() {
     # 附加作业提交策略 (PassRole、Training/Processing/Inference)
     attach_policy_to_role "$role_name" "$job_policy_name" "arn:aws:iam::${AWS_ACCOUNT_ID}:policy${IAM_PATH}${job_policy_name}"
     
+    # ========================================
+    # 第七步: 附加跨项目资源 Deny 策略 (安全隔离)
+    # ========================================
+    log_info "Step 7: Attaching cross-project resource deny policy (security isolation)..."
+    
+    local deny_cross_project_policy="SageMaker-${team_capitalized}-${project_formatted}-DenyCrossProject"
+    attach_policy_to_role "$role_name" "$deny_cross_project_policy" "arn:aws:iam::${AWS_ACCOUNT_ID}:policy${IAM_PATH}${deny_cross_project_policy}"
+    
     # 显示权限总结
     echo ""
     log_info "Role $role_name permissions:"
@@ -771,6 +787,7 @@ create_execution_role() {
     echo "  ✓ SageMaker-*-S3Access (shared - project S3 access)"
     echo "  ✓ $policy_name (custom - ECR, CloudWatch, VPC, AI Assistant)"
     echo "  ✓ $job_policy_name (custom - PassRole, Jobs, Model Registry)"
+    echo "  ✓ $deny_cross_project_policy (security - cross-project isolation)"
 }
 
 # 创建 Training 专用 Role
@@ -1429,6 +1446,11 @@ create_project_policies() {
     local inference_ops_policy=$(generate_inference_role_ops_policy "$team" "$project")
     create_or_update_policy "$inference_ops_policy_name" "$inference_ops_policy"
     
+    # 9. 跨项目资源 Deny 策略 (安全隔离)
+    local deny_cross_project_policy_name="SageMaker-${team_capitalized}-${project_formatted}-DenyCrossProject"
+    local deny_cross_project_policy=$(generate_deny_cross_project_policy "$team" "$project")
+    create_or_update_policy "$deny_cross_project_policy_name" "$deny_cross_project_policy"
+    
     log_success "All project policies created for ${team}/${project}"
 }
 
@@ -1752,6 +1774,7 @@ delete_project_iam_policies() {
         "TrainingPolicy" "TrainingOpsPolicy"
         "ProcessingPolicy" "ProcessingOpsPolicy"
         "InferencePolicy" "InferenceOpsPolicy"
+        "DenyCrossProject"
     )
     
     for suffix in "${policy_suffixes[@]}"; do

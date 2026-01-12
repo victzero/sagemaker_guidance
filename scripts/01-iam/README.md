@@ -481,6 +481,7 @@ aws iam list-roles --query 'Roles[?starts_with(RoleName, `SageMaker-`) && contai
 | Canvas 策略组             |   ✅ (可选)   |      ❌      |       ❌       |      ❌       |
 | StudioAppPermissions      |      ✅       |      ❌      |       ❌       |      ❌       |
 | MLflowAppAccess           |   ✅ (可选)   |      ❌      |       ❌       |      ❌       |
+| **DenyCrossProject**      |      ✅       |      ❌      |       ❌       |      ❌       |
 | S3 完整读写               |      ✅       |      ❌      |       ❌       |      ❌       |
 | S3 训练数据/模型输出      |      ✅       |      ✅      |       ❌       |      ❌       |
 | S3 原始数据/处理输出      |      ✅       |      ❌      |       ✅       |      ❌       |
@@ -496,6 +497,63 @@ aws iam list-roles --query 'Roles[?starts_with(RoleName, `SageMaker-`) && contai
 | Glue/Athena               |      ❌       |      ❌      |       ✅       |      ❌       |
 | Pass Role 到其他角色      |      ✅       |      ❌      |       ❌       |      ❌       |
 
+### 跨项目资源隔离 (DenyCrossProject)
+
+由于 ExecutionRole 附加了 `AmazonSageMakerFullAccess` 托管策略，它授予对**所有** SageMaker 资源的完全访问。为实现项目级隔离，我们添加了 **DenyCrossProject** 策略，使用显式 Deny 来限制跨项目操作：
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                    跨项目资源隔离设计                                        │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│   AmazonSageMakerFullAccess (Allow sagemaker:* on Resource: *)              │
+│        │                                                                    │
+│        │  ❌ 问题: 允许操作所有项目的 Model/Endpoint/Jobs                   │
+│        │                                                                    │
+│        ▼                                                                    │
+│   DenyCrossProject (Deny with Condition)                                    │
+│        │                                                                    │
+│        │  ✅ 解决: 显式 Deny 非本项目资源                                   │
+│        │     - Deny DeleteModel WHERE ResourceArn NOT LIKE ${TEAM}-${PROJECT}-*
+│        │     - Deny DeleteEndpoint WHERE ResourceArn NOT LIKE ${TEAM}-${PROJECT}-*
+│        │     - Deny StopTrainingJob WHERE ResourceArn NOT LIKE ${TEAM}-${PROJECT}-*
+│        │     - ...                                                          │
+│        ▼                                                                    │
+│   有效权限 = Allow ∩ NOT(Deny)                                              │
+│        │                                                                    │
+│        └── 只能操作本项目 (${TEAM}-${PROJECT}-*) 的资源                     │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+**DenyCrossProject 策略保护的操作：**
+
+| 资源类型       | 保护的操作                                             |
+| -------------- | ------------------------------------------------------ |
+| Model          | DeleteModel                                            |
+| EndpointConfig | DeleteEndpointConfig                                   |
+| Endpoint       | DeleteEndpoint, UpdateEndpoint                         |
+| TrainingJob    | StopTrainingJob                                        |
+| ProcessingJob  | StopProcessingJob                                      |
+| TransformJob   | StopTransformJob                                       |
+| HPO Job        | StopHyperParameterTuningJob                            |
+| Experiment     | DeleteExperiment, UpdateExperiment, Delete/UpdateTrial |
+| Model Registry | DeleteModelPackage, UpdateModelPackage                 |
+
+**命名规范要求：**
+
+为使隔离生效，资源命名必须遵循 `${TEAM}-${PROJECT}-*` 格式：
+
+| 资源类型       | 命名示例                            |
+| -------------- | ----------------------------------- |
+| Model          | `rc-fraud-detection-xgboost-v1`     |
+| EndpointConfig | `rc-fraud-detection-xgboost-config` |
+| Endpoint       | `rc-fraud-detection-xgboost-prod`   |
+| TrainingJob    | `rc-fraud-detection-train-20250112` |
+| Experiment     | `rc-fraud-detection-exp-001`        |
+
+> **重要**: 如果资源命名不遵循此规范，隔离策略将无法正确识别项目归属。
+
 ### 权限层次详解
 
 **Domain Default Execution Role:**
@@ -509,13 +567,14 @@ aws iam list-roles --query 'Roles[?starts_with(RoleName, `SageMaker-`) && contai
 
 **Project ExecutionRole (用于 User Profile):**
 
-| 顺序 | 权限                      | 说明                       |
-| ---- | ------------------------- | -------------------------- |
-| 1    | AmazonSageMakerFullAccess | AWS 托管策略（必须先附加） |
-| 2    | Canvas 策略组 (可选)      | 低代码 ML 平台，默认开启   |
-| 3    | StudioAppPermissions      | 用户隔离，始终启用         |
-| 4    | MLflowAppAccess (可选)    | 实验追踪，默认开启         |
-| 5    | 项目自定义策略            | S3、ECR、Pass Role 等权限  |
+| 顺序 | 权限                      | 说明                             |
+| ---- | ------------------------- | -------------------------------- |
+| 1    | AmazonSageMakerFullAccess | AWS 托管策略（必须先附加）       |
+| 2    | Canvas 策略组 (可选)      | 低代码 ML 平台，默认开启         |
+| 3    | StudioAppPermissions      | 用户隔离，始终启用               |
+| 4    | MLflowAppAccess (可选)    | 实验追踪，默认开启               |
+| 5    | 项目自定义策略            | S3、ECR、Pass Role 等权限        |
+| 6    | **DenyCrossProject**      | 跨项目资源隔离（安全必须）       |
 
 **TrainingRole / ProcessingRole / InferenceRole:**
 
@@ -802,7 +861,7 @@ setup-all.sh
 **特性：**
 
 - 信任 sagemaker.amazonaws.com (仅 `sts:AssumeRole`)
-- ExecutionRole: AmazonSageMakerFullAccess + Pass Role + 项目策略
+- ExecutionRole: AmazonSageMakerFullAccess + Pass Role + 项目策略 + **DenyCrossProject (跨项目隔离)**
 - TrainingRole: 训练数据 + 模型输出 + Model Registry 写入
 - ProcessingRole: 原始数据 + 处理输出 + Feature Store + Glue/Athena
 - InferenceRole: 模型只读 + 推理输出（最小权限）
@@ -849,41 +908,43 @@ ENABLE_INFERENCE_ROLE=false ./04-create-roles.sh
 
 策略内容与 Shell 脚本分离，位于 `policies/` 目录：
 
-| 模板文件                          | 说明                | 变量                                  |
-| --------------------------------- | ------------------- | ------------------------------------- |
-| `trust-policy-sagemaker.json`     | Trust Policy        | 无（静态）                            |
-| `base-access.json.tpl`            | 基础访问            | `AWS_REGION`, `AWS_ACCOUNT_ID`        |
-| `team-access.json.tpl`            | 团队访问            | + `COMPANY`, `TEAM`                   |
-| `project-access.json.tpl`         | 项目访问            | + `PROJECT`                           |
-| `execution-role.json.tpl`         | ExecutionRole 基础  | + `PROJECT`                           |
-| `execution-role-jobs.json.tpl`    | ExecutionRole 作业  | + `TEAM_FULLNAME`, `PROJECT_FULLNAME` |
-| `training-role.json.tpl`          | TrainingRole 基础   | + `PROJECT`                           |
-| `training-role-ops.json.tpl`      | TrainingRole 操作   | + `TEAM_FULLNAME`, `PROJECT_FULLNAME` |
-| `processing-role.json.tpl`        | ProcessingRole 基础 | + `PROJECT`                           |
-| `processing-role-ops.json.tpl`    | ProcessingRole 操作 | + `TEAM_FULLNAME`, `PROJECT_FULLNAME` |
-| `inference-role.json.tpl`         | InferenceRole 基础  | + `PROJECT`                           |
-| `inference-role-ops.json.tpl`     | InferenceRole 操作  | + `TEAM_FULLNAME`, `PROJECT_FULLNAME` |
-| `user-boundary.json.tpl`          | 权限边界            | `AWS_ACCOUNT_ID`, `COMPANY`           |
-| `readonly.json.tpl`               | 只读访问            | 无                                    |
-| `self-service.json.tpl`           | 自助服务            | `AWS_ACCOUNT_ID`, `IAM_PATH`          |
-| `studio-app-permissions.json.tpl` | Studio 用户隔离     | `AWS_REGION`, `AWS_ACCOUNT_ID`        |
-| `mlflow-app-access.json.tpl`      | MLflow 实验追踪     | `AWS_REGION`, `AWS_ACCOUNT_ID`        |
+| 模板文件                              | 说明                  | 变量                                  |
+| ------------------------------------- | --------------------- | ------------------------------------- |
+| `trust-policy-sagemaker.json`         | Trust Policy          | 无（静态）                            |
+| `base-access.json.tpl`                | 基础访问              | `AWS_REGION`, `AWS_ACCOUNT_ID`        |
+| `team-access.json.tpl`                | 团队访问              | + `COMPANY`, `TEAM`                   |
+| `project-access.json.tpl`             | 项目访问              | + `PROJECT`                           |
+| `execution-role.json.tpl`             | ExecutionRole 基础    | + `PROJECT`                           |
+| `execution-role-jobs.json.tpl`        | ExecutionRole 作业    | + `TEAM_FULLNAME`, `PROJECT_FULLNAME` |
+| `training-role.json.tpl`              | TrainingRole 基础     | + `PROJECT`                           |
+| `training-role-ops.json.tpl`          | TrainingRole 操作     | + `TEAM_FULLNAME`, `PROJECT_FULLNAME` |
+| `processing-role.json.tpl`            | ProcessingRole 基础   | + `PROJECT`                           |
+| `processing-role-ops.json.tpl`        | ProcessingRole 操作   | + `TEAM_FULLNAME`, `PROJECT_FULLNAME` |
+| `inference-role.json.tpl`             | InferenceRole 基础    | + `PROJECT`                           |
+| `inference-role-ops.json.tpl`         | InferenceRole 操作    | + `TEAM_FULLNAME`, `PROJECT_FULLNAME` |
+| **`deny-cross-project-resources.json.tpl`** | **跨项目资源隔离** | `TEAM`, `PROJECT`                     |
+| `user-boundary.json.tpl`              | 权限边界              | `AWS_ACCOUNT_ID`, `COMPANY`           |
+| `readonly.json.tpl`                   | 只读访问              | 无                                    |
+| `self-service.json.tpl`               | 自助服务              | `AWS_ACCOUNT_ID`, `IAM_PATH`          |
+| `studio-app-permissions.json.tpl`     | Studio 用户隔离       | `AWS_REGION`, `AWS_ACCOUNT_ID`        |
+| `mlflow-app-access.json.tpl`          | MLflow 实验追踪       | `AWS_REGION`, `AWS_ACCOUNT_ID`        |
 
 ### 策略拆分设计
 
 每个 Role 的策略拆分为 **基础** + **操作** 两个策略，以避免超过 AWS IAM 的 **6144 字节**限制：
 
-| Role           | 基础策略 (S3/ECR/VPC) | 操作策略 (Jobs/Ops)   |
-| -------------- | --------------------- | --------------------- |
-| ExecutionRole  | `ExecutionPolicy`     | `ExecutionJobPolicy`  |
-| TrainingRole   | `TrainingPolicy`      | `TrainingOpsPolicy`   |
-| ProcessingRole | `ProcessingPolicy`    | `ProcessingOpsPolicy` |
-| InferenceRole  | `InferencePolicy`     | `InferenceOpsPolicy`  |
+| Role           | 基础策略 (S3/ECR/VPC) | 操作策略 (Jobs/Ops)   | 安全策略              |
+| -------------- | --------------------- | --------------------- | --------------------- |
+| ExecutionRole  | `ExecutionPolicy`     | `ExecutionJobPolicy`  | `DenyCrossProject`    |
+| TrainingRole   | `TrainingPolicy`      | `TrainingOpsPolicy`   | -                     |
+| ProcessingRole | `ProcessingPolicy`    | `ProcessingOpsPolicy` | -                     |
+| InferenceRole  | `InferencePolicy`     | `InferenceOpsPolicy`  | -                     |
 
 **拆分原则:**
 
 - **基础策略**: S3 访问、ECR 拉取、CloudWatch Logs、VPC 网络接口
 - **操作策略**: 作业相关操作、PassRole、实验追踪、Model Registry 等
+- **安全策略**: 跨项目资源隔离（显式 Deny 其他项目资源的修改/删除操作）
 
 详见 `policies/README.md`。
 

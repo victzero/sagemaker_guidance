@@ -88,7 +88,7 @@ cd scripts/08-operations
 | 资源类型     | 数量 | 说明                                       |
 | ------------ | ---- | ------------------------------------------ |
 | IAM Group    | 1    | `sagemaker-{team}-{project}`               |
-| IAM Policies | 11   | 完整策略集，含 Deny 跨项目                 |
+| IAM Policies | 12   | 完整策略集，含 DenyCrossProject 跨项目资源隔离 |
 | IAM Roles    | 4    | Execution, Training, Processing, Inference |
 | S3 Bucket    | 1    | 可选，标准目录结构                         |
 

@@ -249,10 +249,11 @@ echo "    - ${ROLE_PREFIX}-TrainingRole"
 echo "    - ${ROLE_PREFIX}-ProcessingRole"
 echo "    - ${ROLE_PREFIX}-InferenceRole"
 echo ""
-echo "  IAM Policies (11个):"
+echo "  IAM Policies (12个):"
 echo "    - ${POLICY_PREFIX}-Access"
 echo "    - ${POLICY_PREFIX}-S3Access"
 echo "    - ${POLICY_PREFIX}-PassRole"
+echo "    - ${POLICY_PREFIX}-DenyCrossProject (跨项目资源隔离)"
 echo "    - ${POLICY_PREFIX}-ExecutionPolicy"
 echo "    - ${POLICY_PREFIX}-ExecutionJobPolicy"
 echo "    - ${POLICY_PREFIX}-TrainingPolicy"
@@ -278,7 +279,7 @@ elif [[ "$BUCKET_EXISTS" == "true" ]]; then
 fi
 
 print_separator
-echo -e "${CYAN}Summary: 删除 $SPACE_COUNT Spaces, $PROFILE_COUNT Profiles, 1 Group, 4 Roles, 11 Policies$([ "$DELETE_BUCKET" == "true" ] && echo ", 1 Bucket")${NC}"
+echo -e "${CYAN}Summary: 删除 $SPACE_COUNT Spaces, $PROFILE_COUNT Profiles, 1 Group, 4 Roles, 12 Policies$([ "$DELETE_BUCKET" == "true" ] && echo ", 1 Bucket")${NC}"
 print_separator
 
 # =============================================================================
@@ -368,7 +369,7 @@ delete_project_roles "$SELECTED_TEAM" "$SELECTED_PROJECT"
 
 # -----------------------------------------------------------------------------
 # Step 5: 删除 IAM Policies (使用 lib/iam-core.sh)
-# 注意: delete_project_iam_policies 会删除所有 11 个项目策略
+# 注意: delete_project_iam_policies 会删除所有 12 个项目策略
 # -----------------------------------------------------------------------------
 log_info "Step 5/6: 删除 IAM Policies..."
 
@@ -398,7 +399,7 @@ echo "  - Private Spaces: $SPACE_COUNT"
 echo "  - User Profiles: $PROFILE_COUNT"
 echo "  - IAM Group: $GROUP_NAME"
 echo "  - IAM Roles: 4"
-echo "  - IAM Policies: 11"
+echo "  - IAM Policies: 12"
 if [[ "$DELETE_BUCKET" == "true" ]]; then
     echo "  - S3 Bucket: $BUCKET_NAME"
 fi
