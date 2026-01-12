@@ -102,7 +102,7 @@ IAM Groups 命名规范 → 反向解析资源
 | `get_domain_id` | 获取 Domain ID (带缓存) |
 | `get_studio_security_group` | 获取 Studio Security Group ID |
 | `get_studio_sg` | `get_studio_security_group` 的别名 |
-| `get_project_short <project>` | 获取项目短名 (fraud-detection → fraud) |
+| `get_project_short <project>` | 获取项目短名 (user-intent → userint, user-segmentation → userseg) |
 
 **创建函数:**
 | 函数 | 说明 |

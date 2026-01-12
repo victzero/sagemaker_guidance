@@ -27,6 +27,7 @@
   - [11 - Data Wrangler](11-data-wrangler.md)
   - [12 - Training 模型训练](12-sagemaker-training.md)
   - [13 - Inference 实时推理](13-realtime-inference.md)
+  - [19 - 模型部署最佳实践](19-deployment-guide.md)
 
 - **工作负载资源**
 
