@@ -307,10 +307,29 @@ create_user_profile_and_space() {
 # 辅助函数
 # =============================================================================
 
-# 获取项目短名 (fraud-detection -> fraud)
+# 获取项目短名
+# 策略: 第一个词完整保留，后续词取前3个字符
+# 例如: user-intent -> userint, user-segmentation -> userseg
+#       fraud-detection -> frauddet, model-training -> modeltrai
 get_project_short() {
     local project=$1
-    echo "$project" | cut -d'-' -f1
+    local result=""
+    local first=true
+    
+    # 按 - 分割
+    IFS='-' read -ra parts <<< "$project"
+    for part in "${parts[@]}"; do
+        if $first; then
+            # 第一个词完整保留
+            result+="$part"
+            first=false
+        else
+            # 后续词取前3个字符
+            result+="${part:0:3}"
+        fi
+    done
+    
+    echo "$result"
 }
 
 # 获取 Studio Security Group ID
