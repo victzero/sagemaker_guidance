@@ -567,14 +567,14 @@ aws iam list-roles --query 'Roles[?starts_with(RoleName, `SageMaker-`) && contai
 
 **Project ExecutionRole (用于 User Profile):**
 
-| 顺序 | 权限                      | 说明                             |
-| ---- | ------------------------- | -------------------------------- |
-| 1    | AmazonSageMakerFullAccess | AWS 托管策略（必须先附加）       |
-| 2    | Canvas 策略组 (可选)      | 低代码 ML 平台，默认开启         |
-| 3    | StudioAppPermissions      | 用户隔离，始终启用               |
-| 4    | MLflowAppAccess (可选)    | 实验追踪，默认开启               |
-| 5    | 项目自定义策略            | S3、ECR、Pass Role 等权限        |
-| 6    | **DenyCrossProject**      | 跨项目资源隔离（安全必须）       |
+| 顺序 | 权限                      | 说明                       |
+| ---- | ------------------------- | -------------------------- |
+| 1    | AmazonSageMakerFullAccess | AWS 托管策略（必须先附加） |
+| 2    | Canvas 策略组 (可选)      | 低代码 ML 平台，默认开启   |
+| 3    | StudioAppPermissions      | 用户隔离，始终启用         |
+| 4    | MLflowAppAccess (可选)    | 实验追踪，默认开启         |
+| 5    | 项目自定义策略            | S3、ECR、Pass Role 等权限  |
+| 6    | **DenyCrossProject**      | 跨项目资源隔离（安全必须） |
 
 **TrainingRole / ProcessingRole / InferenceRole:**
 
@@ -908,37 +908,37 @@ ENABLE_INFERENCE_ROLE=false ./04-create-roles.sh
 
 策略内容与 Shell 脚本分离，位于 `policies/` 目录：
 
-| 模板文件                              | 说明                  | 变量                                  |
-| ------------------------------------- | --------------------- | ------------------------------------- |
-| `trust-policy-sagemaker.json`         | Trust Policy          | 无（静态）                            |
-| `base-access.json.tpl`                | 基础访问              | `AWS_REGION`, `AWS_ACCOUNT_ID`        |
-| `team-access.json.tpl`                | 团队访问              | + `COMPANY`, `TEAM`                   |
-| `project-access.json.tpl`             | 项目访问              | + `PROJECT`                           |
-| `execution-role.json.tpl`             | ExecutionRole 基础    | + `PROJECT`                           |
-| `execution-role-jobs.json.tpl`        | ExecutionRole 作业    | + `TEAM_FULLNAME`, `PROJECT_FULLNAME` |
-| `training-role.json.tpl`              | TrainingRole 基础     | + `PROJECT`                           |
-| `training-role-ops.json.tpl`          | TrainingRole 操作     | + `TEAM_FULLNAME`, `PROJECT_FULLNAME` |
-| `processing-role.json.tpl`            | ProcessingRole 基础   | + `PROJECT`                           |
-| `processing-role-ops.json.tpl`        | ProcessingRole 操作   | + `TEAM_FULLNAME`, `PROJECT_FULLNAME` |
-| `inference-role.json.tpl`             | InferenceRole 基础    | + `PROJECT`                           |
-| `inference-role-ops.json.tpl`         | InferenceRole 操作    | + `TEAM_FULLNAME`, `PROJECT_FULLNAME` |
-| **`deny-cross-project-resources.json.tpl`** | **跨项目资源隔离** | `TEAM`, `PROJECT`                     |
-| `user-boundary.json.tpl`              | 权限边界              | `AWS_ACCOUNT_ID`, `COMPANY`           |
-| `readonly.json.tpl`                   | 只读访问              | 无                                    |
-| `self-service.json.tpl`               | 自助服务              | `AWS_ACCOUNT_ID`, `IAM_PATH`          |
-| `studio-app-permissions.json.tpl`     | Studio 用户隔离       | `AWS_REGION`, `AWS_ACCOUNT_ID`        |
-| `mlflow-app-access.json.tpl`          | MLflow 实验追踪       | `AWS_REGION`, `AWS_ACCOUNT_ID`        |
+| 模板文件                                    | 说明                | 变量                                  |
+| ------------------------------------------- | ------------------- | ------------------------------------- |
+| `trust-policy-sagemaker.json`               | Trust Policy        | 无（静态）                            |
+| `base-access.json.tpl`                      | 基础访问            | `AWS_REGION`, `AWS_ACCOUNT_ID`        |
+| `team-access.json.tpl`                      | 团队访问            | + `COMPANY`, `TEAM`                   |
+| `project-access.json.tpl`                   | 项目访问            | + `PROJECT`                           |
+| `execution-role.json.tpl`                   | ExecutionRole 基础  | + `PROJECT`                           |
+| `execution-role-jobs.json.tpl`              | ExecutionRole 作业  | + `TEAM_FULLNAME`, `PROJECT_FULLNAME` |
+| `training-role.json.tpl`                    | TrainingRole 基础   | + `PROJECT`                           |
+| `training-role-ops.json.tpl`                | TrainingRole 操作   | + `TEAM_FULLNAME`, `PROJECT_FULLNAME` |
+| `processing-role.json.tpl`                  | ProcessingRole 基础 | + `PROJECT`                           |
+| `processing-role-ops.json.tpl`              | ProcessingRole 操作 | + `TEAM_FULLNAME`, `PROJECT_FULLNAME` |
+| `inference-role.json.tpl`                   | InferenceRole 基础  | + `PROJECT`                           |
+| `inference-role-ops.json.tpl`               | InferenceRole 操作  | + `TEAM_FULLNAME`, `PROJECT_FULLNAME` |
+| **`deny-cross-project-resources.json.tpl`** | **跨项目资源隔离**  | `TEAM`, `PROJECT`                     |
+| `user-boundary.json.tpl`                    | 权限边界            | `AWS_ACCOUNT_ID`, `COMPANY`           |
+| `readonly.json.tpl`                         | 只读访问            | 无                                    |
+| `self-service.json.tpl`                     | 自助服务            | `AWS_ACCOUNT_ID`, `IAM_PATH`          |
+| `studio-app-permissions.json.tpl`           | Studio 用户隔离     | `AWS_REGION`, `AWS_ACCOUNT_ID`        |
+| `mlflow-app-access.json.tpl`                | MLflow 实验追踪     | `AWS_REGION`, `AWS_ACCOUNT_ID`        |
 
 ### 策略拆分设计
 
 每个 Role 的策略拆分为 **基础** + **操作** 两个策略，以避免超过 AWS IAM 的 **6144 字节**限制：
 
-| Role           | 基础策略 (S3/ECR/VPC) | 操作策略 (Jobs/Ops)   | 安全策略              |
-| -------------- | --------------------- | --------------------- | --------------------- |
-| ExecutionRole  | `ExecutionPolicy`     | `ExecutionJobPolicy`  | `DenyCrossProject`    |
-| TrainingRole   | `TrainingPolicy`      | `TrainingOpsPolicy`   | -                     |
-| ProcessingRole | `ProcessingPolicy`    | `ProcessingOpsPolicy` | -                     |
-| InferenceRole  | `InferencePolicy`     | `InferenceOpsPolicy`  | -                     |
+| Role           | 基础策略 (S3/ECR/VPC) | 操作策略 (Jobs/Ops)   | 安全策略           |
+| -------------- | --------------------- | --------------------- | ------------------ |
+| ExecutionRole  | `ExecutionPolicy`     | `ExecutionJobPolicy`  | `DenyCrossProject` |
+| TrainingRole   | `TrainingPolicy`      | `TrainingOpsPolicy`   | -                  |
+| ProcessingRole | `ProcessingPolicy`    | `ProcessingOpsPolicy` | -                  |
+| InferenceRole  | `InferencePolicy`     | `InferenceOpsPolicy`  | -                  |
 
 **拆分原则:**
 

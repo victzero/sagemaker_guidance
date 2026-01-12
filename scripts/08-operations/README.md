@@ -22,12 +22,13 @@ scripts/lib/
 
 ### 动态发现 vs 静态配置
 
-| 脚本类型 | 资源发现方式 | 适用场景 |
-|---------|-------------|---------|
-| **01-07 初始化** | `.env` 配置文件 | 声明式批量部署基础设施 |
-| **08 运维脚本** | 动态发现 (AWS API) | 交互式日常运维操作 |
+| 脚本类型         | 资源发现方式       | 适用场景               |
+| ---------------- | ------------------ | ---------------------- |
+| **01-07 初始化** | `.env` 配置文件    | 声明式批量部署基础设施 |
+| **08 运维脚本**  | 动态发现 (AWS API) | 交互式日常运维操作     |
 
 **运维脚本特性**:
+
 - 🔄 团队/项目列表从 IAM Groups 实时查询 (`discover_teams()`, `discover_projects_for_team()`)
 - ✅ 新增资源后立即可见，无需更新配置
 - 🛡️ 基于真实环境状态操作，避免配置不一致
@@ -85,12 +86,12 @@ cd scripts/08-operations
 
 ### add-project.sh
 
-| 资源类型     | 数量 | 说明                                       |
-| ------------ | ---- | ------------------------------------------ |
-| IAM Group    | 1    | `sagemaker-{team}-{project}`               |
+| 资源类型     | 数量 | 说明                                           |
+| ------------ | ---- | ---------------------------------------------- |
+| IAM Group    | 1    | `sagemaker-{team}-{project}`                   |
 | IAM Policies | 12   | 完整策略集，含 DenyCrossProject 跨项目资源隔离 |
-| IAM Roles    | 4    | Execution, Training, Processing, Inference |
-| S3 Bucket    | 1    | 可选，标准目录结构                         |
+| IAM Roles    | 4    | Execution, Training, Processing, Inference     |
+| S3 Bucket    | 1    | 可选，标准目录结构                             |
 
 ### add-user.sh / add-user-to-project.sh
 

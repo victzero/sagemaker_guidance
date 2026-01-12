@@ -4,26 +4,26 @@
 
 ## 文件说明
 
-| 文件                              | 说明                           | 变量                                                                                              |
-| --------------------------------- | ------------------------------ | ------------------------------------------------------------------------------------------------- |
-| `trust-policy-sagemaker.json`     | Execution Role 信任策略        | 无（静态）                                                                                        |
-| `base-access.json.tpl`            | 用户基础访问策略               | `AWS_REGION`, `AWS_ACCOUNT_ID`                                                                    |
-| `team-access.json.tpl`            | 团队访问策略                   | `AWS_REGION`, `AWS_ACCOUNT_ID`, `COMPANY`, `TEAM`                                                 |
-| `project-access.json.tpl`         | 项目访问策略                   | `AWS_REGION`, `AWS_ACCOUNT_ID`, `COMPANY`, `TEAM`, `PROJECT`                                      |
-| `execution-role.json.tpl`         | ExecutionRole 基础（S3/ECR/VPC）| `AWS_REGION`, `AWS_ACCOUNT_ID`, `COMPANY`, `TEAM`, `PROJECT`                                      |
-| `execution-role-jobs.json.tpl`    | ExecutionRole 作业（PassRole/Jobs）| `AWS_REGION`, `AWS_ACCOUNT_ID`, `TEAM`, `PROJECT`, `TEAM_FULLNAME`, `PROJECT_FULLNAME`         |
-| `training-role.json.tpl`          | TrainingRole 基础（S3/ECR/VPC）| `AWS_REGION`, `AWS_ACCOUNT_ID`, `COMPANY`, `TEAM`, `PROJECT`                                      |
-| `training-role-ops.json.tpl`      | TrainingRole 操作（Training ops）| `AWS_REGION`, `AWS_ACCOUNT_ID`, `TEAM`, `PROJECT`, `TEAM_FULLNAME`, `PROJECT_FULLNAME`         |
-| `processing-role.json.tpl`        | ProcessingRole 基础（S3/ECR/VPC）| `AWS_REGION`, `AWS_ACCOUNT_ID`, `COMPANY`, `TEAM`, `PROJECT`                                     |
-| `processing-role-ops.json.tpl`    | ProcessingRole 操作（Processing ops）| `AWS_REGION`, `AWS_ACCOUNT_ID`, `TEAM`, `PROJECT`, `TEAM_FULLNAME`, `PROJECT_FULLNAME`       |
-| `inference-role.json.tpl`         | InferenceRole 基础（S3/ECR/VPC）| `AWS_REGION`, `AWS_ACCOUNT_ID`, `COMPANY`, `TEAM`, `PROJECT`                                     |
-| `inference-role-ops.json.tpl`     | InferenceRole 操作（Inference ops）| `AWS_REGION`, `AWS_ACCOUNT_ID`, `TEAM`, `PROJECT`, `TEAM_FULLNAME`, `PROJECT_FULLNAME`        |
-| `user-boundary.json.tpl`          | 用户权限边界                   | `AWS_ACCOUNT_ID`, `COMPANY`                                                                       |
-| `readonly.json.tpl`               | 只读访问策略                   | `AWS_REGION`, `AWS_ACCOUNT_ID`, `COMPANY`                                                         |
-| `self-service.json.tpl`           | 用户自助服务策略               | `AWS_ACCOUNT_ID`, `IAM_PATH`                                                                      |
-| `studio-app-permissions.json.tpl` | Studio App 用户隔离            | `AWS_REGION`, `AWS_ACCOUNT_ID`                                                                    |
-| `mlflow-app-access.json.tpl`      | MLflow 实验追踪                | `AWS_REGION`, `AWS_ACCOUNT_ID`                                                                    |
-| **`deny-cross-project-resources.json.tpl`** | **跨项目资源隔离**     | `AWS_REGION`, `AWS_ACCOUNT_ID`, `TEAM`, `PROJECT`                                                 |
+| 文件                                        | 说明                                  | 变量                                                                                   |
+| ------------------------------------------- | ------------------------------------- | -------------------------------------------------------------------------------------- |
+| `trust-policy-sagemaker.json`               | Execution Role 信任策略               | 无（静态）                                                                             |
+| `base-access.json.tpl`                      | 用户基础访问策略                      | `AWS_REGION`, `AWS_ACCOUNT_ID`                                                         |
+| `team-access.json.tpl`                      | 团队访问策略                          | `AWS_REGION`, `AWS_ACCOUNT_ID`, `COMPANY`, `TEAM`                                      |
+| `project-access.json.tpl`                   | 项目访问策略                          | `AWS_REGION`, `AWS_ACCOUNT_ID`, `COMPANY`, `TEAM`, `PROJECT`                           |
+| `execution-role.json.tpl`                   | ExecutionRole 基础（S3/ECR/VPC）      | `AWS_REGION`, `AWS_ACCOUNT_ID`, `COMPANY`, `TEAM`, `PROJECT`                           |
+| `execution-role-jobs.json.tpl`              | ExecutionRole 作业（PassRole/Jobs）   | `AWS_REGION`, `AWS_ACCOUNT_ID`, `TEAM`, `PROJECT`, `TEAM_FULLNAME`, `PROJECT_FULLNAME` |
+| `training-role.json.tpl`                    | TrainingRole 基础（S3/ECR/VPC）       | `AWS_REGION`, `AWS_ACCOUNT_ID`, `COMPANY`, `TEAM`, `PROJECT`                           |
+| `training-role-ops.json.tpl`                | TrainingRole 操作（Training ops）     | `AWS_REGION`, `AWS_ACCOUNT_ID`, `TEAM`, `PROJECT`, `TEAM_FULLNAME`, `PROJECT_FULLNAME` |
+| `processing-role.json.tpl`                  | ProcessingRole 基础（S3/ECR/VPC）     | `AWS_REGION`, `AWS_ACCOUNT_ID`, `COMPANY`, `TEAM`, `PROJECT`                           |
+| `processing-role-ops.json.tpl`              | ProcessingRole 操作（Processing ops） | `AWS_REGION`, `AWS_ACCOUNT_ID`, `TEAM`, `PROJECT`, `TEAM_FULLNAME`, `PROJECT_FULLNAME` |
+| `inference-role.json.tpl`                   | InferenceRole 基础（S3/ECR/VPC）      | `AWS_REGION`, `AWS_ACCOUNT_ID`, `COMPANY`, `TEAM`, `PROJECT`                           |
+| `inference-role-ops.json.tpl`               | InferenceRole 操作（Inference ops）   | `AWS_REGION`, `AWS_ACCOUNT_ID`, `TEAM`, `PROJECT`, `TEAM_FULLNAME`, `PROJECT_FULLNAME` |
+| `user-boundary.json.tpl`                    | 用户权限边界                          | `AWS_ACCOUNT_ID`, `COMPANY`                                                            |
+| `readonly.json.tpl`                         | 只读访问策略                          | `AWS_REGION`, `AWS_ACCOUNT_ID`, `COMPANY`                                              |
+| `self-service.json.tpl`                     | 用户自助服务策略                      | `AWS_ACCOUNT_ID`, `IAM_PATH`                                                           |
+| `studio-app-permissions.json.tpl`           | Studio App 用户隔离                   | `AWS_REGION`, `AWS_ACCOUNT_ID`                                                         |
+| `mlflow-app-access.json.tpl`                | MLflow 实验追踪                       | `AWS_REGION`, `AWS_ACCOUNT_ID`                                                         |
+| **`deny-cross-project-resources.json.tpl`** | **跨项目资源隔离**                    | `AWS_REGION`, `AWS_ACCOUNT_ID`, `TEAM`, `PROJECT`                                      |
 
 ## Trust Policy 说明
 
@@ -75,6 +75,7 @@ User Profile 绑定的 Execution Role 包含以下权限（按附加顺序）：
    - Model Registry 集成
 
 5. **项目自定义策略** (`execution-role.json.tpl` + `execution-role-jobs.json.tpl`)
+
    - S3 项目桶访问、ECR、CloudWatch Logs、VPC（基础策略）
    - PassRole、作业提交、实验追踪、Model Registry（作业策略）
    - ECR 镜像仓库
@@ -256,12 +257,12 @@ Domain 默认 Execution Role 只附加 **AmazonSageMakerFullAccess**：
 
 ### ECR 访问控制
 
-| 控制点         | 实现方式                                               | 效果                           |
-| -------------- | ------------------------------------------------------ | ------------------------------ |
-| 项目仓库读写   | `AllowECRReadWriteProject` 限定 `${TEAM}-${PROJECT}-*` | 只能管理自己项目的镜像仓库     |
-| 共享仓库只读   | `AllowECRReadShared` 限定 `shared-*`                   | 只能拉取共享镜像，不能推送     |
-| AWS 镜像拉取   | `AllowECRPullAWSImages` Resource: `*`                  | 可以拉取 AWS 官方 SageMaker 镜像 |
-| 认证令牌       | `AllowECRAuth` `ecr:GetAuthorizationToken`             | 允许获取 ECR 认证（必需）      |
+| 控制点       | 实现方式                                               | 效果                             |
+| ------------ | ------------------------------------------------------ | -------------------------------- |
+| 项目仓库读写 | `AllowECRReadWriteProject` 限定 `${TEAM}-${PROJECT}-*` | 只能管理自己项目的镜像仓库       |
+| 共享仓库只读 | `AllowECRReadShared` 限定 `shared-*`                   | 只能拉取共享镜像，不能推送       |
+| AWS 镜像拉取 | `AllowECRPullAWSImages` Resource: `*`                  | 可以拉取 AWS 官方 SageMaker 镜像 |
+| 认证令牌     | `AllowECRAuth` `ecr:GetAuthorizationToken`             | 允许获取 ECR 认证（必需）        |
 
 **ECR 仓库命名规范**:
 
@@ -279,16 +280,16 @@ ${COMPANY}-sm-shared-*                 # 共享仓库 (只读)
 
 ### CloudWatch Logs 访问控制
 
-| Role           | 日志组范围                                           | 说明                       |
-| -------------- | ---------------------------------------------------- | -------------------------- |
-| ExecutionRole  | `/aws/sagemaker/studio/*`                            | Studio 日志                |
-|                | `/aws/sagemaker/*/${TEAM}-${PROJECT}-*`              | 项目作业日志（按命名前缀） |
-| TrainingRole   | `/aws/sagemaker/TrainingJobs/*`                      | 训练作业日志               |
-|                | `/aws/sagemaker/HyperParameterTuningJobs/*`          | HPO 作业日志               |
-| ProcessingRole | `/aws/sagemaker/ProcessingJobs/*`                    | 处理作业日志               |
-| InferenceRole  | `/aws/sagemaker/Endpoints/*`                         | 实时推理日志               |
-|                | `/aws/sagemaker/TransformJobs/*`                     | 批量推理日志               |
-|                | `/aws/sagemaker/InferenceRecommendationsJobs/*`      | 推理优化日志               |
+| Role           | 日志组范围                                      | 说明                       |
+| -------------- | ----------------------------------------------- | -------------------------- |
+| ExecutionRole  | `/aws/sagemaker/studio/*`                       | Studio 日志                |
+|                | `/aws/sagemaker/*/${TEAM}-${PROJECT}-*`         | 项目作业日志（按命名前缀） |
+| TrainingRole   | `/aws/sagemaker/TrainingJobs/*`                 | 训练作业日志               |
+|                | `/aws/sagemaker/HyperParameterTuningJobs/*`     | HPO 作业日志               |
+| ProcessingRole | `/aws/sagemaker/ProcessingJobs/*`               | 处理作业日志               |
+| InferenceRole  | `/aws/sagemaker/Endpoints/*`                    | 实时推理日志               |
+|                | `/aws/sagemaker/TransformJobs/*`                | 批量推理日志               |
+|                | `/aws/sagemaker/InferenceRecommendationsJobs/*` | 推理优化日志               |
 
 **最佳实践**:
 
@@ -367,35 +368,35 @@ ${COMPANY}-sm-shared-*                 # 共享仓库 (只读)
 
 ### 已实现的 Deny 控制
 
-| Sid                                | 拒绝的操作                        | 目的                             |
-| ---------------------------------- | --------------------------------- | -------------------------------- |
-| `DenyAllWithoutMFA`                | 未启用 MFA 时拒绝所有非自服务操作 | 强制 MFA                         |
-| `DenyS3BucketListing`              | `s3:ListAllMyBuckets`             | 禁止浏览桶列表                   |
-| `DenyAccessToOtherBuckets`         | 非公司桶的所有 S3 操作            | 强制桶隔离                       |
-| `DenyDangerousIAMActions`          | IAM 策略创建/修改/删除            | 防止权限提升                     |
-| `DenySageMakerAdminActions`        | Domain/UserProfile/Space 管理     | 防止越权管理，禁止用户自建 Space |
-| `DenyPresignedUrlForOthersProfile` | 为他人 Profile 创建预签名 URL     | 防止跨用户访问 Studio            |
-| `DenyS3BucketAdmin`                | Bucket 创建/删除/策略修改         | 防止基础设施变更                 |
-| **`DenyDeleteOtherProjectModels`** | **删除非本项目的 Model**          | **跨项目资源隔离**               |
-| **`DenyDeleteOtherProjectEndpointConfigs`** | **删除非本项目的 EndpointConfig** | **跨项目资源隔离** |
-| **`DenyModifyOtherProjectEndpoints`** | **删除/修改非本项目的 Endpoint** | **跨项目资源隔离**           |
-| **`DenyStopOtherProjectTrainingJobs`** | **停止非本项目的 TrainingJob** | **跨项目资源隔离**             |
-| **`DenyStopOtherProjectProcessingJobs`** | **停止非本项目的 ProcessingJob** | **跨项目资源隔离**           |
-| **`DenyModifyOtherProjectExperiments`** | **修改/删除非本项目的 Experiment** | **跨项目资源隔离**          |
-| **`DenyModifyOtherProjectModelPackages`** | **修改/删除非本项目的 ModelPackage** | **跨项目资源隔离**        |
+| Sid                                         | 拒绝的操作                           | 目的                             |
+| ------------------------------------------- | ------------------------------------ | -------------------------------- |
+| `DenyAllWithoutMFA`                         | 未启用 MFA 时拒绝所有非自服务操作    | 强制 MFA                         |
+| `DenyS3BucketListing`                       | `s3:ListAllMyBuckets`                | 禁止浏览桶列表                   |
+| `DenyAccessToOtherBuckets`                  | 非公司桶的所有 S3 操作               | 强制桶隔离                       |
+| `DenyDangerousIAMActions`                   | IAM 策略创建/修改/删除               | 防止权限提升                     |
+| `DenySageMakerAdminActions`                 | Domain/UserProfile/Space 管理        | 防止越权管理，禁止用户自建 Space |
+| `DenyPresignedUrlForOthersProfile`          | 为他人 Profile 创建预签名 URL        | 防止跨用户访问 Studio            |
+| `DenyS3BucketAdmin`                         | Bucket 创建/删除/策略修改            | 防止基础设施变更                 |
+| **`DenyDeleteOtherProjectModels`**          | **删除非本项目的 Model**             | **跨项目资源隔离**               |
+| **`DenyDeleteOtherProjectEndpointConfigs`** | **删除非本项目的 EndpointConfig**    | **跨项目资源隔离**               |
+| **`DenyModifyOtherProjectEndpoints`**       | **删除/修改非本项目的 Endpoint**     | **跨项目资源隔离**               |
+| **`DenyStopOtherProjectTrainingJobs`**      | **停止非本项目的 TrainingJob**       | **跨项目资源隔离**               |
+| **`DenyStopOtherProjectProcessingJobs`**    | **停止非本项目的 ProcessingJob**     | **跨项目资源隔离**               |
+| **`DenyModifyOtherProjectExperiments`**     | **修改/删除非本项目的 Experiment**   | **跨项目资源隔离**               |
+| **`DenyModifyOtherProjectModelPackages`**   | **修改/删除非本项目的 ModelPackage** | **跨项目资源隔离**               |
 
 ### 跨资源隔离矩阵
 
-| 资源类型       | 隔离方式                        | 隔离粒度 | 实现位置              |
-| -------------- | ------------------------------- | -------- | --------------------- |
-| S3 Bucket      | ARN 前缀 + Deny 语句            | 项目     | `shared-s3-access.json.tpl` |
-| ECR Repository | ARN 前缀 `${TEAM}-${PROJECT}-*` | 项目     | `execution-role.json.tpl` 等 |
-| CloudWatch Logs| 日志组前缀 `/${TEAM}-${PROJECT}-*` | 项目   | `execution-role.json.tpl` 等 |
-| SageMaker Jobs | ARN 前缀 + Tag 条件             | 项目     | `*-ops.json.tpl`      |
-| Model Registry | ARN 前缀                        | 项目     | `*-ops.json.tpl`      |
-| IAM PassRole   | 显式 Role ARN 列表              | 项目     | `shared-passrole.json.tpl` |
-| Space/Profile  | Tag 条件 + Owner 条件           | 用户     | `studio-app-permissions.json.tpl` |
-| **Model/Endpoint/Jobs** | **显式 Deny + StringNotLike** | **项目** | **`deny-cross-project-resources.json.tpl`** |
+| 资源类型                | 隔离方式                           | 隔离粒度 | 实现位置                                    |
+| ----------------------- | ---------------------------------- | -------- | ------------------------------------------- |
+| S3 Bucket               | ARN 前缀 + Deny 语句               | 项目     | `shared-s3-access.json.tpl`                 |
+| ECR Repository          | ARN 前缀 `${TEAM}-${PROJECT}-*`    | 项目     | `execution-role.json.tpl` 等                |
+| CloudWatch Logs         | 日志组前缀 `/${TEAM}-${PROJECT}-*` | 项目     | `execution-role.json.tpl` 等                |
+| SageMaker Jobs          | ARN 前缀 + Tag 条件                | 项目     | `*-ops.json.tpl`                            |
+| Model Registry          | ARN 前缀                           | 项目     | `*-ops.json.tpl`                            |
+| IAM PassRole            | 显式 Role ARN 列表                 | 项目     | `shared-passrole.json.tpl`                  |
+| Space/Profile           | Tag 条件 + Owner 条件              | 用户     | `studio-app-permissions.json.tpl`           |
+| **Model/Endpoint/Jobs** | **显式 Deny + StringNotLike**      | **项目** | **`deny-cross-project-resources.json.tpl`** |
 
 ### 跨项目资源隔离 (DenyCrossProject)
 

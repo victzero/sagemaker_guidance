@@ -272,7 +272,7 @@ create_user_profile_and_space() {
     local team_fullname=$(get_team_fullname "$team")
     local team_capitalized=$(format_name "$team_fullname")
     local project_formatted=$(format_name "$project")
-    local project_short=$(echo "$project" | cut -d'-' -f1)
+    local project_short=$(get_project_short "$project")
     
     local profile_name="profile-${team}-${project_short}-${username}"
     local space_name="space-${team}-${project_short}-${username}"
