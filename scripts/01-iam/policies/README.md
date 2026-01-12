@@ -24,6 +24,7 @@
 | `studio-app-permissions.json.tpl`           | Studio App 用户隔离                   | `AWS_REGION`, `AWS_ACCOUNT_ID`                                                         |
 | `mlflow-app-access.json.tpl`                | MLflow 实验追踪                       | `AWS_REGION`, `AWS_ACCOUNT_ID`                                                         |
 | **`deny-cross-project-resources.json.tpl`** | **跨项目资源隔离**                    | `AWS_REGION`, `AWS_ACCOUNT_ID`, `TEAM`, `PROJECT`                                      |
+| **`instance-whitelist.json.tpl`**           | **实例类型白名单**                    | `ALLOWED_INSTANCE_TYPES`                                                               |
 
 ## Trust Policy 说明
 
@@ -472,3 +473,44 @@ rc-fraud-detection-exp-001                 # Experiment
 ```
 
 **前提条件**: User Profile 必须有 `Owner` 标签，值为 IAM 用户名（创建脚本自动设置）
+
+### 实例类型白名单 (InstanceWhitelist)
+
+限制用户在 SageMaker Studio 中可选择的实例类型，防止启动高成本机器：
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                    实例类型白名单设计                                        │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│  用户在 Studio 中启动 JupyterLab / KernelGateway                            │
+│        │                                                                    │
+│        ▼                                                                    │
+│  sagemaker:CreateApp API 调用                                               │
+│        │                                                                    │
+│        ▼                                                                    │
+│  IAM 评估 Condition: sagemaker:InstanceTypes                                │
+│        │                                                                    │
+│        ├── 在白名单中 ✅ → 允许创建                                         │
+│        │                                                                    │
+│        └── 不在白名单 ❌ → 拒绝创建 (Deny 策略生效)                         │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+**可用预设:**
+
+| 预设               | 允许的实例类型               | 适用场景       |
+| ------------------ | ---------------------------- | -------------- |
+| `default`          | ml.t3.\*, ml.m5.large/xlarge | 日常开发       |
+| `gpu`              | 上述 + ml.g4dn._, ml.g5._    | 深度学习       |
+| `large_memory`     | 上述 + ml.r5.\*              | 大数据处理     |
+| `high_performance` | 上述 + ml.c5._, ml.p3._      | 高性能计算     |
+| `unrestricted`     | 全部                         | 不创建限制策略 |
+
+**配置方式:**
+
+1. **初始化配置**: `.env.shared` 中设置 `PROJECT_{TEAM}_{PROJECT}_INSTANCE_WHITELIST=<preset>`
+2. **运维变更**: `08-operations/project/set-instance-whitelist.sh <team> <project> preset <name>`
+
+**注意**: 所有预设必须包含 `system`，否则 JupyterLab 默认 App 无法启动

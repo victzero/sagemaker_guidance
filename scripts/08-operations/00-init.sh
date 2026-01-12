@@ -27,6 +27,7 @@ source "${SCRIPTS_ROOT}/lib/iam-core.sh"
 source "${SCRIPTS_ROOT}/lib/discovery.sh"
 source "${SCRIPTS_ROOT}/lib/s3-factory.sh"
 source "${SCRIPTS_ROOT}/lib/sagemaker-factory.sh"
+source "${SCRIPTS_ROOT}/lib/instance-whitelist.sh"
 
 # -----------------------------------------------------------------------------
 # 加载相关模块的配置（复用已有配置）

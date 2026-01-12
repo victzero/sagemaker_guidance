@@ -17,6 +17,11 @@ if [[ -n "$_LIB_IAM_CORE_LOADED" ]]; then
 fi
 _LIB_IAM_CORE_LOADED=1
 
+# 加载实例类型白名单库
+if [[ -f "${SCRIPTS_ROOT}/lib/instance-whitelist.sh" ]]; then
+    source "${SCRIPTS_ROOT}/lib/instance-whitelist.sh"
+fi
+
 # =============================================================================
 # 存在性检查函数
 # =============================================================================
@@ -772,6 +777,17 @@ create_execution_role() {
     local deny_cross_project_policy="SageMaker-${team_capitalized}-${project_formatted}-DenyCrossProject"
     attach_policy_to_role "$role_name" "$deny_cross_project_policy" "arn:aws:iam::${AWS_ACCOUNT_ID}:policy${IAM_PATH}${deny_cross_project_policy}"
     
+    # ========================================
+    # 第八步: 附加实例类型白名单策略 (成本控制)
+    # ========================================
+    log_info "Step 8: Attaching instance type whitelist policy (cost control)..."
+    
+    local whitelist_preset="unrestricted"
+    if declare -f attach_instance_whitelist_to_role > /dev/null 2>&1; then
+        attach_instance_whitelist_to_role "$team" "$project"
+        whitelist_preset=$(get_project_whitelist_preset "$team" "$project" 2>/dev/null || echo "default")
+    fi
+    
     # 显示权限总结
     echo ""
     log_info "Role $role_name permissions:"
@@ -788,6 +804,11 @@ create_execution_role() {
     echo "  ✓ $policy_name (custom - ECR, CloudWatch, VPC, AI Assistant)"
     echo "  ✓ $job_policy_name (custom - PassRole, Jobs, Model Registry)"
     echo "  ✓ $deny_cross_project_policy (security - cross-project isolation)"
+    if [[ "$whitelist_preset" != "unrestricted" ]]; then
+        echo "  ✓ Instance whitelist: $whitelist_preset (cost control)"
+    else
+        echo "  ○ Instance whitelist: unrestricted"
+    fi
 }
 
 # 创建 Training 专用 Role
@@ -1451,6 +1472,11 @@ create_project_policies() {
     local deny_cross_project_policy=$(generate_deny_cross_project_policy "$team" "$project")
     create_or_update_policy "$deny_cross_project_policy_name" "$deny_cross_project_policy"
     
+    # 10. 实例类型白名单策略 (如果配置了且不是 unrestricted)
+    if declare -f create_instance_whitelist_policy > /dev/null 2>&1; then
+        create_instance_whitelist_policy "$team" "$project"
+    fi
+    
     log_success "All project policies created for ${team}/${project}"
 }
 
@@ -1775,6 +1801,7 @@ delete_project_iam_policies() {
         "ProcessingPolicy" "ProcessingOpsPolicy"
         "InferencePolicy" "InferenceOpsPolicy"
         "DenyCrossProject"
+        "InstanceWhitelist"
     )
     
     for suffix in "${policy_suffixes[@]}"; do

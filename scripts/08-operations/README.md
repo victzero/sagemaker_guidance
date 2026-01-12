@@ -50,13 +50,15 @@ scripts/lib/
 │   └── set-user-download-access.sh   # 管理文件下载权限
 ├── project/                          # 项目管理
 │   ├── add-project.sh                # 新增项目
-│   └── delete-project.sh             # 删除项目
+│   ├── delete-project.sh             # 删除项目
+│   └── set-instance-whitelist.sh     # 管理实例类型白名单
 ├── team/                             # 团队管理
 │   ├── add-team.sh                   # 新增团队
 │   └── delete-team.sh                # 删除团队
 └── query/                            # 查询工具
     ├── list-users.sh                 # 列出用户
-    └── list-projects.sh              # 列出项目
+    ├── list-projects.sh              # 列出项目
+    └── list-instance-whitelists.sh   # 列出实例类型白名单
 ```
 
 ---
@@ -75,9 +77,15 @@ cd scripts/08-operations
 # 跨项目协作
 ./user/add-user-to-project.sh
 
+# 实例类型白名单管理
+./project/set-instance-whitelist.sh rc fraud preset gpu     # 升级到 GPU
+./project/set-instance-whitelist.sh rc fraud preset default # 降级回默认
+./project/set-instance-whitelist.sh rc fraud show           # 查看配置
+
 # 查询
 ./query/list-users.sh
 ./query/list-projects.sh
+./query/list-instance-whitelists.sh
 ```
 
 ---
@@ -109,3 +117,56 @@ cd scripts/08-operations
 - **所有操作**: 执行前显示资源清单，需确认
 - **删除操作**: 需两次确认（输入资源名称）
 - **权限隔离**: 新项目自动包含 Deny 跨项目策略
+- **成本控制**: 实例类型白名单限制高成本机器启动
+
+---
+
+## 实例类型白名单
+
+限制用户在 SageMaker Studio 中可选择的实例类型，防止启动高成本机器。
+
+### 预设类型
+
+| 预设名             | 允许的实例类型               | 适用场景                   |
+| ------------------ | ---------------------------- | -------------------------- |
+| `default`          | ml.t3.\*, ml.m5.large/xlarge | 日常开发、小型实验         |
+| `gpu`              | 上述 + ml.g4dn._, ml.g5._    | 深度学习训练               |
+| `large_memory`     | 上述 + ml.r5.\*              | 大数据处理                 |
+| `high_performance` | 上述 + ml.c5._, ml.p3._      | 高性能计算                 |
+| `unrestricted`     | 全部                         | 特殊项目（不创建限制策略） |
+
+### 配置层级
+
+1. **初始化配置** (`.env.shared`): 项目创建时自动应用
+2. **运维变更** (`set-instance-whitelist.sh`): 运行时动态调整
+
+### 常用操作
+
+```bash
+# 查看所有项目白名单状态
+./query/list-instance-whitelists.sh
+
+# 查看单个项目详情
+./project/set-instance-whitelist.sh rc fraud show
+
+# 升级到 GPU 预设（临时开放）
+./project/set-instance-whitelist.sh rc fraud preset gpu
+
+# 降级回默认预设
+./project/set-instance-whitelist.sh rc fraud preset default
+
+# 移除限制（不推荐）
+./project/set-instance-whitelist.sh rc fraud preset unrestricted
+
+# 自定义实例类型（必须包含 system）
+./project/set-instance-whitelist.sh rc fraud custom "ml.t3.medium,ml.p3.2xlarge,system"
+
+# 重置为初始配置
+./project/set-instance-whitelist.sh rc fraud reset
+```
+
+### 注意事项
+
+- 所有预设必须包含 `system`，否则 JupyterLab 无法启动
+- 配置立即生效，但已运行的 Space 不受影响
+- 用户下次启动 Space 时应用新限制

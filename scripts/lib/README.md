@@ -12,12 +12,13 @@
 
 ## 文件说明
 
-| 文件                   | 说明                                             |
-| ---------------------- | ------------------------------------------------ |
-| `iam-core.sh`          | IAM 核心函数（模板渲染、策略/角色/组 创建/删除） |
-| `discovery.sh`         | 动态资源发现（从 AWS 实时查询团队/项目/用户）    |
-| `s3-factory.sh`        | S3 Bucket 创建/删除函数                          |
-| `sagemaker-factory.sh` | User Profile、Space 创建/删除函数                |
+| 文件                    | 说明                                             |
+| ----------------------- | ------------------------------------------------ |
+| `iam-core.sh`           | IAM 核心函数（模板渲染、策略/角色/组 创建/删除） |
+| `discovery.sh`          | 动态资源发现（从 AWS 实时查询团队/项目/用户）    |
+| `s3-factory.sh`         | S3 Bucket 创建/删除函数                          |
+| `sagemaker-factory.sh`  | User Profile、Space 创建/删除函数                |
+| `instance-whitelist.sh` | 实例类型白名单管理函数                           |
 
 ---
 
@@ -142,6 +143,65 @@ IAM Groups 命名规范 → 反向解析资源
 | `delete_bucket <bucket_name>` | 删除 Bucket (含清空) |
 | `empty_bucket <bucket_name>` | 清空 Bucket |
 
+### instance-whitelist.sh
+
+管理 SageMaker Studio 实例类型白名单，限制用户可选择的实例类型以控制成本。
+
+**预设管理函数:**
+| 函数 | 说明 |
+|------|------|
+| `get_available_presets` | 获取所有可用预设名称 |
+| `get_preset_instance_types <preset>` | 获取预设的实例类型列表 |
+| `validate_preset_name <preset>` | 验证预设名称是否有效 |
+
+**项目配置函数:**
+| 函数 | 说明 |
+|------|------|
+| `get_project_whitelist_preset <team> <project>` | 获取项目的白名单预设名称 |
+| `get_project_instance_whitelist <team> <project>` | 获取项目的实例类型白名单列表 |
+
+**验证函数:**
+| 函数 | 说明 |
+|------|------|
+| `validate_instance_type <type>` | 验证单个实例类型格式 |
+| `validate_instance_types <list>` | 验证实例类型列表 |
+
+**策略生成函数:**
+| 函数 | 说明 |
+|------|------|
+| `generate_instance_whitelist_policy <team> <project>` | 生成项目白名单策略 |
+| `generate_custom_whitelist_policy <types>` | 生成自定义白名单策略 |
+| `instance_types_to_json <types>` | 将逗号分隔列表转 JSON 数组 |
+
+**策略管理函数:**
+| 函数 | 说明 |
+|------|------|
+| `create_instance_whitelist_policy <team> <project>` | 创建/更新白名单策略 |
+| `attach_instance_whitelist_to_role <team> <project>` | 附加策略到 Execution Role |
+
+**运维操作函数:**
+| 函数 | 说明 |
+|------|------|
+| `update_project_whitelist_preset <team> <project> <preset>` | 更新为预设白名单 |
+| `update_project_whitelist_custom <team> <project> <types>` | 更新为自定义白名单 |
+| `get_current_whitelist <team> <project>` | 获取当前生效的白名单 |
+| `reset_project_whitelist <team> <project>` | 重置为初始配置 |
+
+**查询函数:**
+| 函数 | 说明 |
+|------|------|
+| `list_all_whitelists` | 列出所有项目白名单状态 |
+| `print_preset_details` | 打印预设详情 |
+
+**预设类型:**
+| 预设 | 说明 |
+|------|------|
+| `default` | 基础开发实例 (ml.t3.*, ml.m5.large/xlarge) |
+| `gpu` | 包含 GPU 实例 (ml.g4dn.*, ml.g5.*) |
+| `large_memory` | 大内存实例 (ml.r5.*) |
+| `high_performance` | 高性能计算 (ml.c5.*, ml.p3.*) |
+| `unrestricted` | 不限制 (不创建策略) |
+
 ---
 
 ## 使用方式
@@ -217,19 +277,19 @@ lib/*.sh
 
 ## 模块使用情况
 
-| 模块                       | iam-core | discovery | s3-factory | sagemaker-factory |
-| -------------------------- | :------: | :-------: | :--------: | :---------------: |
-| 01-iam/01-create-policies  |    ✅    |     -     |     -      |         -         |
-| 01-iam/02-create-groups    |    ✅    |     -     |     -      |         -         |
-| 01-iam/03-create-users     |    ✅    |     -     |     -      |         -         |
-| 01-iam/04-create-roles     |    ✅    |     -     |     -      |         -         |
-| 01-iam/05-bind-policies    |    ✅    |     -     |     -      |         -         |
-| 01-iam/06-add-users-groups |    ✅    |     -     |     -      |         -         |
-| 01-iam/cleanup             |    ✅    |     -     |     -      |         -         |
-| 03-s3/01-create-buckets    |    -     |     -     |     ✅     |         -         |
-| 03-s3/cleanup              |    -     |     -     |     ✅     |         -         |
-| 05-user-profiles           |    -     |     -     |     -      |        ✅         |
-| 08-operations              |    ✅    |    ✅     |     ✅     |        ✅         |
+| 模块                       | iam-core | discovery | s3-factory | sagemaker-factory | instance-whitelist |
+| -------------------------- | :------: | :-------: | :--------: | :---------------: | :----------------: |
+| 01-iam/01-create-policies  |    ✅    |     -     |     -      |         -         |         ✅         |
+| 01-iam/02-create-groups    |    ✅    |     -     |     -      |         -         |         -          |
+| 01-iam/03-create-users     |    ✅    |     -     |     -      |         -         |         -          |
+| 01-iam/04-create-roles     |    ✅    |     -     |     -      |         -         |         ✅         |
+| 01-iam/05-bind-policies    |    ✅    |     -     |     -      |         -         |         -          |
+| 01-iam/06-add-users-groups |    ✅    |     -     |     -      |         -         |         -          |
+| 01-iam/cleanup             |    ✅    |     -     |     -      |         -         |         -          |
+| 03-s3/01-create-buckets    |    -     |     -     |     ✅     |         -         |         -          |
+| 03-s3/cleanup              |    -     |     -     |     ✅     |         -         |         -          |
+| 05-user-profiles           |    -     |     -     |     -      |        ✅         |         -          |
+| 08-operations              |    ✅    |    ✅     |     ✅     |        ✅         |         ✅         |
 
 ### 复用的函数
 
