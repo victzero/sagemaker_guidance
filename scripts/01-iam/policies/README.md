@@ -403,7 +403,7 @@ ${COMPANY}-sm-shared-*                 # 共享仓库 (只读)
 
 **问题背景**：`AmazonSageMakerFullAccess` 托管策略授予 `sagemaker:*` on `Resource: *`，导致用户可以删除/修改其他项目的资源。
 
-**解决方案**：使用显式 Deny + `StringNotLike` 条件限制跨项目操作。
+**解决方案**：使用 `NotResource` 实现跨项目操作的显式 Deny。
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
@@ -415,10 +415,11 @@ ${COMPANY}-sm-shared-*                 # 共享仓库 (只读)
 │        │  ❌ 问题: 可以删除任何项目的 Model/Endpoint/Jobs                   │
 │        │                                                                    │
 │        ▼                                                                    │
-│   DenyCrossProject (Deny with StringNotLike Condition)                      │
+│   DenyCrossProject (Deny with NotResource)                                  │
 │        │                                                                    │
-│        │  ✅ 解决: 显式 Deny 非本项目资源                                   │
-│        │     StringNotLike: sagemaker:ResourceArn NOT LIKE ${TEAM}-${PROJECT}-*
+│        │  ✅ 解决: 使用 NotResource 显式 Deny 非本项目资源                  │
+│        │     NotResource: arn:...:model/${TEAM}-${PROJECT}-*                │
+│        │     (拒绝对不匹配此模式的资源执行 DeleteModel)                     │
 │        │                                                                    │
 │        ▼                                                                    │
 │   有效权限 = Allow ∩ NOT(Deny)                                              │
@@ -427,6 +428,21 @@ ${COMPANY}-sm-shared-*                 # 共享仓库 (只读)
 │                                                                             │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
+
+**为什么使用 NotResource 而非 Condition**：
+
+AWS SageMaker 不支持 `sagemaker:ResourceArn` 条件键，因此无法使用 `StringNotLike` 条件。
+正确的做法是使用 `NotResource`：
+
+```json
+{
+  "Effect": "Deny",
+  "Action": ["sagemaker:DeleteModel"],
+  "NotResource": "arn:aws:sagemaker:...:model/${TEAM}-${PROJECT}-*"
+}
+```
+
+这会拒绝删除所有 **不匹配** `${TEAM}-${PROJECT}-*` 模式的 Model。
 
 **保护的资源类型和操作**：
 

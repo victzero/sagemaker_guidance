@@ -7,14 +7,7 @@
       "Action": [
         "sagemaker:DeleteModel"
       ],
-      "Resource": "arn:aws:sagemaker:${AWS_REGION}:${AWS_ACCOUNT_ID}:model/*",
-      "Condition": {
-        "StringNotLike": {
-          "sagemaker:ResourceArn": [
-            "arn:aws:sagemaker:${AWS_REGION}:${AWS_ACCOUNT_ID}:model/${TEAM}-${PROJECT}-*"
-          ]
-        }
-      }
+      "NotResource": "arn:aws:sagemaker:${AWS_REGION}:${AWS_ACCOUNT_ID}:model/${TEAM}-${PROJECT}-*"
     },
     {
       "Sid": "DenyDeleteOtherProjectEndpointConfigs",
@@ -22,14 +15,7 @@
       "Action": [
         "sagemaker:DeleteEndpointConfig"
       ],
-      "Resource": "arn:aws:sagemaker:${AWS_REGION}:${AWS_ACCOUNT_ID}:endpoint-config/*",
-      "Condition": {
-        "StringNotLike": {
-          "sagemaker:ResourceArn": [
-            "arn:aws:sagemaker:${AWS_REGION}:${AWS_ACCOUNT_ID}:endpoint-config/${TEAM}-${PROJECT}-*"
-          ]
-        }
-      }
+      "NotResource": "arn:aws:sagemaker:${AWS_REGION}:${AWS_ACCOUNT_ID}:endpoint-config/${TEAM}-${PROJECT}-*"
     },
     {
       "Sid": "DenyModifyOtherProjectEndpoints",
@@ -39,14 +25,7 @@
         "sagemaker:UpdateEndpoint",
         "sagemaker:UpdateEndpointWeightsAndCapacities"
       ],
-      "Resource": "arn:aws:sagemaker:${AWS_REGION}:${AWS_ACCOUNT_ID}:endpoint/*",
-      "Condition": {
-        "StringNotLike": {
-          "sagemaker:ResourceArn": [
-            "arn:aws:sagemaker:${AWS_REGION}:${AWS_ACCOUNT_ID}:endpoint/${TEAM}-${PROJECT}-*"
-          ]
-        }
-      }
+      "NotResource": "arn:aws:sagemaker:${AWS_REGION}:${AWS_ACCOUNT_ID}:endpoint/${TEAM}-${PROJECT}-*"
     },
     {
       "Sid": "DenyStopOtherProjectTransformJobs",
@@ -54,14 +33,7 @@
       "Action": [
         "sagemaker:StopTransformJob"
       ],
-      "Resource": "arn:aws:sagemaker:${AWS_REGION}:${AWS_ACCOUNT_ID}:transform-job/*",
-      "Condition": {
-        "StringNotLike": {
-          "sagemaker:ResourceArn": [
-            "arn:aws:sagemaker:${AWS_REGION}:${AWS_ACCOUNT_ID}:transform-job/${TEAM}-${PROJECT}-*"
-          ]
-        }
-      }
+      "NotResource": "arn:aws:sagemaker:${AWS_REGION}:${AWS_ACCOUNT_ID}:transform-job/${TEAM}-${PROJECT}-*"
     },
     {
       "Sid": "DenyStopOtherProjectTrainingJobs",
@@ -69,14 +41,7 @@
       "Action": [
         "sagemaker:StopTrainingJob"
       ],
-      "Resource": "arn:aws:sagemaker:${AWS_REGION}:${AWS_ACCOUNT_ID}:training-job/*",
-      "Condition": {
-        "StringNotLike": {
-          "sagemaker:ResourceArn": [
-            "arn:aws:sagemaker:${AWS_REGION}:${AWS_ACCOUNT_ID}:training-job/${TEAM}-${PROJECT}-*"
-          ]
-        }
-      }
+      "NotResource": "arn:aws:sagemaker:${AWS_REGION}:${AWS_ACCOUNT_ID}:training-job/${TEAM}-${PROJECT}-*"
     },
     {
       "Sid": "DenyStopOtherProjectProcessingJobs",
@@ -84,14 +49,7 @@
       "Action": [
         "sagemaker:StopProcessingJob"
       ],
-      "Resource": "arn:aws:sagemaker:${AWS_REGION}:${AWS_ACCOUNT_ID}:processing-job/*",
-      "Condition": {
-        "StringNotLike": {
-          "sagemaker:ResourceArn": [
-            "arn:aws:sagemaker:${AWS_REGION}:${AWS_ACCOUNT_ID}:processing-job/${TEAM}-${PROJECT}-*"
-          ]
-        }
-      }
+      "NotResource": "arn:aws:sagemaker:${AWS_REGION}:${AWS_ACCOUNT_ID}:processing-job/${TEAM}-${PROJECT}-*"
     },
     {
       "Sid": "DenyStopOtherProjectHPOJobs",
@@ -99,14 +57,7 @@
       "Action": [
         "sagemaker:StopHyperParameterTuningJob"
       ],
-      "Resource": "arn:aws:sagemaker:${AWS_REGION}:${AWS_ACCOUNT_ID}:hyper-parameter-tuning-job/*",
-      "Condition": {
-        "StringNotLike": {
-          "sagemaker:ResourceArn": [
-            "arn:aws:sagemaker:${AWS_REGION}:${AWS_ACCOUNT_ID}:hyper-parameter-tuning-job/${TEAM}-${PROJECT}-*"
-          ]
-        }
-      }
+      "NotResource": "arn:aws:sagemaker:${AWS_REGION}:${AWS_ACCOUNT_ID}:hyper-parameter-tuning-job/${TEAM}-${PROJECT}-*"
     },
     {
       "Sid": "DenyModifyOtherProjectExperiments",
@@ -119,20 +70,11 @@
         "sagemaker:DeleteTrialComponent",
         "sagemaker:UpdateTrialComponent"
       ],
-      "Resource": [
-        "arn:aws:sagemaker:${AWS_REGION}:${AWS_ACCOUNT_ID}:experiment/*",
-        "arn:aws:sagemaker:${AWS_REGION}:${AWS_ACCOUNT_ID}:experiment-trial/*",
-        "arn:aws:sagemaker:${AWS_REGION}:${AWS_ACCOUNT_ID}:experiment-trial-component/*"
-      ],
-      "Condition": {
-        "StringNotLike": {
-          "sagemaker:ResourceArn": [
-            "arn:aws:sagemaker:${AWS_REGION}:${AWS_ACCOUNT_ID}:experiment/${TEAM}-${PROJECT}-*",
-            "arn:aws:sagemaker:${AWS_REGION}:${AWS_ACCOUNT_ID}:experiment-trial/${TEAM}-${PROJECT}-*",
-            "arn:aws:sagemaker:${AWS_REGION}:${AWS_ACCOUNT_ID}:experiment-trial-component/${TEAM}-${PROJECT}-*"
-          ]
-        }
-      }
+      "NotResource": [
+        "arn:aws:sagemaker:${AWS_REGION}:${AWS_ACCOUNT_ID}:experiment/${TEAM}-${PROJECT}-*",
+        "arn:aws:sagemaker:${AWS_REGION}:${AWS_ACCOUNT_ID}:experiment-trial/${TEAM}-${PROJECT}-*",
+        "arn:aws:sagemaker:${AWS_REGION}:${AWS_ACCOUNT_ID}:experiment-trial-component/${TEAM}-${PROJECT}-*"
+      ]
     },
     {
       "Sid": "DenyModifyOtherProjectModelPackages",
@@ -142,19 +84,10 @@
         "sagemaker:UpdateModelPackage",
         "sagemaker:DeleteModelPackageGroup"
       ],
-      "Resource": [
-        "arn:aws:sagemaker:${AWS_REGION}:${AWS_ACCOUNT_ID}:model-package/*",
-        "arn:aws:sagemaker:${AWS_REGION}:${AWS_ACCOUNT_ID}:model-package-group/*"
-      ],
-      "Condition": {
-        "StringNotLike": {
-          "sagemaker:ResourceArn": [
-            "arn:aws:sagemaker:${AWS_REGION}:${AWS_ACCOUNT_ID}:model-package/${TEAM}-${PROJECT}/*",
-            "arn:aws:sagemaker:${AWS_REGION}:${AWS_ACCOUNT_ID}:model-package-group/${TEAM}-${PROJECT}"
-          ]
-        }
-      }
+      "NotResource": [
+        "arn:aws:sagemaker:${AWS_REGION}:${AWS_ACCOUNT_ID}:model-package/${TEAM}-${PROJECT}/*",
+        "arn:aws:sagemaker:${AWS_REGION}:${AWS_ACCOUNT_ID}:model-package-group/${TEAM}-${PROJECT}"
+      ]
     }
   ]
 }
-
