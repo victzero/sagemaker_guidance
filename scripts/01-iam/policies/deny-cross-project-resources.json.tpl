@@ -28,6 +28,16 @@
       "NotResource": "arn:aws:sagemaker:${AWS_REGION}:${AWS_ACCOUNT_ID}:endpoint/${TEAM}-${PROJECT}-*"
     },
     {
+      "Sid": "DenyInvokeOtherProjectEndpoints",
+      "Effect": "Deny",
+      "Action": [
+        "sagemaker:InvokeEndpoint",
+        "sagemaker:InvokeEndpointAsync",
+        "sagemaker:InvokeEndpointWithResponseStream"
+      ],
+      "NotResource": "arn:aws:sagemaker:${AWS_REGION}:${AWS_ACCOUNT_ID}:endpoint/${TEAM}-${PROJECT}-*"
+    },
+    {
       "Sid": "DenyStopOtherProjectTransformJobs",
       "Effect": "Deny",
       "Action": [
