@@ -1,3 +1,6 @@
+# Testing folder (local only)
+_testing/
+
 # Dependencies
 node_modules/
 
