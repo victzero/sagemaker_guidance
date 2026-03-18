@@ -194,10 +194,18 @@ TEAM_FORMATTED=$(format_name "$SELECTED_TEAM")
 POLICY_NAME="SageMaker-${TEAM_FORMATTED}-Team-Access"
 POLICY_ARN="arn:aws:iam::${AWS_ACCOUNT_ID}:policy${IAM_PATH}${POLICY_NAME}"
 
+DENY_CROSS_TEAM_POLICY_NAME="SageMaker-${TEAM_FORMATTED}-DenyCrossTeam"
+DENY_CROSS_TEAM_ARN="arn:aws:iam::${AWS_ACCOUNT_ID}:policy${IAM_PATH}${DENY_CROSS_TEAM_POLICY_NAME}"
+
 # 检查策略是否存在 (使用 lib/iam-core.sh)
 POLICY_EXISTS=false
 if iam_policy_exists "$POLICY_ARN"; then
     POLICY_EXISTS=true
+fi
+
+DENY_CROSS_TEAM_EXISTS=false
+if iam_policy_exists "$DENY_CROSS_TEAM_ARN"; then
+    DENY_CROSS_TEAM_EXISTS=true
 fi
 
 # =============================================================================
@@ -215,16 +223,25 @@ echo ""
 echo "  IAM Group:"
 echo "    - $SELECTED_GROUP"
 echo ""
-echo "  IAM Policy:"
+echo "  IAM Policies:"
 if [[ "$POLICY_EXISTS" == "true" ]]; then
     echo "    - $POLICY_NAME"
 else
     echo "    - $POLICY_NAME (不存在，跳过)"
 fi
+if [[ "$DENY_CROSS_TEAM_EXISTS" == "true" ]]; then
+    echo "    - $DENY_CROSS_TEAM_POLICY_NAME"
+else
+    echo "    - $DENY_CROSS_TEAM_POLICY_NAME (不存在，跳过)"
+fi
 echo ""
 
+POLICY_COUNT=0
+[[ "$POLICY_EXISTS" == "true" ]] && ((POLICY_COUNT++)) || true
+[[ "$DENY_CROSS_TEAM_EXISTS" == "true" ]] && ((POLICY_COUNT++)) || true
+
 print_separator
-echo -e "${CYAN}Summary: 删除 1 Group, $([ "$POLICY_EXISTS" == "true" ] && echo "1" || echo "0") Policy${NC}"
+echo -e "${CYAN}Summary: 删除 1 Group, ${POLICY_COUNT} Policies${NC}"
 print_separator
 
 # =============================================================================
@@ -265,17 +282,28 @@ echo ""
 # -----------------------------------------------------------------------------
 # Step 1: 删除 IAM Group (包含策略分离)
 # -----------------------------------------------------------------------------
-log_info "Step 1/2: 删除 IAM Group..."
+log_info "Step 1/3: 删除 IAM Group..."
 
 delete_iam_group "$SELECTED_GROUP"
 
 # -----------------------------------------------------------------------------
 # Step 2: 删除团队 Policy
 # -----------------------------------------------------------------------------
-log_info "Step 2/2: 删除 IAM Policy..."
+log_info "Step 2/3: 删除 IAM Policy..."
 
 if [[ "$POLICY_EXISTS" == "true" ]]; then
     delete_iam_policy "$POLICY_ARN"
+else
+    log_info "跳过 (策略不存在)"
+fi
+
+# -----------------------------------------------------------------------------
+# Step 3: 删除跨团队 Deny Policy
+# -----------------------------------------------------------------------------
+log_info "Step 3/3: 删除 DenyCrossTeam Policy..."
+
+if [[ "$DENY_CROSS_TEAM_EXISTS" == "true" ]]; then
+    delete_iam_policy "$DENY_CROSS_TEAM_ARN"
 else
     log_info "跳过 (策略不存在)"
 fi
@@ -293,6 +321,9 @@ echo "删除的资源:"
 echo "  - IAM Group: $SELECTED_GROUP"
 if [[ "$POLICY_EXISTS" == "true" ]]; then
     echo "  - IAM Policy: $POLICY_NAME"
+fi
+if [[ "$DENY_CROSS_TEAM_EXISTS" == "true" ]]; then
+    echo "  - IAM Policy: $DENY_CROSS_TEAM_POLICY_NAME"
 fi
 echo ""
 echo -e "${YELLOW}📌 后续建议:${NC}"
