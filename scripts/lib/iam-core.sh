@@ -318,6 +318,15 @@ generate_deny_cross_project_policy() {
         "TEAM=${team}" "PROJECT=${project}"
 }
 
+# 生成跨团队资源 Deny 策略 (防止操作其他团队的 Model/Endpoint/Jobs)
+# 用法: generate_deny_cross_team_policy <team>
+# 说明: 附加到团队 Group，限制 IAM User 只能操作本团队资源
+generate_deny_cross_team_policy() {
+    local team=$1
+    render_template "${POLICY_TEMPLATES_DIR}/deny-cross-team-resources.json.tpl" \
+        "TEAM=${team}"
+}
+
 generate_user_boundary_policy() {
     render_template "${POLICY_TEMPLATES_DIR}/user-boundary.json.tpl"
 }
@@ -1196,7 +1205,11 @@ bind_team_policies() {
     # 4. 团队访问策略 (S3 bucket 权限)
     attach_policy_to_group "$group_name" \
         "${policy_prefix}SageMaker-${team_capitalized}-Team-Access"
-    
+
+    # 5. 跨团队资源 Deny 策略 (安全隔离 - 防止操作其他团队资源)
+    attach_policy_to_group "$group_name" \
+        "${policy_prefix}SageMaker-${team_capitalized}-DenyCrossTeam"
+
     log_success "All policies bound to team group: $group_name"
 }
 
@@ -1390,7 +1403,12 @@ create_team_iam() {
     local policy_name="SageMaker-${team_capitalized}-Team-Access"
     local policy_content=$(generate_team_access_policy "$team")
     create_or_update_policy "$policy_name" "$policy_content"
-    
+
+    # 2b. 创建跨团队 Deny 策略 (安全隔离)
+    local deny_cross_team_name="SageMaker-${team_capitalized}-DenyCrossTeam"
+    local deny_cross_team_content=$(generate_deny_cross_team_policy "$team")
+    create_or_update_policy "$deny_cross_team_name" "$deny_cross_team_content"
+
     # 3. 绑定策略到 Group
     bind_team_policies "$team"
     
@@ -1873,7 +1891,16 @@ delete_team_iam() {
     else
         log_info "Policy $policy_name not found, skipping..."
     fi
-    
+
+    # 3. 删除跨团队 Deny 策略
+    local deny_cross_team_name="SageMaker-${team_capitalized}-DenyCrossTeam"
+    local deny_cross_team_arn="arn:aws:iam::${AWS_ACCOUNT_ID}:policy${IAM_PATH}${deny_cross_team_name}"
+    if aws iam get-policy --policy-arn "$deny_cross_team_arn" &> /dev/null; then
+        delete_iam_policy "$deny_cross_team_arn"
+    else
+        log_info "Policy $deny_cross_team_name not found, skipping..."
+    fi
+
     log_success "========================================"
     log_success "Team IAM resources deleted: ${team_fullname}"
     log_success "========================================"

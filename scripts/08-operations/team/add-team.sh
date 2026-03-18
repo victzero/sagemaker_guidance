@@ -109,6 +109,7 @@ echo ""
 TEAM_FORMATTED=$(format_name "$TEAM_FULLNAME")
 GROUP_NAME="sagemaker-${TEAM_FULLNAME}"
 POLICY_NAME="SageMaker-${TEAM_FORMATTED}-Team-Access"
+DENY_CROSS_TEAM_POLICY_NAME="SageMaker-${TEAM_FORMATTED}-DenyCrossTeam"
 
 # =============================================================================
 # 显示资源变更清单
@@ -126,12 +127,13 @@ echo ""
 echo "  IAM Group:"
 echo "    - $GROUP_NAME"
 echo ""
-echo "  IAM Policy:"
+echo "  IAM Policies:"
 echo "    - $POLICY_NAME"
+echo "    - $DENY_CROSS_TEAM_POLICY_NAME"
 echo ""
 
 print_separator
-echo -e "${CYAN}Summary: 1 Group, 1 Policy${NC}"
+echo -e "${CYAN}Summary: 1 Group, 2 Policies${NC}"
 print_separator
 
 # =============================================================================
@@ -171,6 +173,7 @@ echo ""
 echo "创建的资源:"
 echo "  - IAM Group: $GROUP_NAME"
 echo "  - IAM Policy: $POLICY_NAME"
+echo "  - IAM Policy: $DENY_CROSS_TEAM_POLICY_NAME"
 echo ""
 
 echo -e "${YELLOW}📌 后续步骤:${NC}"
