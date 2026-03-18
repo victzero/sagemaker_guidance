@@ -151,6 +151,11 @@ main() {
         create_policy "SageMaker-${team_capitalized}-Team-Access" \
             "$(generate_team_access_policy "$team")" \
             "Team access policy for ${team_fullname} team"
+
+        # 创建跨团队资源 Deny 策略 (安全隔离 - 防止操作其他团队资源)
+        create_policy "SageMaker-${team_capitalized}-DenyCrossTeam" \
+            "$(generate_deny_cross_team_policy "$team")" \
+            "Cross-team resource deny policy for ${team_fullname} (security isolation)"
     done
     
     # 9. 创建项目策略
